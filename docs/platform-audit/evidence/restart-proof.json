@@ -1,0 +1,11 @@
+{
+  "after_pg_restart_and_reinit": {
+    "users": 1,
+    "documents": 1,
+    "identities": 1,
+    "groups": 1
+  },
+  "expected_each": 1,
+  "passed": true,
+  "scope": "synthetic PG database, no full IdP/files lifecycle"
+}

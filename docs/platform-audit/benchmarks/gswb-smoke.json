@@ -1,0 +1,1 @@
+{"origins":{"gswb":"http://127.0.0.1:25434"},"think_seconds":[0.5,1.5],"actions":[{"name":"dictionary-home","app":"gswb","path":"/","method":"GET","weight":2,"expected":[200]},{"name":"dictionary-word","app":"gswb","path":"/api/word/Auditwort0000","method":"GET","weight":8,"expected":[200]}]}

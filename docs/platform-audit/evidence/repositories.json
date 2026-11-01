@@ -1,0 +1,101 @@
+[
+  {
+    "repo": "schulwissen",
+    "checked_at": "2026-11-01T10:12:33.484145+00:00",
+    "access": "available",
+    "sha": "a9673bc343a3a6eea1c15f533d0e89061e669b32",
+    "branch": "main"
+  },
+  {
+    "repo": "fahrradausbildung",
+    "checked_at": "2026-11-01T10:12:19.568325+00:00",
+    "access": "available",
+    "sha": "d9a9a6c8e02dd7fd5a14a5e2151948d7ec32c207",
+    "branch": "main"
+  },
+  {
+    "repo": "schulanmeldung",
+    "checked_at": "2026-11-01T10:16:15.046340+00:00",
+    "access": "available-ssh",
+    "sha": "b6b6c3d98573a0131a401f04eafab48b61f9b42e",
+    "branch": "main",
+    "access_note": "HTTPS ohne Credential blockiert; vorhandener SSH-Agent funktioniert mit ssh -F /dev/null. Keine Zugangsdaten ver\u00e4ndert."
+  },
+  {
+    "repo": "SL-Journal",
+    "checked_at": "2026-11-01T10:12:35.163719+00:00",
+    "access": "available",
+    "sha": "9dd44a584c7b9a35e28c6a362f97c8c9babb4d98",
+    "branch": "main"
+  },
+  {
+    "repo": "kompetenz-manager",
+    "checked_at": "2026-11-01T10:12:20.454329+00:00",
+    "access": "available",
+    "sha": "dd5f14c8badfa5c604cfdcf70a2ae0bf40267a20",
+    "branch": "main"
+  },
+  {
+    "repo": "leseflux",
+    "checked_at": "2026-11-01T10:12:19.869569+00:00",
+    "access": "available",
+    "sha": "6ad61b28a31d41d98e03d3be835a6c678ad6e439",
+    "branch": "main"
+  },
+  {
+    "repo": "schuleva",
+    "checked_at": "2026-11-01T10:12:20.458771+00:00",
+    "access": "available",
+    "sha": "71c4917ad71880eec7f2cdb415453284e3b70ee5",
+    "branch": "main"
+  },
+  {
+    "repo": "gswb",
+    "checked_at": "2026-11-01T10:12:23.839415+00:00",
+    "access": "available",
+    "sha": "7c2875b0439395487431ffaf543b0bbb3f37a8bf",
+    "branch": "main"
+  },
+  {
+    "repo": "grundschultafel",
+    "checked_at": "2026-11-01T10:12:35.003819+00:00",
+    "access": "available",
+    "sha": "496466cac7cc2b3e48a6acd2940ebc91029c145f",
+    "branch": "main"
+  },
+  {
+    "repo": "schulkasse",
+    "checked_at": "2026-11-01T10:12:21.272057+00:00",
+    "access": "available",
+    "sha": "d99cfca9eb26acb606234ff664ffa2b38ff3352c",
+    "branch": "main"
+  },
+  {
+    "repo": "abgen",
+    "checked_at": "2026-11-01T10:12:25.575811+00:00",
+    "access": "available",
+    "sha": "50db999ccc689cdad3a6b2c930d24dee650eaec2",
+    "branch": "main"
+  },
+  {
+    "repo": "losverkauf",
+    "checked_at": "2026-11-01T10:12:24.566025+00:00",
+    "access": "available",
+    "sha": "2e471ea8abc5fb6acac8acabb292d8e99ede2787",
+    "branch": "main"
+  },
+  {
+    "repo": "schulhelfer",
+    "checked_at": "2026-11-01T10:12:25.270227+00:00",
+    "access": "available",
+    "sha": "01fb181a120a215d8ec9935a05ade3abbcba3309",
+    "branch": "main"
+  },
+  {
+    "repo": "zackboing",
+    "checked_at": "2026-11-01T10:12:25.923532+00:00",
+    "access": "available",
+    "sha": "05e78a1e829a7634cd35deb5ab06c7c8a5e9d365",
+    "branch": "main"
+  }
+]

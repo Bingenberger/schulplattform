@@ -1,0 +1,34 @@
+/tmp/schulplattform-audit/repos/schulanmeldung/app.py:78: LegacyAPIWarning: The Query.get() method is considered legacy as of the 1.x series of SQLAlchemy and becomes a legacy construct in 2.0. The method is now available as Session.get() (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+  student = Schueler.query.get(d.schueler_id)
+[2026-11-01 11:25:15,669] ERROR in routes: Terminbestätigung konnte nicht versendet werden
+Traceback (most recent call last):
+  File "/tmp/schulplattform-audit/repos/schulanmeldung/sl_office/parent_portal/routes.py", line 557, in book
+    appointment_mail.confirm_booking(current_app, booking.id)
+  File "/tmp/schulplattform-audit/repos/schulanmeldung/sl_office/appointments/notifications.py", line 156, in confirm_booking
+    sent = send_parent_confirmation(app, access.email_normalized, booking, slot, event, student)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/schulplattform-audit/repos/schulanmeldung/sl_office/appointments/notifications.py", line 96, in send_parent_confirmation
+    return send_message(app, message)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/schulplattform-audit/repos/schulanmeldung/tests/test_parent_portal.py", line 87, in explode
+    raise OSError("Verbindung zum Mailserver abgelehnt")
+OSError: Verbindung zum Mailserver abgelehnt
+[2026-11-01 11:25:25,816] ERROR in routes: Student deletion failed
+Traceback (most recent call last):
+  File "/tmp/schulplattform-audit/repos/schulanmeldung/sl_office/students/routes.py", line 226, in delete
+    delete_student(student, current_app.config["UPLOAD_FOLDER"])
+  File "/tmp/schulplattform-audit/repos/schulanmeldung/tests/test_student_deletion.py", line 71, in explode
+    raise OSError("Datenbank nicht erreichbar")
+OSError: Datenbank nicht erreichbar
+======================================================================
+FAIL: test_the_same_code_cannot_be_used_for_a_second_login (tests.test_two_factor.LoginFlowTests.test_the_same_code_cannot_be_used_for_a_second_login)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/schulplattform-audit/repos/schulanmeldung/tests/test_two_factor.py", line 241, in test_the_same_code_cannot_be_used_for_a_second_login
+    self.assertEqual(self.client.get("/liste").status_code, 302)
+AssertionError: 200 != 302
+
+----------------------------------------------------------------------
+Ran 445 tests in 63.832s
+
+FAILED (failures=1)

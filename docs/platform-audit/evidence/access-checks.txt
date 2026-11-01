@@ -1,0 +1,10 @@
+2026-11-01: gh CLI absent; no Git credential helper configured, no ~/.gitconfig or ~/.config/gh/hosts.yml found.
+Public HTTPS clone: 13/14 succeeded. schulanmeldung HTTPS: terminal prompts disabled, missing HTTPS credential.
+ssh-agent contains an existing key. No tokens requested or printed.
+Default SSH failed reading /etc/ssh/ssh_config.d/20-systemd-ssh-proxy.conf (Bad owner or permissions).
+Isolated read-only SSH configuration succeeded:
+git -c core.sshCommand='ssh -F /dev/null -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=yes' ls-remote git@github.com:Bingenberger/schulanmeldung.git HEAD
+Then private shallow clone succeeded; branch main, SHA in repositories.json.
+No SSH configuration, key, GitHub permission or known_hosts modified. Repository access is available for all 14.
+Workspace contains a read-only empty .git directory, not a functioning Git repository. Audit artifacts written to workspace; no commit created.
+No AGENTS.md in workspace, ancestors up to /, or 14 repository trees. CLAUDE.md read for gswb and leseflux.

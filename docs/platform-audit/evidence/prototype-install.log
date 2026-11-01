@@ -1,0 +1,10 @@
+Using Python 3.12.16 environment at: /tmp/schulplattform-audit/test-venv
+Resolved 14 packages in 447ms
+Downloading playwright (46.2MiB)
+ Downloaded playwright
+Prepared 2 packages in 11.75s
+Installed 4 packages in 3ms
+ + authlib==1.9.1
+ + joserfc==1.7.7
+ + playwright==1.64.1
+ + pyee==14.0.0

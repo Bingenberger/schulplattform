@@ -1,0 +1,3 @@
+OBSERVED unauthenticated review POST changed synthetic JSON; status=302
+PASS synthetic SQLite snapshot restored into clean directory; integrity_check=ok; rows=1000; schema reinit twice preserved rows
+LIMIT: no media/keys/IdP restored; no platform restore demonstrated

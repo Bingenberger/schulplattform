@@ -1,0 +1,48 @@
+....................................................                     [100%]
+=============================== warnings summary ===============================
+../../test-venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /tmp/schulplattform-audit/test-venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+app/main.py:35
+  /tmp/schulplattform-audit/repos/schulhelfer/app/main.py:35: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../test-venv/lib/python3.12/site-packages/fastapi/applications.py:4723
+../../test-venv/lib/python3.12/site-packages/fastapi/applications.py:4723
+  /tmp/schulplattform-audit/test-venv/lib/python3.12/site-packages/fastapi/applications.py:4723: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+app/main.py:41
+  /tmp/schulplattform-audit/repos/schulhelfer/app/main.py:41: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+tests/test_admin.py: 7 warnings
+tests/test_public.py: 10 warnings
+tests/test_usability_fixes.py: 35 warnings
+  /tmp/schulplattform-audit/repos/schulhelfer/tests/conftest.py:63: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    registration_deadline=datetime.utcnow() + timedelta(days=10),
+
+tests/test_admin.py: 7 warnings
+tests/test_public.py: 10 warnings
+tests/test_usability_fixes.py: 35 warnings
+  /tmp/schulplattform-audit/repos/schulhelfer/tests/conftest.py:77: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    start_time=datetime.utcnow() + timedelta(days=14, hours=2),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+52 passed, 109 warnings in 13.71s

@@ -1,0 +1,38 @@
+[
+  {
+    "tag": "quay.io/keycloak/keycloak:26.8.1",
+    "id": "sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332",
+    "repo_digests": [
+      "quay.io/keycloak/keycloak@sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332"
+    ],
+    "architecture": "amd64",
+    "os": "linux"
+  },
+  {
+    "tag": "caddy:2.11.7-alpine",
+    "id": "sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5",
+    "repo_digests": [
+      "caddy@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5"
+    ],
+    "architecture": "amd64",
+    "os": "linux"
+  },
+  {
+    "tag": "axllent/mailpit:v1.33.0",
+    "id": "sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231",
+    "repo_digests": [
+      "axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231"
+    ],
+    "architecture": "amd64",
+    "os": "linux"
+  },
+  {
+    "tag": "postgres:16-alpine",
+    "id": "sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab",
+    "repo_digests": [
+      "postgres@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"
+    ],
+    "architecture": "amd64",
+    "os": "linux"
+  }
+]

@@ -1,0 +1,6 @@
+{
+  "total_messages": 1,
+  "path": "Django SMTP directly to local Mailpit; no Postfix relay configured",
+  "external_upstream": false,
+  "synthetic": true
+}

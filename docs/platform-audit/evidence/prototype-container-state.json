@@ -1,0 +1,30 @@
+[
+  {
+    "name": "schulplattform-audit-keycloak",
+    "oom_killed": false,
+    "restart_count": 0,
+    "memory_limit_bytes": 1610612736,
+    "nano_cpus": 1000000000
+  },
+  {
+    "name": "schulplattform-audit-caddy",
+    "oom_killed": false,
+    "restart_count": 0,
+    "memory_limit_bytes": 100663296,
+    "nano_cpus": 500000000
+  },
+  {
+    "name": "schulplattform-audit-mailpit",
+    "oom_killed": false,
+    "restart_count": 0,
+    "memory_limit_bytes": 100663296,
+    "nano_cpus": 500000000
+  },
+  {
+    "name": "schulplattform-audit-pg",
+    "oom_killed": false,
+    "restart_count": 0,
+    "memory_limit_bytes": 201326592,
+    "nano_cpus": 1000000000
+  }
+]

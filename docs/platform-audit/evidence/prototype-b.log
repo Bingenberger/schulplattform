@@ -1,0 +1,4 @@
+[2026-11-01 11:33:59 +0100] [4] [INFO] Starting gunicorn 21.2.0
+[2026-11-01 11:33:59 +0100] [4] [INFO] Listening at: http://127.0.0.1:25442 (4)
+[2026-11-01 11:33:59 +0100] [4] [INFO] Using worker: sync
+[2026-11-01 11:33:59 +0100] [5] [INFO] Booting worker with pid: 5

@@ -1,0 +1,23 @@
+{
+  "source": "synthetic pilot only",
+  "empty_target_db": "audit_restore",
+  "before": {
+    "users": 1,
+    "documents": 1,
+    "identities": 1,
+    "owner": 1,
+    "groups": 1
+  },
+  "after": {
+    "users": 1,
+    "documents": 1,
+    "identities": 1,
+    "owner": 1,
+    "groups": 1
+  },
+  "dump_bytes": 149154,
+  "dump_sha256": "4b65a9cb3039b9732006376d915e4c2ceff2bc75fd5c0622347c3f2e5516a3b8",
+  "duration_s": 1.759,
+  "passed": true,
+  "scope": "DB only; no IdP/media/keys; not platform RTO"
+}

@@ -1,0 +1,24 @@
+component,instances,idle_total_gib_estimate,load_total_gib_estimate,cpu_vcpu_10users_budget_estimate,initial_data_gib_estimate,annual_growth_gib_estimate,status
+schulwissen,1,0.18,0.45,0.25,1,1,estimated-not-measured
+fahrradausbildung,1,0.13,0.35,0.2,0.5,0.25,estimated-not-measured
+schulanmeldung,1,0.2,0.45,0.25,1,1,estimated-not-measured
+SL-Journal,1,0.18,0.4,0.2,2,2,estimated-not-measured
+kompetenz-manager,1,0.2,0.5,0.3,2,2,estimated-not-measured
+leseflux-api,1,0.18,0.4,0.25,0.5,0.5,estimated-not-measured
+schuleva,1,0.15,0.4,0.25,0.2,0.2,estimated-not-measured
+gswb,1,0.1,0.25,0.2,1,1,estimated-not-measured
+grundschultafel,1,0.25,0.6,0.4,2,3,estimated-not-measured
+schulkasse,1,0.12,0.35,0.25,0.5,0.5,estimated-not-measured
+abgen-api,1,0.15,0.35,0.25,0.5,0.5,estimated-not-measured
+abgen-web + leseflux-web,2,0.04,0.08,0.05,0.1,0,estimated-not-measured
+abgen-pdf,1,0.05,0.9,0.7,0.1,0,estimated-not-measured
+losverkauf,1,0.08,0.18,0.15,0.1,0.1,estimated-not-measured
+schulhelfer,1,0.12,0.28,0.2,0.1,0.1,estimated-not-measured
+zackboing,1,0.08,0.2,0.3,0.5,0.5,estimated-not-measured
+postgres16 shared,1,0.25,0.6,0.35,2,1,estimated-not-measured
+postgres18 abgen,1,0.15,0.4,0.25,1,1,estimated-not-measured
+keycloak,1,0.8,1.25,0.4,0.5,0.3,estimated-not-measured
+caddy,1,0.03,0.08,0.1,0.1,0.05,estimated-not-measured
+dashboard/deployer,2,0.11,0.28,0.15,0.2,0.1,estimated-not-measured
+postfix-relay,1,0.04,0.1,0.05,0.2,0.1,estimated-not-measured
+monitoring bounded,1,0.1,0.25,0.15,1,0.2,estimated-not-measured

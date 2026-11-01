@@ -1,0 +1,1583 @@
+{
+  "schulwissen": {
+    "sha": "a9673bc343a3a6eea1c15f533d0e89061e669b32",
+    "packages": {
+      "frontend/package.json": {
+        "name": "schulwissen-editor",
+        "scripts": {
+          "build": "esbuild editor.js --bundle --minify --format=iife --target=es2019 --outfile=../dateien/vendor/editor.js"
+        },
+        "dependencies": {
+          "@tiptap/core": "^2.11.0",
+          "@tiptap/starter-kit": "^2.11.0",
+          "@tiptap/extension-link": "^2.11.0",
+          "@tiptap/extension-table": "^2.11.0",
+          "@tiptap/extension-table-cell": "^2.11.0",
+          "@tiptap/extension-table-header": "^2.11.0",
+          "@tiptap/extension-table-row": "^2.11.0"
+        },
+        "devDependencies": {
+          "esbuild": "^0.25.0"
+        }
+      }
+    },
+    "runtime_files": {
+      "pyproject.toml": "[project]\nname = \"schulwissen\"\nversion = \"0.1.0\"\ndescription = \"Schulwissen-Plattform der GGS Niederkassel\"\nrequires-python = \">=3.12,<3.13\"\ndependencies = [\n    \"django>=5.2,<6.0\",\n    \"psycopg[binary]>=3.2\",\n    \"gunicorn>=23.0\",\n    \"whitenoise>=6.8\",\n    \"nh3>=0.2.20\",\n    \"openpyxl>=3.1.5\",\n    \"weasyprint>=68,<71\",\n    # Volltext aus Anhaengen (SPEC.md Paragraf 9)\n    \"pypdf>=5.1\",\n    \"python-docx>=1.1\",\n    \"odfpy>=1.4.1\",\n    # Nextcloud ueber WebDAV (SPEC.md Paragraf 10, Stufe 1)\n    \"httpx>=0.28\",\n    \"authlib>=1.9.1,<2\",\n    \"requests>=2.32\",\n]\n\n[dependency-groups]\ndev = [\n    \"pytest>=8.3\",\n    \"pytest-django>=4.9\",\n    \"ruff>=0.8\",\n]\n\n[tool.pytest.ini_options]\nDJANGO_SETTINGS_MODULE = \"schulwissen.einstellungen\"\ntestpaths = [\"tests\"]\npythonpath = [\".\"]\naddopts = \"-ra\"\n\n[tool.ruff]\nline-length = 100\ntarget-version = \"py312\"\n\n[tool.ruff.lint]\nselect = [\"E\", \"F\", \"I\", \"UP\", \"B\", \"DJ\"]\n\n[tool.ruff.lint.per-file-ignores]\n\"*/migrations/*\" = [\"E501\"]\n\n[tool.uv]\npackage = false\n"
+    },
+    "license_files": [],
+    "instruction_files": [],
+    "features": {
+      "browser_storage": [
+        {
+          "file": "dateien/vendor/htmx.min.js",
+          "line": 1
+        }
+      ],
+      "oidc": [
+        {
+          "file": "kern/admin.py",
+          "line": 32
+        },
+        {
+          "file": "kern/admin.py",
+          "line": 393
+        },
+        {
+          "file": "kern/admin.py",
+          "line": 394
+        },
+        {
+          "file": "kern/kontext.py",
+          "line": 10
+        },
+        {
+          "file": "kern/kontext.py",
+          "line": 13
+        },
+        {
+          "file": "kern/migrations/0005_anhang_index_fehler_anhang_nextcloud_etag_and_more.py",
+          "line": 32
+        },
+        {
+          "file": "kern/migrations/0005_anhang_index_fehler_anhang_nextcloud_etag_and_more.py",
+          "line": 62
+        },
+        {
+          "file": "kern/migrations/0005_anhang_index_fehler_anhang_nextcloud_etag_and_more.py",
+          "line": 72
+        },
+        {
+          "file": "kern/migrations/0005_anhang_index_fehler_anhang_nextcloud_etag_and_more.py",
+          "line": 75
+        },
+        {
+          "file": "kern/models.py",
+          "line": 1184
+        },
+        {
+          "file": "kern/models.py",
+          "line": 1188
+        },
+        {
+          "file": "kern/models.py",
+          "line": 1197
+        },
+        {
+          "file": "kern/models.py",
+          "line": 1198
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 1
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 16
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 20
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 28
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 30
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 35
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 36
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 37
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 39
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 49
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 56
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 101
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 112
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 118
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 132
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 133
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 149
+        },
+        {
+          "file": "kern/oidc.py",
+          "line": 150
+        },
+        {
+          "file": "kern/urls.py",
+          "line": 16
+        },
+        {
+          "file": "kern/urls.py",
+          "line": 67
+        },
+        {
+          "file": "kern/urls.py",
+          "line": 68
+        },
+        {
+          "file": "kern/urls.py",
+          "line": 69
+        },
+        {
+          "file": "schulwissen/einstellungen.py",
+          "line": 208
+        },
+        {
+          "file": "schulwissen/einstellungen.py",
+          "line": 209
+        },
+        {
+          "file": "schulwissen/einstellungen.py",
+          "line": 210
+        },
+        {
+          "file": "schulwissen/einstellungen.py",
+          "line": 211
+        },
+        {
+          "file": "schulwissen/einstellungen.py",
+          "line": 212
+        },
+        {
+          "file": "schulwissen/einstellungen.py",
+          "line": 214
+        },
+        {
+          "file": "schulwissen/einstellungen.py",
+          "line": 215
+        }
+      ],
+      "storage": [
+        {
+          "file": "schulwissen/einstellungen.py",
+          "line": 113
+        }
+      ],
+      "mail": [
+        {
+          "file": "schulwissen/einstellungen.py",
+          "line": 136
+        },
+        {
+          "file": "schulwissen/einstellungen.py",
+          "line": 138
+        },
+        {
+          "file": "schulwissen/einstellungen.py",
+          "line": 139
+        },
+        {
+          "file": "schulwissen/einstellungen.py",
+          "line": 140
+        },
+        {
+          "file": "schulwissen/einstellungen.py",
+          "line": 141
+        },
+        {
+          "file": "schulwissen/einstellungen.py",
+          "line": 142
+        },
+        {
+          "file": "schulwissen/einstellungen.py",
+          "line": 145
+        }
+      ]
+    }
+  },
+  "fahrradausbildung": {
+    "sha": "d9a9a6c8e02dd7fd5a14a5e2151948d7ec32c207",
+    "packages": {},
+    "runtime_files": {
+      "pyproject.toml": "[project]\nname = \"fahrradpruefung\"\nversion = \"0.1.0\"\ndescription = \"Begleitung der Radfahrausbildung an Grundschulen\"\nrequires-python = \">=3.12,<3.13\"\ndependencies = [\n    \"fastapi>=0.115\",\n    \"uvicorn[standard]>=0.30\",\n    \"sqlalchemy>=2.0.30\",\n    \"alembic>=1.13\",\n    \"psycopg[binary]>=3.2\",\n    \"argon2-cffi>=23.1\",\n    \"pydantic-settings>=2.4\",\n    \"jinja2>=3.1\",\n    \"python-multipart>=0.0.9\",\n    \"weasyprint>=70.0\",\n    \"segno>=1.6.6\",\n    \"pillow>=11\",\n]\n\n[dependency-groups]\ndev = [\n    \"pytest>=8\",\n    \"httpx>=0.27\",\n    \"playwright>=1.64.0\",\n    \"pypdf>=6.20.1\",\n    \"pyzbar>=0.1.9\",\n]\n\n[tool.pytest.ini_options]\ntestpaths = [\"tests\"]\npythonpath = [\".\"]\naddopts = \"-ra\"\nfilterwarnings = [\"ignore:Using `httpx` with `starlette.testclient` is deprecated\"]\n"
+    },
+    "license_files": [
+      "app/posten_app/vendor/idb.LICENSE",
+      "app/static/vendor/leaflet/LICENSE",
+      "app/static/vendor/phosphor/LICENSE"
+    ],
+    "instruction_files": [],
+    "features": {
+      "storage": [
+        {
+          "file": "app/config.py",
+          "line": 11
+        },
+        {
+          "file": "app/db.py",
+          "line": 13
+        },
+        {
+          "file": "migrations/env.py",
+          "line": 18
+        }
+      ],
+      "external": [
+        {
+          "file": "app/config.py",
+          "line": 24
+        },
+        {
+          "file": "app/kartenquellen.py",
+          "line": 61
+        }
+      ],
+      "browser_storage": [
+        {
+          "file": "app/posten_app/js/main.js",
+          "line": 4
+        },
+        {
+          "file": "app/posten_app/js/main.js",
+          "line": 125
+        },
+        {
+          "file": "app/posten_app/js/offline.js",
+          "line": 17
+        },
+        {
+          "file": "app/posten_app/js/offline.js",
+          "line": 21
+        },
+        {
+          "file": "app/posten_app/js/offline.js",
+          "line": 22
+        },
+        {
+          "file": "app/posten_app/js/speicher.js",
+          "line": 1
+        },
+        {
+          "file": "app/posten_app/vendor/idb.js",
+          "line": 165
+        },
+        {
+          "file": "app/posten_app/vendor/idb.js",
+          "line": 194
+        }
+      ]
+    }
+  },
+  "schulanmeldung": {
+    "sha": "b6b6c3d98573a0131a401f04eafab48b61f9b42e",
+    "packages": {},
+    "runtime_files": {
+      "requirements.txt": "alembic==1.19.1\nblinker==1.9.0\ncharset-normalizer==3.4.4\nclick==8.3.1\net_xmlfile==2.0.0\nFlask-Login==0.6.3\nFlask-Migrate==4.1.0\nFlask-SQLAlchemy==3.1.1\nFlask-WTF==1.2.2\nFlask==3.1.2\ngreenlet==3.3.0\ngunicorn==21.2.0\nitsdangerous==2.2.0\nJinja2==3.1.6\nMako==1.4.1\nMarkupSafe==3.0.3\nnumpy==2.4.1\nopenpyxl==3.1.5\npandas==2.3.3\npillow==12.1.0\npyotp==2.10.0\npypdf==6.16.2\npython-dateutil==2.9.0.post0\npytz==2025.2\nreportlab==4.4.9\nsix==1.17.0\nSQLAlchemy==2.0.45\ntyping_extensions==4.15.0\ntzdata==2025.3\nWerkzeug==3.1.5\nWTForms==3.2.1\n"
+    },
+    "license_files": [
+      "assets/briefkopf/Carlito-OFL.txt"
+    ],
+    "instruction_files": [],
+    "features": {
+      "storage": [
+        {
+          "file": "backup_db.py",
+          "line": 44
+        },
+        {
+          "file": "backup_db.py",
+          "line": 45
+        },
+        {
+          "file": "config.py",
+          "line": 95
+        },
+        {
+          "file": "config.py",
+          "line": 117
+        },
+        {
+          "file": "config.py",
+          "line": 118
+        },
+        {
+          "file": "config.py",
+          "line": 123
+        },
+        {
+          "file": "migrate_db.py",
+          "line": 5
+        },
+        {
+          "file": "migrate_db_schulspiel.py",
+          "line": 4
+        },
+        {
+          "file": "migrate_klassen.py",
+          "line": 5
+        },
+        {
+          "file": "models.py",
+          "line": 22
+        },
+        {
+          "file": "scripts/schema_inventory.py",
+          "line": 10
+        },
+        {
+          "file": "sl_office/admin/backup_service.py",
+          "line": 45
+        },
+        {
+          "file": "sl_office/admin/backup_service.py",
+          "line": 46
+        },
+        {
+          "file": "test_schulspiel_db.py",
+          "line": 4
+        }
+      ],
+      "mail": [
+        {
+          "file": "config.py",
+          "line": 51
+        },
+        {
+          "file": "sl_office/parent_portal/mail_service.py",
+          "line": 6
+        },
+        {
+          "file": "sl_office/parent_portal/mail_service.py",
+          "line": 19
+        }
+      ],
+      "jobs": [
+        {
+          "file": "scripts/protokoll_vorlage.py",
+          "line": 59
+        },
+        {
+          "file": "scripts/protokoll_vorlage.py",
+          "line": 95
+        }
+      ]
+    }
+  },
+  "SL-Journal": {
+    "sha": "9dd44a584c7b9a35e28c6a362f97c8c9babb4d98",
+    "packages": {
+      "package.json": {
+        "name": "schulleitungsjournal-editor",
+        "scripts": {
+          "build:editor": "node frontend/build.mjs",
+          "build:icons": "node frontend/build-icons.mjs",
+          "build:handwriting": "node frontend/build-handwriting.mjs"
+        },
+        "dependencies": {
+          "@codemirror/autocomplete": "6.20.3",
+          "@codemirror/commands": "6.11.1",
+          "@codemirror/lang-markdown": "6.5.2",
+          "@codemirror/language": "6.12.4",
+          "@codemirror/state": "6.7.5",
+          "@codemirror/view": "6.43.12",
+          "@excalidraw/excalidraw": "0.18.1",
+          "@lezer/markdown": "1.7.2",
+          "react": "18.3.1",
+          "react-dom": "18.3.1"
+        },
+        "devDependencies": {
+          "@phosphor-icons/core": "2.1.1",
+          "esbuild": "0.28.2"
+        }
+      }
+    },
+    "runtime_files": {
+      "requirements-dev.txt": "-r requirements.txt\npytest>=8,<10\nplaywright>=1.50,<2\n",
+      "requirements.txt": "Flask>=3.1,<4\ncryptography>=44\nsqlcipher3-binary>=0.5.4\ncaldav>=2.0,<4\nMarkdown>=3.7,<4\nbleach>=6.2,<7\nPyYAML>=6,<7\npyotp>=2.9,<3\nqrcode[pil]>=8,<9\nwaitress>=3,<4\nrecurring-ical-events>=3.8,<4\n"
+    },
+    "license_files": [
+      "LICENSE",
+      "journal/static/excalidraw/LICENSE.txt",
+      "journal/static/icons.LICENSE.txt",
+      "journal/static/markdown-editor.LICENSE.txt"
+    ],
+    "instruction_files": [],
+    "features": {
+      "jobs": [
+        {
+          "file": "journal/document_text.py",
+          "line": 19
+        },
+        {
+          "file": "journal/nextcloud.py",
+          "line": 172
+        },
+        {
+          "file": "journal/pdf_preview.py",
+          "line": 21
+        },
+        {
+          "file": "journal/pdf_preview.py",
+          "line": 49
+        },
+        {
+          "file": "scripts/article_screenshots.py",
+          "line": 22
+        },
+        {
+          "file": "scripts/article_screenshots.py",
+          "line": 44
+        },
+        {
+          "file": "scripts/browser_check.py",
+          "line": 47
+        },
+        {
+          "file": "scripts/case_suggestion_checks.py",
+          "line": 86
+        },
+        {
+          "file": "scripts/handwriting_check.py",
+          "line": 34
+        }
+      ],
+      "browser_storage": [
+        {
+          "file": "scripts/ui_checks.py",
+          "line": 183
+        }
+      ]
+    }
+  },
+  "kompetenz-manager": {
+    "sha": "dd5f14c8badfa5c604cfdcf70a2ae0bf40267a20",
+    "packages": {},
+    "runtime_files": {
+      "requirements.txt": "flask\nflask-sqlalchemy\nopenpyxl\nwerkzeug\nflask-login\npillow>=12.3.0\npsycopg[binary]\npsycopg2-binary\ngunicorn\ndefusedxml\n"
+    },
+    "license_files": [
+      "static/vendor/bootstrap/LICENSE",
+      "static/vendor/fonts/OFL-nunito.txt",
+      "static/vendor/fonts/OFL-sora.txt"
+    ],
+    "instruction_files": [],
+    "features": {
+      "storage": [
+        {
+          "file": "app.py",
+          "line": 43
+        },
+        {
+          "file": "app.py",
+          "line": 45
+        },
+        {
+          "file": "app.py",
+          "line": 50
+        },
+        {
+          "file": "app.py",
+          "line": 57
+        },
+        {
+          "file": "app.py",
+          "line": 83
+        },
+        {
+          "file": "cleanup_orphan_uploads.py",
+          "line": 16
+        },
+        {
+          "file": "cleanup_orphan_uploads.py",
+          "line": 38
+        },
+        {
+          "file": "cleanup_orphan_uploads.py",
+          "line": 89
+        },
+        {
+          "file": "cleanup_orphan_uploads.py",
+          "line": 117
+        },
+        {
+          "file": "cleanup_orphan_uploads.py",
+          "line": 121
+        },
+        {
+          "file": "demo/screenshots.py",
+          "line": 130
+        },
+        {
+          "file": "migrate_elternkontakt_naechster_termin.py",
+          "line": 46
+        },
+        {
+          "file": "migrate_sqlite_to_postgres.py",
+          "line": 56
+        },
+        {
+          "file": "migrate_sqlite_to_postgres.py",
+          "line": 58
+        },
+        {
+          "file": "migrate_sqlite_to_postgres.py",
+          "line": 61
+        }
+      ],
+      "mail": [
+        {
+          "file": "app.py",
+          "line": 97
+        },
+        {
+          "file": "app.py",
+          "line": 99
+        },
+        {
+          "file": "benachrichtigungen_senden.py",
+          "line": 41
+        },
+        {
+          "file": "mail_versand.py",
+          "line": 13
+        },
+        {
+          "file": "mail_versand.py",
+          "line": 18
+        },
+        {
+          "file": "mail_versand.py",
+          "line": 63
+        },
+        {
+          "file": "mail_versand.py",
+          "line": 97
+        },
+        {
+          "file": "mail_versand.py",
+          "line": 116
+        },
+        {
+          "file": "mail_versand.py",
+          "line": 118
+        },
+        {
+          "file": "mail_versand.py",
+          "line": 183
+        }
+      ],
+      "jobs": [
+        {
+          "file": "demo/screenshots.py",
+          "line": 164
+        },
+        {
+          "file": "odt_export.py",
+          "line": 259
+        },
+        {
+          "file": "routes/workplan_routes.py",
+          "line": 282
+        }
+      ]
+    }
+  },
+  "leseflux": {
+    "sha": "6ad61b28a31d41d98e03d3be835a6c678ad6e439",
+    "packages": {
+      "apps/api/package.json": {
+        "name": "@leseflux/api",
+        "version": "0.1.0",
+        "scripts": {
+          "dev": "tsx watch src/server.ts",
+          "build": "tsup src/server.ts scripts/seed.ts scripts/seedTexts.ts scripts/seedTemplates.ts scripts/seedFlashWords.ts scripts/seedClozeTemplates.ts scripts/migrate-v1-to-v2.ts scripts/backfillQrTokenRaw.ts --format cjs --out-dir dist",
+          "start": "node dist/src/server.js",
+          "typecheck": "tsc --noEmit",
+          "test": "vitest run",
+          "test:watch": "vitest",
+          "db:migrate": "prisma migrate dev",
+          "db:seed": "tsx prisma/seed.ts",
+          "db:studio": "prisma studio",
+          "seed:texts": "tsx scripts/seedTexts.ts",
+          "seed:templates": "tsx scripts/seedTemplates.ts",
+          "seed:flash-words": "tsx scripts/seedFlashWords.ts",
+          "seed:cloze-templates": "tsx scripts/seedClozeTemplates.ts",
+          "migrate:v1-to-v2": "tsx scripts/migrate-v1-to-v2.ts"
+        },
+        "dependencies": {
+          "@fastify/cookie": "^11.0.0",
+          "@fastify/cors": "^10.0.0",
+          "@fastify/helmet": "^12.0.0",
+          "@fastify/jwt": "^9.0.1",
+          "@fastify/rate-limit": "^10.0.0",
+          "@leseflux/shared": "*",
+          "@prisma/client": "^5.20.0",
+          "argon2": "^0.41.1",
+          "fastify": "^5.0.0",
+          "fastify-plugin": "^4.5.1",
+          "qrcode": "^1.5.4",
+          "zod": "^3.23.8"
+        },
+        "devDependencies": {
+          "@types/node": "^22.0.0",
+          "@types/qrcode": "^1.5.5",
+          "prisma": "^5.20.0",
+          "tsup": "^8.3.5",
+          "tsx": "^4.19.1",
+          "typescript": "^5.6.3",
+          "vitest": "^2.1.1"
+        }
+      },
+      "apps/web/package.json": {
+        "name": "@leseflux/web",
+        "version": "0.1.0",
+        "scripts": {
+          "dev": "vite",
+          "build": "tsc -b && vite build",
+          "preview": "vite preview",
+          "typecheck": "tsc --noEmit",
+          "test": "vitest run",
+          "test:e2e": "playwright test"
+        },
+        "dependencies": {
+          "@leseflux/shared": "*",
+          "@tanstack/react-query": "^5.56.2",
+          "axios": "^1.7.7",
+          "jsqr": "^1.4.0",
+          "hypher": "^0.2.5",
+          "hyphenation.de": "^0.2.1",
+          "qrcode": "^1.5.4",
+          "react": "^18.3.1",
+          "react-dom": "^18.3.1",
+          "react-router-dom": "^6.26.2",
+          "recharts": "^2.13.0",
+          "zustand": "^5.0.0",
+          "zod": "^3.23.8"
+        },
+        "devDependencies": {
+          "@types/node": "^22.0.0",
+          "@types/qrcode": "^1.5.5",
+          "@types/react": "^18.3.10",
+          "@types/react-dom": "^18.3.0",
+          "@vitejs/plugin-react": "^4.3.2",
+          "autoprefixer": "^10.4.20",
+          "playwright": "^1.47.2",
+          "postcss": "^8.4.47",
+          "tailwindcss": "^3.4.13",
+          "typescript": "^5.6.3",
+          "vite": "^5.4.8",
+          "vitest": "^2.1.1"
+        }
+      },
+      "package.json": {
+        "name": "leseflux",
+        "scripts": {
+          "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w apps/api\" \"npm run dev -w apps/web\"",
+          "build": "npm run build -w packages/shared && npm run build -w apps/api && npm run build -w apps/web",
+          "test": "npm run test -w apps/api",
+          "test:e2e": "playwright test",
+          "lint": "eslint apps/*/src packages/*/src --ext .ts,.tsx",
+          "typecheck": "npm run typecheck -w apps/api && npm run typecheck -w apps/web",
+          "db:migrate": "npm run db:migrate -w apps/api",
+          "db:seed": "npm run db:seed -w apps/api",
+          "db:studio": "npm run db:studio -w apps/api",
+          "seed:texts": "npm run seed:texts -w apps/api",
+          "seed:templates": "npm run seed:templates -w apps/api",
+          "seed:flash-words": "npm run seed:flash-words -w apps/api",
+          "seed:cloze-templates": "npm run seed:cloze-templates -w apps/api",
+          "migrate:v1-to-v2": "npm run migrate:v1-to-v2 -w apps/api"
+        },
+        "devDependencies": {
+          "concurrently": "^9.1.0",
+          "typescript": "^5.6.3"
+        }
+      },
+      "packages/shared/package.json": {
+        "name": "@leseflux/shared",
+        "version": "0.1.0",
+        "scripts": {
+          "build": "tsup src/index.ts --format cjs,esm --dts --out-dir dist"
+        },
+        "dependencies": {
+          "zod": "^3.23.8"
+        },
+        "devDependencies": {
+          "tsup": "^8.3.5",
+          "typescript": "^5.6.3"
+        }
+      }
+    },
+    "runtime_files": {},
+    "license_files": [],
+    "instruction_files": [
+      "CLAUDE.md"
+    ],
+    "features": {
+      "storage": [
+        {
+          "file": "apps/api/prisma/schema.prisma",
+          "line": 6
+        },
+        {
+          "file": "apps/api/prisma/schema.prisma",
+          "line": 7
+        }
+      ]
+    }
+  },
+  "schuleva": {
+    "sha": "71c4917ad71880eec7f2cdb415453284e3b70ee5",
+    "packages": {},
+    "runtime_files": {
+      "requirements.txt": "fastapi==0.115.0\nuvicorn[standard]==0.30.6\njinja2==3.1.4\npython-multipart==0.0.9\nitsdangerous==2.2.0\npasslib[bcrypt]==1.7.4\nqrcode[pil]==7.4.2\nPillow==10.4.0\nmatplotlib==3.9.2\nweasyprint>=63.0\npytest==8.3.2\nhttpx==0.27.0\npython-dotenv==1.0.1\n"
+    },
+    "license_files": [],
+    "instruction_files": [],
+    "features": {
+      "storage": [
+        {
+          "file": "app/db.py",
+          "line": 9
+        },
+        {
+          "file": "app/db.py",
+          "line": 76
+        },
+        {
+          "file": "app/db.py",
+          "line": 80
+        },
+        {
+          "file": "app/db.py",
+          "line": 82
+        }
+      ]
+    }
+  },
+  "gswb": {
+    "sha": "7c2875b0439395487431ffaf543b0bbb3f37a8bf",
+    "packages": {},
+    "runtime_files": {
+      "requirements.txt": "Flask>=3.0,<4.0\nrapidfuzz>=3.9,<4.0\npython-dotenv>=1.0,<2.0\ngoogle-genai>=1.0,<2.0\ngunicorn>=22.0,<24.0\n"
+    },
+    "license_files": [],
+    "instruction_files": [
+      "CLAUDE.md"
+    ],
+    "features": {
+      "external": [
+        {
+          "file": "gemini-tts-wortliste.py",
+          "line": 22
+        }
+      ],
+      "jobs": [
+        {
+          "file": "gemini-tts-wortliste.py",
+          "line": 233
+        }
+      ],
+      "storage": [
+        {
+          "file": "grundschul_woerterbuch/db.py",
+          "line": 101
+        }
+      ]
+    }
+  },
+  "grundschultafel": {
+    "sha": "496466cac7cc2b3e48a6acd2940ebc91029c145f",
+    "packages": {
+      "package.json": {
+        "name": "tafel-popafel",
+        "version": "0.1.0",
+        "scripts": {
+          "dev": "next dev -H 0.0.0.0",
+          "build": "next build",
+          "start": "next start",
+          "lint": "eslint"
+        },
+        "dependencies": {
+          "@dnd-kit/core": "^6.3.1",
+          "@dnd-kit/sortable": "^10.0.0",
+          "@dnd-kit/utilities": "^3.2.2",
+          "bcryptjs": "^3.0.3",
+          "fabric": "^7.2.0",
+          "jose": "^6.2.1",
+          "lucide-react": "^0.577.0",
+          "next": "16.1.6",
+          "qrcode.react": "^4.2.0",
+          "react": "19.2.3",
+          "react-colorful": "^5.6.1",
+          "react-dom": "19.2.3",
+          "uuid": "^13.0.0",
+          "zustand": "^5.0.11"
+        },
+        "devDependencies": {
+          "@tailwindcss/postcss": "^4",
+          "@types/bcryptjs": "^2.4.6",
+          "@types/node": "^20",
+          "@types/react": "^19",
+          "@types/react-dom": "^19",
+          "@types/uuid": "^10.0.0",
+          "eslint": "^9",
+          "eslint-config-next": "16.1.6",
+          "tailwindcss": "^4",
+          "typescript": "^5"
+        }
+      }
+    },
+    "runtime_files": {},
+    "license_files": [],
+    "instruction_files": [],
+    "features": {
+      "external": [
+        {
+          "file": "src/app/api/gallery/image/route.ts",
+          "line": 13
+        },
+        {
+          "file": "src/app/api/youtube/route.ts",
+          "line": 18
+        },
+        {
+          "file": "src/lib/gallery.ts",
+          "line": 12
+        }
+      ]
+    }
+  },
+  "schulkasse": {
+    "sha": "d99cfca9eb26acb606234ff664ffa2b38ff3352c",
+    "packages": {},
+    "runtime_files": {
+      "pyproject.toml": "[build-system]\nrequires = [\"setuptools>=69\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project]\nname = \"schulkasse\"\nversion = \"1.0.0\"\ndescription = \"Beitrags- und Kassenbuchverwaltung für die GGS Niederkassel\"\nrequires-python = \">=3.12\"\ndependencies = [\n    \"Flask\", \"segno\", \"weasyprint\", \"argon2-cffi\", \"gunicorn\", \"python-dotenv\", \"tzdata\",\n    \"pyotp>=2.9,<3\", \"cryptography>=46,<47\",\n]\n\n[project.scripts]\nschulkasse = \"schulkasse.cli:main\"\n\n[tool.setuptools.packages.find]\ninclude = [\"schulkasse*\"]\n\n[tool.setuptools.package-data]\nschulkasse = [\"migrations/*.sql\", \"templates/*.html\", \"templates/pdf/*.html\", \"static/*\"]\n\n[tool.pytest.ini_options]\ntestpaths = [\"tests\"]\npythonpath = [\".\"]\n",
+      "requirements-dev.txt": "# Test dependencies (pinned), in addition to requirements.txt\n-r requirements.txt\npytest==9.1.1\niniconfig==2.3.0\npluggy==1.6.0\nPygments==2.21.0\n# QR self test (F6.6) and PDF page checks\nzxing-cpp==3.1.1\npypdf==6.18.0\n",
+      "requirements.txt": "# Runtime dependencies (pinned). Install with: pip install -r requirements.txt\nFlask==3.1.3\nWerkzeug==3.1.8\nJinja2==3.1.6\nMarkupSafe==3.0.3\nitsdangerous==2.2.0\nclick==8.5.0\nblinker==1.9.0\nsegno==1.6.6\nweasyprint==70.0\npydyf==0.12.1\ncffi==2.1.1\npycparser==3.0\ntinycss2==1.5.1\ntinyhtml5==2.1.0\ncssselect2==0.10.1\nwebencodings==0.6.1\npyphen==0.18.1\nfonttools==4.64.0\nbrotli==1.2.0\nzopfli==0.4.3\npillow==12.3.0\nargon2-cffi==25.1.0\nargon2-cffi-bindings==26.1.0\ngunicorn==26.2.0\npackaging==26.3\npython-dotenv==1.2.3\ntzdata==2026.3\npyotp==2.9.0\ncryptography==46.0.5\n"
+    },
+    "license_files": [],
+    "instruction_files": [],
+    "features": {
+      "storage": [
+        {
+          "file": "schulkasse/db.py",
+          "line": 23
+        },
+        {
+          "file": "schulkasse/db.py",
+          "line": 28
+        }
+      ]
+    }
+  },
+  "abgen": {
+    "sha": "50db999ccc689cdad3a6b2c930d24dee650eaec2",
+    "packages": {
+      "apps/server/package.json": {
+        "name": "@abgen/server",
+        "version": "0.1.0",
+        "scripts": {
+          "dev": "tsx watch src/index.ts",
+          "dev:pdf": "tsx watch src/pdf/index.ts",
+          "build": "tsc -p tsconfig.json",
+          "start": "node dist/index.js",
+          "start:pdf": "node dist/pdf/index.js",
+          "typecheck": "tsc -p tsconfig.json --noEmit",
+          "test": "vitest run",
+          "db:generate": "drizzle-kit generate",
+          "db:migrate": "tsx src/db/migrate.ts"
+        },
+        "dependencies": {
+          "@abgen/generators": "workspace:*",
+          "@abgen/model": "workspace:*",
+          "@abgen/render": "workspace:*",
+          "@abgen/text": "workspace:*",
+          "@fastify/cookie": "^11.1.3",
+          "@fastify/cors": "^11.3.1",
+          "@fastify/multipart": "^10.1.6",
+          "@fastify/static": "^10.1.7",
+          "@fastify/websocket": "^11.3.4",
+          "@node-rs/argon2": "^2.2.2",
+          "drizzle-orm": "^0.45.4",
+          "fastify": "^5.12.7",
+          "fflate": "0.8.2",
+          "pg": "^8.23.1",
+          "playwright": "1.64.1",
+          "yjs": "^13.6.33",
+          "zod": "^4.6.7"
+        },
+        "devDependencies": {
+          "@types/pg": "^8.23.1",
+          "drizzle-kit": "^0.31.11",
+          "tsx": "^4.23.15",
+          "typescript": "~6.0.3",
+          "vitest": "^5.0.5"
+        }
+      },
+      "apps/web/package.json": {
+        "name": "@abgen/web",
+        "version": "0.1.0",
+        "scripts": {
+          "dev": "vite",
+          "build": "tsc -p tsconfig.json --noEmit && vite build",
+          "preview": "vite preview",
+          "typecheck": "tsc -p tsconfig.json --noEmit",
+          "test": "vitest run"
+        },
+        "dependencies": {
+          "@abgen/generators": "workspace:*",
+          "@abgen/model": "workspace:*",
+          "@abgen/render": "workspace:*",
+          "@abgen/text": "workspace:*",
+          "@phosphor-icons/react": "^2.1.10",
+          "@tiptap/core": "^3.32.0",
+          "@tiptap/extension-bold": "^3.32.0",
+          "@tiptap/extension-document": "^3.32.0",
+          "@tiptap/extension-hard-break": "^3.32.0",
+          "@tiptap/extension-italic": "^3.32.0",
+          "@tiptap/extension-list": "^3.32.0",
+          "@tiptap/extension-paragraph": "^3.32.0",
+          "@tiptap/extension-text": "^3.32.0",
+          "@tiptap/extension-underline": "^3.32.0",
+          "@tiptap/extensions": "^3.32.0",
+          "@tiptap/pm": "^3.32.0",
+          "@tiptap/react": "^3.32.0",
+          "immer": "^11.2.9",
+          "nspell": "^2.1.5",
+          "react": "^19.3.1",
+          "react-dom": "^19.3.1",
+          "yjs": "^13.6.33",
+          "zustand": "^5.0.16"
+        },
+        "devDependencies": {
+          "@types/nspell": "^2.1.6",
+          "@types/react": "^19.3.0",
+          "@types/react-dom": "^19.3.0",
+          "@vitejs/plugin-react": "^6.1.2",
+          "jsdom": "^30.1.3",
+          "typescript": "~6.0.3",
+          "vite": "^8.3.5",
+          "vitest": "^5.0.5"
+        }
+      },
+      "package.json": {
+        "name": "abgen",
+        "version": "0.1.0",
+        "engines": {
+          "node": ">=22"
+        },
+        "packageManager": "pnpm@12.15.0",
+        "scripts": {
+          "build": "pnpm fonts:check && pnpm -r --if-present build",
+          "test": "pnpm -r --if-present test",
+          "test:e2e": "playwright test",
+          "typecheck": "pnpm -r --if-present typecheck",
+          "lint": "eslint .",
+          "lint:fix": "eslint . --fix",
+          "format": "prettier --write .",
+          "format:check": "prettier --check .",
+          "dev": "pnpm --parallel --filter \"@abgen/web\" --filter \"@abgen/server\" dev",
+          "fonts:check": "node scripts/check-fonts.mjs",
+          "fonts:fetch": "node scripts/fetch-fonts.mjs",
+          "db:generate": "pnpm --filter @abgen/server db:generate",
+          "db:migrate": "pnpm --filter @abgen/server db:migrate",
+          "dict:fetch": "node scripts/fetch-dictionaries.mjs"
+        },
+        "devDependencies": {
+          "@eslint/js": "^10.0.1",
+          "@playwright/test": "^1.64.1",
+          "@types/node": "^26.6.5",
+          "dictionary-de": "^3.0.0",
+          "dictionary-de-at": "^3.0.0",
+          "dictionary-de-ch": "^3.0.0",
+          "eslint": "^10.13.0",
+          "eslint-config-prettier": "^10.1.8",
+          "globals": "^17.13.0",
+          "nspell": "^2.1.5",
+          "prettier": "^3.9.10",
+          "typescript": "~6.0.3",
+          "typescript-eslint": "^8.72.0",
+          "vitest": "^5.0.5",
+          "wawoff2": "^2.0.1"
+        }
+      },
+      "packages/generators/package.json": {
+        "name": "@abgen/generators",
+        "version": "0.1.0",
+        "scripts": {
+          "build": "tsc -p tsconfig.json",
+          "typecheck": "tsc -p tsconfig.json --noEmit",
+          "test": "vitest run"
+        },
+        "dependencies": {
+          "@abgen/model": "workspace:*"
+        },
+        "devDependencies": {
+          "typescript": "~6.0.3",
+          "vitest": "^5.0.5"
+        }
+      },
+      "packages/model/package.json": {
+        "name": "@abgen/model",
+        "version": "0.1.0",
+        "scripts": {
+          "build": "tsc -p tsconfig.json",
+          "typecheck": "tsc -p tsconfig.json --noEmit",
+          "test": "vitest run"
+        },
+        "dependencies": {
+          "zod": "^4.6.7"
+        },
+        "devDependencies": {
+          "typescript": "~6.0.3",
+          "vitest": "^5.0.5"
+        }
+      },
+      "packages/render/package.json": {
+        "name": "@abgen/render",
+        "version": "0.1.0",
+        "scripts": {
+          "build": "tsc -p tsconfig.json",
+          "typecheck": "tsc -p tsconfig.json --noEmit",
+          "test": "vitest run"
+        },
+        "dependencies": {
+          "@abgen/generators": "workspace:*",
+          "@abgen/model": "workspace:*",
+          "@abgen/text": "workspace:*",
+          "qrcode-generator": "^2.0.4"
+        },
+        "devDependencies": {
+          "@types/react": "^19.3.0",
+          "@types/react-dom": "^19.3.0",
+          "jsdom": "^30.1.3",
+          "react": "^19.3.1",
+          "react-dom": "^19.3.1",
+          "typescript": "~6.0.3",
+          "vitest": "^5.0.5"
+        }
+      },
+      "packages/text/package.json": {
+        "name": "@abgen/text",
+        "version": "0.1.0",
+        "scripts": {
+          "build": "tsc -p tsconfig.json && node ../../scripts/copy-corpus.mjs",
+          "typecheck": "tsc -p tsconfig.json --noEmit",
+          "test": "vitest run"
+        },
+        "dependencies": {
+          "@abgen/model": "workspace:*",
+          "hyphen": "^1.14.1"
+        },
+        "devDependencies": {
+          "typescript": "~6.0.3",
+          "vitest": "^5.0.5"
+        }
+      }
+    },
+    "runtime_files": {
+      ".nvmrc": "26\n"
+    },
+    "license_files": [
+      "assets/dictionaries/de-AT/license",
+      "assets/dictionaries/de-CH/license",
+      "assets/dictionaries/de-DE/license",
+      "assets/fonts/abeezee/OFL.txt",
+      "assets/fonts/andika/OFL.txt",
+      "assets/fonts/atkinson/OFL.txt",
+      "assets/fonts/fibel-nord/OFL.txt",
+      "assets/fonts/grundschrift/LICENSE.txt",
+      "assets/fonts/opendyslexic/OFL.txt",
+      "assets/fonts/playwrite-at/OFL.txt",
+      "assets/fonts/playwrite-de-grund/OFL.txt",
+      "assets/fonts/playwrite-de-la/OFL.txt",
+      "assets/fonts/playwrite-de-sas/OFL.txt",
+      "assets/fonts/playwrite-de-va/OFL.txt"
+    ],
+    "instruction_files": [],
+    "features": {
+      "storage": [
+        {
+          "file": "apps/server/drizzle.config.ts",
+          "line": 8
+        },
+        {
+          "file": "apps/server/src/config.ts",
+          "line": 10
+        },
+        {
+          "file": "apps/server/src/db/migrate.ts",
+          "line": 21
+        },
+        {
+          "file": "apps/server/src/index.ts",
+          "line": 9
+        },
+        {
+          "file": "apps/server/src/repositories/index.ts",
+          "line": 15
+        }
+      ],
+      "oidc": [
+        {
+          "file": "apps/server/src/routes/auth.ts",
+          "line": 60
+        }
+      ],
+      "jobs": [
+        {
+          "file": "apps/server/src/routes/collab.ts",
+          "line": 101
+        },
+        {
+          "file": "apps/server/src/routes/collab.ts",
+          "line": 123
+        }
+      ],
+      "browser_storage": [
+        {
+          "file": "apps/web/src/api/submissions.test.ts",
+          "line": 11
+        },
+        {
+          "file": "apps/web/src/api/submissions.ts",
+          "line": 16
+        },
+        {
+          "file": "apps/web/src/api/submissions.ts",
+          "line": 32
+        },
+        {
+          "file": "apps/web/src/api/submissions.ts",
+          "line": 56
+        },
+        {
+          "file": "apps/web/src/hooks/useAutosave.ts",
+          "line": 21
+        },
+        {
+          "file": "apps/web/src/hooks/useAutosave.ts",
+          "line": 22
+        },
+        {
+          "file": "apps/web/src/hooks/useAutosave.ts",
+          "line": 30
+        },
+        {
+          "file": "apps/web/src/state/playerStore.test.ts",
+          "line": 16
+        },
+        {
+          "file": "apps/web/src/state/playerStore.test.ts",
+          "line": 23
+        },
+        {
+          "file": "apps/web/src/state/playerStore.ts",
+          "line": 80
+        },
+        {
+          "file": "apps/web/src/state/playerStore.ts",
+          "line": 90
+        },
+        {
+          "file": "apps/web/src/state/viewStore.ts",
+          "line": 45
+        },
+        {
+          "file": "apps/web/src/state/viewStore.ts",
+          "line": 54
+        },
+        {
+          "file": "eslint.config.js",
+          "line": 44
+        }
+      ]
+    }
+  },
+  "losverkauf": {
+    "sha": "2e471ea8abc5fb6acac8acabb292d8e99ede2787",
+    "packages": {},
+    "runtime_files": {
+      "requirements.txt": "flask>=3.0\ngunicorn>=21\nreportlab>=4\n"
+    },
+    "license_files": [],
+    "instruction_files": [],
+    "features": {
+      "mail": [
+        {
+          "file": "app.py",
+          "line": 12
+        },
+        {
+          "file": "mail.py",
+          "line": 5
+        },
+        {
+          "file": "mail.py",
+          "line": 6
+        },
+        {
+          "file": "mail.py",
+          "line": 7
+        },
+        {
+          "file": "mail.py",
+          "line": 8
+        },
+        {
+          "file": "mail.py",
+          "line": 14
+        },
+        {
+          "file": "mail.py",
+          "line": 21
+        },
+        {
+          "file": "mail.py",
+          "line": 22
+        },
+        {
+          "file": "mail.py",
+          "line": 23
+        },
+        {
+          "file": "mail.py",
+          "line": 24
+        },
+        {
+          "file": "mail.py",
+          "line": 25
+        },
+        {
+          "file": "mail.py",
+          "line": 26
+        },
+        {
+          "file": "mail.py",
+          "line": 31
+        },
+        {
+          "file": "mail.py",
+          "line": 36
+        },
+        {
+          "file": "mail.py",
+          "line": 37
+        },
+        {
+          "file": "mail.py",
+          "line": 58
+        },
+        {
+          "file": "mail.py",
+          "line": 59
+        },
+        {
+          "file": "mail.py",
+          "line": 61
+        },
+        {
+          "file": "mail.py",
+          "line": 63
+        },
+        {
+          "file": "mail.py",
+          "line": 65
+        },
+        {
+          "file": "mail.py",
+          "line": 66
+        },
+        {
+          "file": "mail.py",
+          "line": 69
+        }
+      ],
+      "storage": [
+        {
+          "file": "app.py",
+          "line": 120
+        }
+      ]
+    }
+  },
+  "schulhelfer": {
+    "sha": "01fb181a120a215d8ec9935a05ade3abbcba3309",
+    "packages": {},
+    "runtime_files": {
+      "requirements.txt": "fastapi>=0.110.0\nuvicorn[standard]>=0.27.0\njinja2>=3.1.3\npython-multipart>=0.0.9\nsqlalchemy>=2.0.28\nalembic>=1.13.1\nargon2-cffi>=23.1.0\napscheduler>=3.10.4\naiosmtplib>=3.0.1\npython-dotenv>=1.0.1\npydantic-settings>=2.2.1\nitsdangerous>=2.1.2\nemail-validator>=2.1.1\nreportlab>=4.1.0\n"
+    },
+    "license_files": [],
+    "instruction_files": [],
+    "features": {
+      "storage": [
+        {
+          "file": "app/config.py",
+          "line": 9
+        },
+        {
+          "file": "app/database.py",
+          "line": 8
+        },
+        {
+          "file": "app/database.py",
+          "line": 16
+        },
+        {
+          "file": "migrations/env.py",
+          "line": 23
+        },
+        {
+          "file": "migrations/env.py",
+          "line": 36
+        }
+      ],
+      "mail": [
+        {
+          "file": "app/config.py",
+          "line": 11
+        },
+        {
+          "file": "app/config.py",
+          "line": 12
+        },
+        {
+          "file": "app/config.py",
+          "line": 16
+        },
+        {
+          "file": "app/config.py",
+          "line": 17
+        },
+        {
+          "file": "app/config.py",
+          "line": 18
+        },
+        {
+          "file": "app/config.py",
+          "line": 19
+        },
+        {
+          "file": "app/config.py",
+          "line": 20
+        },
+        {
+          "file": "app/config.py",
+          "line": 21
+        },
+        {
+          "file": "app/config.py",
+          "line": 23
+        },
+        {
+          "file": "app/email_service.py",
+          "line": 8
+        },
+        {
+          "file": "app/email_service.py",
+          "line": 18
+        },
+        {
+          "file": "app/email_service.py",
+          "line": 27
+        },
+        {
+          "file": "app/email_service.py",
+          "line": 29
+        },
+        {
+          "file": "app/email_service.py",
+          "line": 42
+        },
+        {
+          "file": "app/email_service.py",
+          "line": 44
+        },
+        {
+          "file": "app/email_service.py",
+          "line": 45
+        },
+        {
+          "file": "app/email_service.py",
+          "line": 48
+        },
+        {
+          "file": "app/email_service.py",
+          "line": 49
+        },
+        {
+          "file": "app/email_service.py",
+          "line": 50
+        },
+        {
+          "file": "app/email_service.py",
+          "line": 51
+        },
+        {
+          "file": "app/email_service.py",
+          "line": 52
+        },
+        {
+          "file": "app/jobs.py",
+          "line": 89
+        }
+      ],
+      "jobs": [
+        {
+          "file": "app/scheduler.py",
+          "line": 4
+        },
+        {
+          "file": "app/scheduler.py",
+          "line": 12
+        },
+        {
+          "file": "app/scheduler.py",
+          "line": 45
+        }
+      ]
+    }
+  },
+  "zackboing": {
+    "sha": "05e78a1e829a7634cd35deb5ab06c7c8a5e9d365",
+    "packages": {
+      "package.json": {
+        "name": "zackboing",
+        "version": "1.0.0",
+        "engines": {
+          "node": ">=18"
+        },
+        "scripts": {
+          "start": "node server/index.js",
+          "test": "node test/e2e.js"
+        },
+        "dependencies": {
+          "better-sqlite3": "^11.10.0",
+          "express": "^4.21.2",
+          "qrcode": "^1.5.4",
+          "socket.io": "^4.8.1"
+        },
+        "devDependencies": {
+          "socket.io-client": "^4.8.1"
+        }
+      }
+    },
+    "runtime_files": {},
+    "license_files": [],
+    "instruction_files": [],
+    "features": {
+      "storage": [
+        {
+          "file": "server/db.js",
+          "line": 11
+        }
+      ],
+      "external": [
+        {
+          "file": "server/db.js",
+          "line": 79
+        },
+        {
+          "file": "server/index.js",
+          "line": 554
+        }
+      ],
+      "jobs": [
+        {
+          "file": "server/index.js",
+          "line": 768
+        },
+        {
+          "file": "server/index.js",
+          "line": 801
+        },
+        {
+          "file": "server/index.js",
+          "line": 832
+        },
+        {
+          "file": "server/index.js",
+          "line": 849
+        },
+        {
+          "file": "server/index.js",
+          "line": 856
+        },
+        {
+          "file": "server/index.js",
+          "line": 865
+        },
+        {
+          "file": "server/index.js",
+          "line": 871
+        },
+        {
+          "file": "server/index.js",
+          "line": 886
+        },
+        {
+          "file": "server/index.js",
+          "line": 904
+        },
+        {
+          "file": "server/index.js",
+          "line": 917
+        },
+        {
+          "file": "server/index.js",
+          "line": 952
+        },
+        {
+          "file": "server/index.js",
+          "line": 975
+        }
+      ]
+    }
+  }
+}

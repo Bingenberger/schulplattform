@@ -1,0 +1,932 @@
+{
+  "schulwissen": {
+    "stack": "Python 3.12; Django 5.2; Gunicorn; Tiptap-Build",
+    "services": "PostgreSQL 16 mit pg_trgm/GIN und Volltext; optional Nextcloud-Index-Timer",
+    "auth": "Django-Nutzer mit E-Mail als Login, Gruppen/Fachrechten; Passwort-Reset; Authlib-OIDC mit PKCE S256, State/Nonce und expliziter issuer/sub-Verknüpfung vorhanden",
+    "mail": "Django SMTP: SW_SMTP_HOST/PORT/NUTZER/PASSWORT/TLS und SW_ABSENDER; sonst Konsolenausgabe",
+    "data": "PostgreSQL, /medien, versionierte Anhänge, Arbeitspläne und Gruppen; Migrationen in kern/fachdaten/deutsch",
+    "external": "Nextcloud WebDAV/Index optional; gehosteter Dienst ist für den Kern nicht erforderlich",
+    "heavy": "WeasyPrint-PDF, Office/PDF-Textgewinnung, Excel/JSON-Import; Suchindex in PostgreSQL, kein separater Suchserver erforderlich",
+    "public": "Lokaler Login, Passwort-Reset und OIDC-Callback; fachliche Ansichten und Django-Admin getrennt prüfen",
+    "ops": "Dockerfile und Compose vorhanden, interner Port 8000; docker/start.sh führt migrate und rollen_einrichten aus; drei Gunicorn-Worker als Vorgabe. Image verwendet latest und uv-Installation ungepinnt: Release-Härtung nötig.",
+    "storage": "UV-Lock vorhanden; frontend/package-lock prüfen. serverseitiges HTML, statische Dateien über WhiteNoise; kein WS-/Offline-Pfad im geprüften Kern belegt.",
+    "refs": [
+      "pyproject.toml",
+      "Dockerfile",
+      "docker-compose.yml",
+      "docker/start.sh",
+      "schulwissen/einstellungen.py",
+      "kern/oidc.py",
+      "kern/models.py",
+      "kern/rechte.py",
+      "fachdaten/migrations/0001_trigramm.py",
+      "tests/test_phase4.py"
+    ],
+    "steps": [
+      "Image nach Commit bauen und per Digest referenzieren; Health-/Readiness-Endpunkte ergänzen; Startmigration vom normalen Neustart trennen.",
+      "SW_OEFFENTLICHE_URL, SW_ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS und exakte /anmelden/nextcloud/callback-URI gemeinsam umstellen.",
+      "SW_SMTP_* auf internes Relay setzen, Test-Reset nur an Mail-Sink.",
+      "OIDC-Anbieterbezeichnung verallgemeinern; Appfreigabe vor Sessionerstellung und pro Request durchsetzen; Logout/Sperrereignisse ergänzen.",
+      "Vorhandene OIDCIdentitaet verwenden; lokale Nutzer-PKs und Gruppen erhalten.",
+      "pg_dump plus konsistenter Medienstand; Restore und Rollenbesitz testen."
+    ],
+    "ratings": [
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "kleine Anpassung"
+    ],
+    "days": [
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        0.5,
+        1
+      ],
+      [
+        3,
+        6
+      ],
+      [
+        2,
+        4
+      ],
+      [
+        1,
+        3
+      ]
+    ],
+    "risk": "Geeigneter Pilot: einzig im Code gefundene ausgearbeitete OIDC-Kontoverknüpfung. Vorhandene Tests beweisen noch keinen Keycloak-/Mehr-App-Browserablauf."
+  },
+  "fahrradausbildung": {
+    "stack": "Python >=3.12,<3.13; FastAPI/Uvicorn; SQLAlchemy/Alembic",
+    "services": "PostgreSQL 16; kein externer Queue-Dienst im geprüften Startpfad",
+    "auth": "Argon2id; serverseitige AdminSitzung mit gehashtem Cookie, CSRF, 120 min Leerlauf/12 h Maximum; Schule/Benutzer und Posten-Tokens getrennt",
+    "mail": "Kein SMTP-Versand im geprüften Anwendungscode gefunden; zentrale Einladungen zunächst im IdP",
+    "data": "PostgreSQL, schuleigene /vorlagen; Posten-Web-App speichert offline im Browser/IndexedDB",
+    "external": "OSM-Kartenkacheln konfigurierbar; Offline-Kartenabdeckung und Lizenz-/Attributionsbedingungen separat klären",
+    "heavy": "WeasyPrint, Pillow, QR/Segno, Kartenbilder und Auswertungs-PDFs",
+    "public": "Posten-Zugang per Token und /gesund; Posten-PWA/Service Worker erhalten, keinen pauschalen Login davorsetzen",
+    "ops": "Nicht-Root-Dockerfile mit Pango/HarfBuzz und Healthcheck /gesund; Compose Port 8000; uv sync --frozen; Alembic-Start. Proxyvertrauen derzeit bei Loopback-Bind erklärt, bei Plattformnetz explizit begrenzen.",
+    "storage": "HTML/Jinja, Posten-JS und Service Worker. Linux amd64 plausibel; Pango/Pillow/psycopg/WeasyPrint auf ARM64 noch nicht gebaut.",
+    "refs": [
+      "pyproject.toml",
+      "Dockerfile",
+      "docker-compose.yml",
+      "app/config.py",
+      "app/modelle.py",
+      "app/web/sitzung.py",
+      "app/web/anmeldung.py",
+      "app/posten/api.py",
+      "app/posten_app/sw.js",
+      "app/token.py"
+    ],
+    "steps": [
+      "Bestehendes Image versionieren; nichtöffentliches Backend und dedizierte Netze.",
+      "FP_OEFFENTLICHE_URL und Karten-/Posten-Links, Proxy-IPs, QR-Codes testen.",
+      "Keinen künstlichen SMTP-Dienst in App ergänzen; Einladung im IdP.",
+      "Authlib-Code-Flow mit PKCE ergänzen; lokale sitzung_anlegen erst nach issuer/sub-Mapping und Appfreigabe; Postenmodus separat lassen.",
+      "Benutzer.id, Schule und laufbezogene Rechte erhalten; Konten nur kontrolliert verknüpfen.",
+      "pg_dump, Vorlagen/Logos und nachweisbarem Offline-Synchronisationsstand sichern; ungesyncte Browserdaten sind kein Serverbackup."
+    ],
+    "ratings": [
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "bereits vorhanden",
+      "größerer Umbau",
+      "kleine Anpassung",
+      "kleine Anpassung"
+    ],
+    "days": [
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        0,
+        0.5
+      ],
+      [
+        5,
+        9
+      ],
+      [
+        2,
+        4
+      ],
+      [
+        1,
+        3
+      ]
+    ],
+    "risk": "Das vorhandene Schulmodell ist kein Nachweis vollständig geprüfter Mehrmandantenfähigkeit. Offline-Sperren können erst beim Wiederverbinden greifen."
+  },
+  "schulanmeldung": {
+    "stack": "Flask 3.1.2; Flask-Login/WTF/Migrate; SQLAlchemy 2.0.45; Gunicorn 21.2",
+    "services": "SQLite als dokumentierter Bestand; SQLAlchemy-URL konfigurierbar, Enginewechsel wegen direktem SQLite-Code nicht freigegeben; Erinnerungsdienst per systemd-Timer",
+    "auth": "Werkzeug-Passworthashes, MFA/TOTP und Wiederherstellungscodes; lokale User-ID; Rollen Administrator/Schulleitung/Foerderlehrkraft/Sekretariat; Elternportal passwortlos mit Aktivierungs-/Mailtoken",
+    "mail": "smtplib-Service; SL_OFFICE_MAIL_* und PUBLIC_BASE_URL; Testkonfiguration MAIL_SUPPRESS_SEND",
+    "data": "SQLite, Uploads und Briefvorlagen/Assets; Einschulung, Diagnostik, Termine und Elternzugänge; Alembic plus ältere Migrationsskripte",
+    "external": "Für Kern und SMTP kein proprietärer Cloud-Zwang im geprüften Code; Vorlagen/Unterschrift/Logo nicht als allgemein verteilbar betrachten",
+    "heavy": "pandas/openpyxl-Import; ReportLab/pypdf und Dokumenterstellung; ODT/PDF-Vorlagen",
+    "public": "sl_office/parent_portal mit Aktivierung und Anmeldetoken; Termin-/öffentliche Bereiche gezielt ausnehmen",
+    "ops": "systemd/Gunicorn und deploy-Hooks vorhanden; kein Root-Dockerfile. ProductionConfig verlangt Secret >=32 Zeichen und DATABASE_URL; trusted proxy count konfigurierbar.",
+    "storage": "Exakt gepinnte requirements vorhanden, kein transitive Hash-Lock. backup_db.py nutzt SQLite-Backup-API, sucht aber feste lokale Dateipfade statt die konfigurierte URL aufzulösen.",
+    "refs": [
+      "requirements.txt",
+      "config.py",
+      "models.py",
+      "security.py",
+      "sl_office/auth/routes.py",
+      "sl_office/auth/two_factor.py",
+      "sl_office/authorization.py",
+      "sl_office/parent_portal/routes.py",
+      "sl_office/parent_portal/mail_service.py",
+      "backup_db.py",
+      "sl-office.service"
+    ],
+    "steps": [
+      "Nicht-Root-Python-Image und Healthcheck bauen; Produktions-Appfactory verwenden; Timer als Einzeldienst abbilden.",
+      "SL_OFFICE_PUBLIC_BASE_URL, Proxyzahl, Mail-/Elternlinks und Cookies gemeinsam testen.",
+      "SL_OFFICE_MAIL_* zum Relay; Unterdrückung im Test zwingend beibehalten.",
+      "OIDC nur für Mitarbeiter ergänzen; MFA-Anforderung vom IdP verifizieren und lokale Rollen beibehalten.",
+      "User-PKs, Zuständigkeiten und Diagnostikbesitz beibehalten; Elternzugänge nicht zu Lehrkraftkonten umdeuten.",
+      "Backup-Tool an DATABASE_URL anbinden; Uploads/Assets/Migrationsstand mitsichern, sensible Vorlagen separat lizenzieren."
+    ],
+    "ratings": [
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "größerer Umbau",
+      "kleine Anpassung",
+      "kleine Anpassung"
+    ],
+    "days": [
+      [
+        2,
+        4
+      ],
+      [
+        1,
+        3
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        6,
+        11
+      ],
+      [
+        3,
+        6
+      ],
+      [
+        2,
+        4
+      ]
+    ],
+    "risk": "Privates Repo ist per vorhandenem SSH-Zugang geprüft. Besonders sensible Fach-/Familiendaten; keine echten Daten für Tests übernommen."
+  },
+  "SL-Journal": {
+    "stack": "Flask >=3.1,<4; SQLCipher/sqlcipher3-binary; Waitress; React/Excalidraw/CodeMirror-Bundles",
+    "services": "Verschlüsselte SQLCipher-Datei; systemd-Sync und Maintenance-Timer; kein PostgreSQL",
+    "auth": "Genau ein account mit CHECK(id=1), Werkzeug-Passwort + TOTP, session_version; eigene Mobil-API mit gehashten Gerätetokens und 90 Tagen Inaktivität",
+    "mail": "IMAP-Leseimport, CalDAV und Nextcloud-Integration; kein SMTP-Versand im geprüften journal-Pythoncode gefunden. IMAP-Zugang nicht durch SMTP ersetzen.",
+    "data": "Verschlüsselte Journal-DB, Daten-/Fernet-Schlüssel und Instanzkonfiguration; Notizen, E-Mails, Kontakte, Anhänge, Termine und Geräteberechtigungen",
+    "external": "Optional IMAP, CalDAV/Nextcloud; eigene Server möglich; Quellsysteme und Zugangsdaten separat migrieren",
+    "heavy": "Poppler pdftoppm/pdftotext, LibreOffice für Vorschauen/Text; Semaphoren begrenzen PDF auf zwei, Office auf einen Vorgang pro Prozess; temporäre Klartextdateien bei Office-Konvertierung",
+    "public": "Setup/Login und Mobil-API; Mobil-Bearer ist eigene Vertrauensgrenze. Keine öffentliche Freigabe des Journals ableiten.",
+    "ops": "Waitress auf 127.0.0.1:8088, vier Threads; systemd-Härtung vorhanden, kein Dockerfile; native SQLCipher-Binaries und LibreOffice nötig.",
+    "storage": "requirements mit Bandbreiten, package-lock für Frontend. SQLCipher und Schlüsselsicherung eigens testen; Standard-sqlite3-Backup kann verschlüsselte Datei nicht einfach öffnen.",
+    "refs": [
+      "requirements.txt",
+      "package.json",
+      "journal/db.py",
+      "journal/app.py",
+      "journal/auth.py",
+      "journal/mobile_api.py",
+      "journal/integrations.py",
+      "journal/pdf_preview.py",
+      "journal/maintenance.py",
+      "deploy/journal.service",
+      "LICENSE"
+    ],
+    "steps": [
+      "Container mit SQLCipher/Poppler/LibreOffice bauen; Schlüssel nur aus geschütztem persistentem Pfad; Timer single instance.",
+      "Proxy- und HTTPS-Einstellungen sowie Mobil-App-Serveradresse prüfen.",
+      "SMTP nicht benötigt; IMAP/CalDAV bleiben getrennte, verschlüsselte Verbindungen.",
+      "Ein erlaubtes OIDC-Subject auf das bestehende Einzelkonto abbilden und lokale MFA/Notfallzugang erhalten; mehrere gleichberechtigte Personen erfordern neues Besitz-/Rollenmodell.",
+      "Keine neue gemeinsame Lehrerbenutzertabelle ins Journal kopieren; Einbenutzerentscheidung vor Migration.",
+      "Vorhandene Maintenance-Verfahren mit SQLCipher, Datenkey und Attachments in leerer Umgebung testen; Schlüssel getrennt/offsite sichern."
+    ],
+    "ratings": [
+      "größerer Umbau",
+      "kleine Anpassung",
+      "bereits vorhanden",
+      "größerer Umbau",
+      "größerer Umbau",
+      "größerer Umbau"
+    ],
+    "days": [
+      [
+        3,
+        6
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        0,
+        0.5
+      ],
+      [
+        7,
+        14
+      ],
+      [
+        3,
+        7
+      ],
+      [
+        3,
+        6
+      ]
+    ],
+    "risk": "MIT-Hauptlizenz vorhanden. Kein geeigneter erster SSO-Pilot: Einbenutzermodell und verschlüsselte Daten-/Mobilzugänge erfordern bewusste Fachentscheidung."
+  },
+  "kompetenz-manager": {
+    "stack": "Flask/Flask-SQLAlchemy/Flask-Login; Gunicorn; offene requirements",
+    "services": "SQLite mit WAL/busy_timeout oder PostgreSQL; eigener Benachrichtigungs-Timer; kein Redis im Startpfad",
+    "auth": "Werkzeug-Hashes, Flask-Login, Rollen und UserKlassenzuordnung; serverseitige authz-/Klassenzugriffsregeln und CSRF-Modul",
+    "mail": "smtplib mit MAIL_SERVER/PORT/SECURITY/USERNAME/PASSWORD/FROM und APP_BASE_URL; Benachrichtigungen sofort/täglich/aus",
+    "data": "Förder-/Diagnostik-/Schülerdaten, lokale IDs und Klassenrechte; geschützte Uploads in instance/protected_uploads; update_db und Retention-Skripte",
+    "external": "Kern lokal; Schriftarten inzwischen vendor-Dateien, Downloadskript nur Build; keine obligatorische gehostete DB im geprüften Appfactory-Pfad",
+    "heavy": "ODT-Export und LibreOffice/soffice-PDF; Excel-/Diagnostikimporte und Berichte",
+    "public": "Login und erforderliche statische Ressourcen; Uploads dürfen nicht direkt über statischen Webserver erreichbar werden",
+    "ops": "start.sh und systemd-Install-/Update-Skripte; kein Root-Dockerfile. SECRET_KEY ohne Konfiguration zufällig pro Prozess: persistent setzen, sonst Sessions instabil.",
+    "storage": "SQLite behalten, PostgreSQL-Migrationsskript vorhanden, aber nur mit Testkopie/Integrität freigeben. Datenbankschemaupdates aus update_db versionieren.",
+    "refs": [
+      "requirements.txt",
+      "app.py",
+      "models.py",
+      "routes/auth_routes.py",
+      "authz.py",
+      "klassenzugriff.py",
+      "csrf_protection.py",
+      "mail_versand.py",
+      "odt_export.py",
+      "update_db.py",
+      "migrate_sqlite_to_postgres.py"
+    ],
+    "steps": [
+      "Python-/LibreOffice-Image, Lock und Readiness ergänzen; Timer separat; SECRET_KEY persistent.",
+      "APP_BASE_URL und ProxyFix-Konfiguration validieren, Secure-/SameSite-Cookies testen.",
+      "MAIL_* auf Relay setzen und Benachrichtigungsscheduler nur einmal starten.",
+      "Authlib-Login mit PKCE ergänzen; pro Request Freigabe und bestehende authz/Klassenzuordnung anwenden.",
+      "User.id und UserKlassenzuordnung erhalten; Multirollen-/Klassenzuordnung im Trockenlauf vergleichen.",
+      "SQLite-Backup oder pg_dump plus protected_uploads, ODT/Logo und Konfig; Migration und Retention in Restoretest einbeziehen."
+    ],
+    "ratings": [
+      "größerer Umbau",
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "größerer Umbau",
+      "größerer Umbau",
+      "kleine Anpassung"
+    ],
+    "days": [
+      [
+        3,
+        5
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        6,
+        11
+      ],
+      [
+        4,
+        8
+      ],
+      [
+        2,
+        4
+      ]
+    ],
+    "risk": "Fachliche Klassenrechte dürfen durch zentrale Appfreigabe nicht überschrieben werden. LibreOffice-Spitzen separat begrenzen."
+  },
+  "leseflux": {
+    "stack": "Node/TypeScript; Fastify 5, Prisma 5.20; React 18/Vite 5",
+    "services": "PostgreSQL 16; API+Web+nginx aus Compose; Prisma-Migrationen",
+    "auth": "Argon2 für Erwachsene; JWT 8 h Lehrkräfte/24 h Kinder; Kind-QR und Login-Code; TEACHER/ADMIN/CHILD und Klassenbeziehungen",
+    "mail": "Kein SMTP-Versand im API-Quellcode gefunden; IdP übernimmt neue Mitarbeitereinladungen",
+    "data": "Prisma-User-UUIDs, Klassen, Gruppen, Trainings-/Diagnostikergebnisse; schema.prisma enthält qrTokenRaw zusätzlich zu qrTokenHash, entgegen älterer CLAUDE-Beschreibung",
+    "external": "Anton-QR als opaker String, keine Anton-API im geprüften Pfad; keine gehostete DB erforderlich",
+    "heavy": "Training läuft überwiegend im Browser; API-Adaptions-/Diagnostiklogik und CSV/QR-Ausgabe; keine serverseitige Chromium-PDF-Abhängigkeit in API package.json",
+    "public": "Kinderlogin /api/auth/login-child und login-child-code bleiben eigenständig; Erwachsene per OIDC; Kinderdaten nicht öffentlich",
+    "ops": "Compose mit PostgreSQL-Port 5433 auf allen Hostadressen und nginx auf 80/443: unter Plattform entfernen. API-Port 3001; Production-Migration mit prisma migrate deploy statt dev.",
+    "storage": "npm package-lock vorhanden; Build shared→api→web; CORS_ORIGIN muss zur veröffentlichten Domain passen, VITE_API_URL ist Vite-Konfiguration; echte Produktionsbuilds noch nicht ausgeführt.",
+    "refs": [
+      "package.json",
+      "apps/api/package.json",
+      "docker-compose.yml",
+      "apps/api/Dockerfile",
+      "apps/api/src/app.ts",
+      "apps/api/src/plugins/auth.ts",
+      "apps/api/src/modules/auth/routes.ts",
+      "apps/api/prisma/schema.prisma",
+      "apps/api/src/modules/teacher/routes.ts",
+      "apps/web/src/store/authStore.ts"
+    ],
+    "steps": [
+      "Compose auf Plattformproxy umstellen, DB-Hostport entfernen; frozen npm ci und Prisma-Generation/Health prüfen.",
+      "CORS_ORIGIN, Frontend-APIpfad und SameSite-Verhalten gemeinsam umstellen.",
+      "Einladung im IdP; kein zusätzlicher Mailserver in App erforderlich.",
+      "OIDC-BFF für Erwachsene; JWT-Widerruf/Statusprüfung ergänzen, Kinder-Codefluss gezielt erhalten.",
+      "UUIDs und Class/GroupMember-Beziehungen beibehalten; QR-Rohwerte wie Zugangsdaten schützen und rotieren.",
+      "pg_dump einschließlich Schülerfortschritt und QR-Zugangsdaten; Seeds nur synthetisch und nicht bei jedem Start."
+    ],
+    "ratings": [
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "bereits vorhanden",
+      "größerer Umbau",
+      "größerer Umbau",
+      "kleine Anpassung"
+    ],
+    "days": [
+      [
+        2,
+        4
+      ],
+      [
+        1,
+        3
+      ],
+      [
+        0,
+        0.5
+      ],
+      [
+        6,
+        11
+      ],
+      [
+        3,
+        7
+      ],
+      [
+        1,
+        3
+      ]
+    ],
+    "risk": "Lange selbsttragende JWTs verhindern ohne Umbau die gewünschte schnelle Sperrung. Quellenbeschreibung zur QR-Speicherung ist veraltet; aktuelles Schema maßgeblich."
+  },
+  "schuleva": {
+    "stack": "Python; FastAPI 0.115.0/Uvicorn 0.30.6; Jinja; bcrypt; matplotlib/WeasyPrint",
+    "services": "SQLite mit WAL; schema-/additive Migrationen in app/db.py",
+    "auth": "bcrypt-Passwörter, signierte Starlette-Session mit user_id, Rollen schulleitung/lehrer und CSRF; TAN-/Freigabetoken für Befragung und Ergebnisfreigaben",
+    "mail": "Keine SMTP-Bibliothek/Versandstelle im geprüften app-Code gefunden",
+    "data": "SQLite, Fragebogendefinitionen in surveys/, Klassen-/Befragungsantworten; anonymisierte Stundenzeitstempel",
+    "external": "Lokal betreibbarer Kern; Fonts/Assets-Lizenzen vor Distribution klären",
+    "heavy": "Matplotlib-Grafiken und WeasyPrint-PDF-Berichte/TAN-Bögen",
+    "public": "/start, /befragung, /api/tan/check und /api/submit bleiben TAN-geschützt zugänglich; Freigabelinks gesondert schützen",
+    "ops": "systemd und nginx-Vorlage; kein Dockerfile. SECRET_KEY fällt auf bekannten Platzhalter zurück; Produktionsstart muss fehlenden Secret ablehnen.",
+    "storage": "requirements teils exakt, WeasyPrint offen; kein vollständiger transitive Lock. TAN-Verbrauch und response-Schreiben sind getrennte Aufrufe: Fehler/Parallelität zwischen beiden testen.",
+    "refs": [
+      "requirements.txt",
+      "app/main.py",
+      "app/auth.py",
+      "app/db.py",
+      "app/routes/public.py",
+      "app/routes/admin.py",
+      "app/routes/export.py",
+      "app/services/tan.py",
+      "app/services/pdf_report.py"
+    ],
+    "steps": [
+      "Python/Pango-Image und Health; eindeutiger Secret-Zwang, abhängige Pakete sperren.",
+      "Basis-URL-Konfiguration ergänzen; PDF-QR-/Ergebnislinks und vertrauenswürdige Proxyheader prüfen.",
+      "Zentrale IdP-Einladung; App-Mail nicht erforderlich.",
+      "OIDC für administrative Sessions ergänzen; Rollen/ShareGrants und TAN-Routen erhalten.",
+      "Lokale users.id und Eigentümer/Ergebnisfreigaben mappen; Kinder/TAN nicht als Personenkonten importieren.",
+      "SQLite-Backup-API plus surveys/ und Konfiguration; TAN/Antwort-Atomarität als Abnahmetest aufnehmen."
+    ],
+    "ratings": [
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "bereits vorhanden",
+      "größerer Umbau",
+      "kleine Anpassung",
+      "kleine Anpassung"
+    ],
+    "days": [
+      [
+        2,
+        4
+      ],
+      [
+        1,
+        3
+      ],
+      [
+        0,
+        0.5
+      ],
+      [
+        5,
+        9
+      ],
+      [
+        2,
+        4
+      ],
+      [
+        2,
+        4
+      ]
+    ],
+    "risk": "Einmal-TAN ist fachliche Autorisierung, kein zentraler Lehrerlogin. Public-Rate-Limiter ist pro Prozess und vertraut direkt X-Forwarded-For; Proxygrenze härten."
+  },
+  "gswb": {
+    "stack": "Flask >=3,<4; Gunicorn >=22,<24; SQLite; rapidfuzz; google-genai",
+    "services": "SQLite, JSON-Reviewverzeichnis, Audio/Bilder und Uploads; keine Benutzer-DB",
+    "auth": "Im geprüften Blueprint keine Anmeldung/Rollen für /review und verändernde Review-POSTs; öffentliche Wörterbuch-API mit CORS *",
+    "mail": "Keine SMTP-Versandstelle im geprüften Pythoncode gefunden",
+    "data": "SQLite-Wortbestand, data/import_words, static/images/audio/uploads; Schreibproben können personenbezogen sein",
+    "external": "Gemini/Vertex für Handschriftanalyse und Generatoren; HANDWRITING_MODE=mock ersetzt die Funktion nur durch Testantwort, kein gleichwertiges lokales OCR. Wörterbuchsuche ohne KI lokal.",
+    "heavy": "Externe Bild-/Handschriftanalyse und Wörtergenerierung; fuzzy Suche lädt Wörterliste in Prozesscache; Audio-TTS-Skripte extern",
+    "public": "/, /search, /word, /api/autocomplete und /api/word öffentlich; /review muss geschützt, /writing-check limitiert und datenschutzgerecht gestaltet werden",
+    "ops": "Appfactory vorhanden; Produktions-Gunicorn ergänzen, kein Dockerfile. Bekannter SECRET_KEY im Factory-Default und festgelegte Pfade; Env-/Secret-Vertrag ergänzen.",
+    "storage": "Keine Benutzeridentität für Suche nötig; Proxy-Anmeldung nur für Redaktion sachgerecht, wenn direktes Backend geschlossen und alle Schreibpfade erfasst. Schema-Init bei Start, keine nummerierten Migrationen.",
+    "refs": [
+      "requirements.txt",
+      "grundschul_woerterbuch/__init__.py",
+      "grundschul_woerterbuch/db.py",
+      "grundschul_woerterbuch/routes.py",
+      "grundschul_woerterbuch/repository.py",
+      "grundschul_woerterbuch/services/handwriting_service.py",
+      "grundschul_woerterbuch/services/json_review_service.py",
+      "gemini-tts-wortliste.py"
+    ],
+    "steps": [
+      "Nicht-Root-Gunicorn-Image, Pfad-/Secret-Env und Readiness; Schreibrechte auf Datenverzeichnisse begrenzen.",
+      "Kanonische URL konfigurierbar machen; API-CORS nur bei absichtlich öffentlichem Lesemodus *, Bearbeitung same origin.",
+      "Mail nicht erforderlich.",
+      "Redaktion hinter OIDC-fähige Policy/BFF oder nativen Authlib-Schutz; alle /review-POSTs und CSRF serverseitig prüfen.",
+      "Kein lokales Benutzerkonto zu migrieren; für Redaktion Subject-Zulassung, keine fingierte Kontenintegration.",
+      "SQLite-Backup plus JSON, Audio/Bilder und Uploads; Schreibproben kurz aufbewahren und aus öffentlichem static-Pfad verschieben."
+    ],
+    "ratings": [
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "bereits vorhanden",
+      "kleine Anpassung",
+      "bereits vorhanden",
+      "kleine Anpassung"
+    ],
+    "days": [
+      [
+        2,
+        4
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        0,
+        0.5
+      ],
+      [
+        3,
+        6
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        2,
+        4
+      ]
+    ],
+    "risk": "Vollständig gleichwertiges Self-Hosting der KI-Funktionen derzeit nicht nachgewiesen. Ungeschützte Redaktion ist ein vorrangiger Befund."
+  },
+  "grundschultafel": {
+    "stack": "Next.js 16.1.6; React 19.2.3; Node; ungenutzte node:sqlite-Typdeklaration; Fabric 7; bcryptjs/jose",
+    "services": "Next-Server, users.json und benutzerspezifische JSON-/Dateispeicher; Galerie ist externer HTTP-Dienst",
+    "auth": "bcrypt-Hashes in data/users.json; admin/teacher; HS256-Cookie mit 30 Tagen; Middleware/API-Sessionprüfungen, bekannte Initialkombination admin/123456",
+    "mail": "Keine SMTP-Versandstelle im src-Code gefunden",
+    "data": "data/users.json und data/<user-id> für Notizbücher; öffentliche Assets/Backgrounds/Journal und mobile Uploads; lokale Browserzustände gesondert prüfen",
+    "external": "YouTube Data API/YOUTUBE_API_KEY, externe Galerie pix.foerster.rocks und Fontlibrary-CSS; für vollständigen Offline-/Selfhost-Modus Ersatz/Deaktivierung erforderlich",
+    "heavy": "Fabric-Canvas überwiegend Browser; Galerie-/Bild-Proxy und Uploadverarbeitung; Server-GPU daraus nicht ableitbar",
+    "public": "/login, /api/auth/login, /api/auth/users, /upload, /api/mobile-upload laut Middleware; Uploadberechtigungen separat prüfen",
+    "ops": "npm build/start, Port 3000; kein Dockerfile/Compose. package.json legt keine Node-Engine fest; node:sqlite existiert nur als Typdeklaration, kein Laufzeitimport im src-Code gefunden; JSON-Dateischreiben ohne DB-Transaktion.",
+    "storage": "package-lock vorhanden; SSR/API, keine reine statische App. Immutable Image braucht beschreibbare data/ und definierte Asset-Volumes; paralleles users.json-Schreiben absichern.",
+    "refs": [
+      "package.json",
+      "src/lib/users.ts",
+      "src/lib/session.ts",
+      "src/lib/gallery.ts",
+      "src/middleware.ts",
+      "src/app/api/notebooks/route.ts",
+      "src/app/api/mobile-upload/route.ts",
+      "src/app/api/youtube/route.ts",
+      "src/app/layout.tsx"
+    ],
+    "steps": [
+      "Unterstützte Node-LTS-Version festlegen, standalone Next-Image und Health; Standardzugang durch einmaligen Bootstrap ersetzen.",
+      "Basis-URL für Mobile/QR und externe Galerie konfigurierbar machen, Cookie-/Proxy-/APIpfade testen.",
+      "Mail nicht erforderlich; IdP übernimmt Einladungen.",
+      "OIDC-BFF und widerrufbare serverseitige Sessions; bestehende API-Autorisierung pro User-ID/Rolle beibehalten.",
+      "UUIDs und data/<id>-Verzeichnisse erhalten; JSON-Userstore transaktional oder atomar/gesperrt schreiben; kein E-Mail-Zwang.",
+      "Schreibpause für JSON-/Dateibestand plus Konfiguration der externen Galerie, alle beschreibbaren public-Assetpfade erfassen."
+    ],
+    "ratings": [
+      "größerer Umbau",
+      "kleine Anpassung",
+      "bereits vorhanden",
+      "größerer Umbau",
+      "größerer Umbau",
+      "größerer Umbau"
+    ],
+    "days": [
+      [
+        3,
+        6
+      ],
+      [
+        2,
+        4
+      ],
+      [
+        0,
+        0.5
+      ],
+      [
+        6,
+        11
+      ],
+      [
+        3,
+        7
+      ],
+      [
+        3,
+        6
+      ]
+    ],
+    "risk": "Fester Erstzugang und 30-Tage-Claims-Sessions sind vor zentralem Betrieb zu korrigieren. Reine Proxyanmeldung löst Besitzrechte nicht."
+  },
+  "schulkasse": {
+    "stack": "Python >=3.12; Flask 3.1.3; Gunicorn 26.2; Argon2, WeasyPrint 70",
+    "services": "SQLite mit WAL, busy_timeout 5 s und BEGIN IMMEDIATE; nummerierte SQL-Migrationen",
+    "auth": "Serverseitige sitzung-Tabelle, acht Stunden Inaktivität, Argon2id; MFA/TOTP; admin/kasse/lehrkraft, Projektzugriff für verantwortliche User-ID, CSRF",
+    "mail": "Keine SMTP-Versandstelle im Anwendungscode gefunden; Briefe/PDF sind kein Mailversand",
+    "data": "Finanz-/Beitrags-/Schüler-/Kontodaten, Bankimporte und Buchungen, Brief-Konfiguration und Schlüssel für 2FA; DB-Datei aus SCHULKASSE_*",
+    "external": "Bankdateiimport (z. B. CAMT) lokal; kein nachgewiesener Zahlungsprovider/API-Zwang",
+    "heavy": "WeasyPrint-Briefe/Monatsberichte, CAMT-Import und Matching; keine echte Online-Zahlung aus Namen ableiten",
+    "public": "Mitarbeiterlogin und statische Assets; fachliche Daten durch Rollen und Projektbesitz schützen",
+    "ops": "systemd/Gunicorn, Install-/Update-/Backup-Timer vorhanden; kein Dockerfile. Gepinnte requirements aber ohne Hash-Lock; Pango/HarfBuzz nötig.",
+    "storage": "SQLite für 10 gleichzeitige Personen nicht ohne Messung ersetzen. Export/Anonymisierung vorhanden; Buchungsintegrität und gleichzeitige Umbuchungen vor SSO-Umstellung testen.",
+    "refs": [
+      "requirements.txt",
+      "pyproject.toml",
+      "schulkasse/auth.py",
+      "schulkasse/db.py",
+      "schulkasse/config.py",
+      "schulkasse/zwei_faktor.py",
+      "schulkasse/buchung.py",
+      "schulkasse/anonymisierung.py",
+      "deploy/schulkasse-backup.service"
+    ],
+    "steps": [
+      "Nicht-Root-Python/Pango-Image, SQL-Migration als Einmaljob und Readiness.",
+      "Proxy-/Cookie-Einstellungen und absolute Brief-/QR-Daten prüfen; SCHULKASSE-Konfiguration in Manifest.",
+      "Keinen unnötigen SMTP-Code ergänzen.",
+      "OIDC mit MFA-Claim/Policy für Finanzrollen und serverseitiger Sessionrevokation ergänzen; lokale Kassenrechte bleiben maßgeblich.",
+      "benutzer.id und verantwortlich_user_id unverändert; Kasse/Admin nicht aus allgemeiner Plattformgruppe ableiten.",
+      "SQLite-Backup-API plus Briefvorlage/Keys; Salden-/Buchungs-/Umbuchungsabgleich nach Restore; Ereignis-RPO enger als täglich prüfen."
+    ],
+    "ratings": [
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "bereits vorhanden",
+      "größerer Umbau",
+      "größerer Umbau",
+      "kleine Anpassung"
+    ],
+    "days": [
+      [
+        2,
+        4
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        0,
+        0.5
+      ],
+      [
+        6,
+        11
+      ],
+      [
+        3,
+        6
+      ],
+      [
+        2,
+        4
+      ]
+    ],
+    "risk": "Finanzdatenintegrität hat Vorrang vor Vereinheitlichung. Kein pauschaler Umzug auf gemeinsame fachliche DB."
+  },
+  "abgen": {
+    "stack": "Node >=22, pnpm-Workspace; Fastify 5/Drizzle/pg; React 19/Vite 8; Playwright 1.64.1",
+    "services": "PostgreSQL 18-alpine, Web/nginx, API 3000 und eigener Chromium-PDF-Dienst 3001; WebSockets/Yjs",
+    "auth": "Argon2 via @node-rs/argon2, Cookie-Sessions; Registrierung standardmäßig zu, erstes Konto ausgenommen; Eigentümer/Freigaben, öffentliche Spiel-/Kurzcodes",
+    "mail": "Kein SMTP-/Nodemailer-Versand im Servercode gefunden",
+    "data": "PostgreSQL, Content-hash-Assets in /app/data/assets, Browserzustand/Offline-Dokumente; Drizzle-Migrationen",
+    "external": "Wörterbücher/Fonts lokal im Bestand, Fetch-Skripte beim Build; externe Medienherkunft und Nutzungsrechte trotzdem prüfen",
+    "heavy": "Persistenter lazy Chromium-Browser, je /render neue Seite; PDF/26 Varianten und 60s Timeout; Yjs-Kollaboration/WebSockets",
+    "public": "Print-/Share-/Play-/Kurzcoderouten nach jeweiligem Token; Drucktoken erlauben Dienstzugriff, nicht pauschal OIDC davor",
+    "ops": "Drei Dockerfiles und Compose samt Healthchecks. Default-DBpasswort und COOKIE_SECURE=false nur für Beispiel; Plattform muss sichere Werte erzwingen. PG18-Pfad /var/lib/postgresql beachten.",
+    "storage": "pnpm-lock und Node >=22 vorhanden; native Argon2/Chromium/Fonts auf ARM64 nicht gebaut. PostgreSQL18 nicht ungeprüft mit PG16 zusammenlegen.",
+    "refs": [
+      "package.json",
+      "docker-compose.yml",
+      "docker/pdf.Dockerfile",
+      "apps/server/src/config.ts",
+      "apps/server/src/app.ts",
+      "apps/server/src/auth/session.ts",
+      "apps/server/src/routes/auth.ts",
+      "apps/server/src/routes/collab.ts",
+      "apps/server/src/pdf/service.ts",
+      "apps/server/src/db/schema.ts"
+    ],
+    "steps": [
+      "Digest-Images, produktive Secrets/Cookieflags erzwingen; PDF-Dienst nur intern, Parallelität und Queue hart begrenzen.",
+      "WEB_ORIGIN, Druckseiten, WS-Origin, Cookie-/CORS und Tokenlinks atomar ändern.",
+      "Mail nicht benötigt; IdP-Einladung.",
+      "OIDC-BFF für Konten; WS-Handshake und laufende Verbindungen auf Sperrung prüfen, Share/Print/Play getrennt lassen.",
+      "Lokale Account-IDs, Dokumentbesitzer und Freigaben erhalten; Offline-Konflikte bei Wiedersynchronisierung testen.",
+      "PG18 pg_dump und Assetvolume zusammen sichern; Restore mit Fonts/Wörterbüchern/Versionsstand, offene Yjs-Sessions vorher drainen."
+    ],
+    "ratings": [
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "bereits vorhanden",
+      "größerer Umbau",
+      "größerer Umbau",
+      "größerer Umbau"
+    ],
+    "days": [
+      [
+        2,
+        4
+      ],
+      [
+        2,
+        4
+      ],
+      [
+        0,
+        0.5
+      ],
+      [
+        7,
+        13
+      ],
+      [
+        3,
+        7
+      ],
+      [
+        3,
+        6
+      ]
+    ],
+    "risk": "Zusätzlicher PG18- und Chromium-Betrieb macht 14-App-Installation deutlich schwerer als statische Frontends. Font-/Wörterbuchlizenzen einzeln erhalten."
+  },
+  "losverkauf": {
+    "stack": "Flask >=3; Gunicorn >=21; SQLite; ReportLab; Leaflet-Frontend",
+    "services": "SQLite mit timeout=10 und BEGIN IMMEDIATE für Anmeldungen; Mail in lokalen Hintergrundthreads, keine dauerhafte Appqueue",
+    "auth": "Ein gemeinsames ADMIN_PASSWORD aus Env mit compare_digest, Adminflag in Flask-Cookie; Eltern-Token und persönliche edit_tokens; keine lokale Personen-/Usertabelle für Admins",
+    "mail": "smtplib; SMTP_HOST/PORT/SICHERHEIT/USER/PASSWORD, MAIL_FROM/REPLY_TO; ohne SMTP_HOST lokale .eml unter data/mails",
+    "data": "Anmeldungen, Personen-/Kontakt-/Bezirksdaten, edit_tokens, mail_log, config/Bezirke und Karte; lokale DB_PATH",
+    "external": "Leaflet/OpenStreetMap-Karten und Import über OSM-Daten; Inhalte/Tile-Policy für isolierten Betrieb berücksichtigen",
+    "heavy": "ReportLab-PDF und Kartenimport; konkurrierende Anmeldungen fachlich auf Maximalplätze testen",
+    "public": "Elternroute /?t=..., /api/bezirke, Anmeldungen und tokengebundene Löschung; /healthz vorhanden",
+    "ops": "Gunicorn-systemd und nginx-/Deployskripte; kein Dockerfile. Fehlender ELTERN_TOKEN schaltet Entwicklungszugang frei; Produktionsstart muss das verhindern.",
+    "storage": "Ungepinntes requirements; SECRET_KEY ohne Konfiguration zufällig, persistent setzen. Kein lokales Konten-SSO ohne neuen Identitätsbezug; Adminproxy kann nur gemeinsame Rolle schützen.",
+    "refs": [
+      "requirements.txt",
+      "app.py",
+      "mail.py",
+      "deploy/losverkauf.service",
+      "deploy/losverkauf.env.example",
+      "templates/index.html"
+    ],
+    "steps": [
+      "Nicht-Root-Gunicorn-Image, /healthz nutzen; Secret/Elterntoken verpflichtend, Threads/Mailzustellung absichern.",
+      "Mail-/Elternlinks und Proxy-Host prüfen, eventuell BASE_URL ergänzen; alte Links befristet erhalten.",
+      "SMTP_* zum Relay und Mail-Sink; Threadverlust vor Relayannahme durch dauerhafte Outbox beheben.",
+      "Für gemeinsame Adminfunktion Proxy-/BFF-Policy zulässig; individuelle Auditidentität braucht native OIDC-/Sessionanpassung; Elternpfade getrennt.",
+      "Keine Admin-Usertabelle vorhanden; neue Identitätszuordnung bewusst einführen, edit_tokens/Anmeldungsbesitz erhalten.",
+      "SQLite-Backup plus Bezirke/Kartendaten und Mailoutbox; Integrität/Platzlimits nach Restore prüfen."
+    ],
+    "ratings": [
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "größerer Umbau",
+      "kleine Anpassung",
+      "kleine Anpassung"
+    ],
+    "days": [
+      [
+        2,
+        4
+      ],
+      [
+        1,
+        3
+      ],
+      [
+        1,
+        3
+      ],
+      [
+        4,
+        8
+      ],
+      [
+        1,
+        3
+      ],
+      [
+        2,
+        4
+      ]
+    ],
+    "risk": "Tokenleerer Entwicklungsmodus und verlorene Hintergrundmails beim Prozessneustart sind betriebliche Risiken."
+  },
+  "schulhelfer": {
+    "stack": "FastAPI/Uvicorn; SQLAlchemy/Alembic; Argon2; APScheduler; aiosmtplib; ReportLab",
+    "services": "SQLite per Default, SQLAlchemy-URL; ein APScheduler pro Prozess mit 24h Retention; Mail BackgroundTasks",
+    "auth": "AdminUser-ID, Argon2, Starlette-Session und Admin-/CSRF-Dependencies; Teilnehmerlinks /s/<token> und E-Mail-Wiederherstellung",
+    "mail": "aiosmtplib SMTP_HOST/PORT/STARTTLS/USE_TLS/USER/PASS/FROM/TIMEOUT; BASE_URL für alle /s/-Links; Versand-/Fehlschlagprotokoll",
+    "data": "SQLite/data, Events, Stationen, Schichten, Buchungen, Spenden und Teilnehmer; Tokenhash plus aktueller token-Klartext im Schema für Wiederholversand",
+    "external": "Keine zwingende Cloud im geprüften Kern; SMTP lokal oder Relay",
+    "heavy": "ReportLab-Export; Hintergrundmails mit Verzögerung; konkurrierende Schichtbuchungen und Retentionjobs testen",
+    "public": "Öffentliche Veranstaltungen/Anmeldung, /s/<token>, Linkwiederherstellung; SSO nur für Admin",
+    "ops": "Python3.12-slim-Dockerfile vorhanden, startet Uvicorn auf 8000; läuft derzeit ohne USER und ohne Healthcheck. Platzhalter SECRET_KEY und SMTP-Default localhost absichern.",
+    "storage": "requirements ungesperrt; Alembic und SQLite-Default. Mehrere Uvicorn-Worker würden mehrere Scheduler erzeugen: Single instance oder ausgelagerten Scheduler vereinbaren.",
+    "refs": [
+      "requirements.txt",
+      "Dockerfile",
+      "app/config.py",
+      "app/main.py",
+      "app/dependencies.py",
+      "app/security.py",
+      "app/models.py",
+      "app/routers/public.py",
+      "app/routers/admin.py",
+      "app/email_service.py",
+      "app/scheduler.py"
+    ],
+    "steps": [
+      "Nicht-Root/Healthcheck/Lock ergänzen; Scheduler exklusiv betreiben und Alembic vor Freigabe ausführen.",
+      "BASE_URL und Elternlinks sowie Proxy-/Secure-Cookies testen, tokenisierte Links aus Logs entfernen.",
+      "SMTP_* zum Relay; persistente Outbox mit Retry statt nur BackgroundTasks; Test ausschließlich Sink.",
+      "OIDC nur für AdminUser; serverseitige Freigabe an Depends(require_admin) anschließen; öffentliche Teilnehmerlinks erhalten.",
+      "AdminUser.id erhalten, Eltern/Teilnehmer bleiben eigene Entitäten ohne Zwangs-IdP-Konto.",
+      "SQLite-Backup plus Konfiguration; Buchungszahlen, Tokens und Retention nach Restore testen."
+    ],
+    "ratings": [
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "kleine Anpassung",
+      "größerer Umbau",
+      "kleine Anpassung",
+      "kleine Anpassung"
+    ],
+    "days": [
+      [
+        2,
+        4
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        4
+      ],
+      [
+        5,
+        9
+      ],
+      [
+        2,
+        4
+      ],
+      [
+        2,
+        4
+      ]
+    ],
+    "risk": "52 Bestandstests bestanden, aber weder Last-/Parallelitätsnachweis noch SMTP-Sink-Zustellung dadurch bewiesen; Bestandstests verwenden absichtlich unerreichbaren SMTP-Port."
+  },
+  "zackboing": {
+    "stack": "Node >=18; Express 4.21; Socket.IO 4.8; better-sqlite3 11.10",
+    "services": "SQLite WAL; aktive Spiele/Teilnehmer im Node-Prozessspeicher; HTTP plus WebSockets",
+    "auth": "crypto.scryptSync-Passwörter; serverseitige sessions mit token/user_id ohne Ablaufprüfung in userForToken; Cookie 90 Tage; admin/teacher; erstes offenes Registrierkonto wird Admin",
+    "mail": "Keine SMTP-/Mailversandstelle im server-Code gefunden",
+    "data": "ZACKBOING_DATA/zackboing.db; Quiz-/User-/Session-/Settingdaten und lokale Uploads; aktive Spiele sind flüchtig und überleben Neustart nicht",
+    "external": "Bildgalerie mit konfigurierbarer URL, Vorgabe pix.foerster.rocks; HTTP-Proxy für Bildsuche; Quizkern lokal",
+    "heavy": "Socket.IO-Broadcast und zahlreiche offene Verbindungen; scryptSync blockiert Event Loop bei Loginspitzen; Uploads",
+    "public": "Spiel-PIN/Teilnehmerzugang ohne Lehrkraftkonto; Hostrechte am WS-Handshake/Events separat; keine pauschale Auth vor Socket.IO",
+    "ops": "systemd auf Port 3100, Code default 3000; kein Dockerfile. npm Lock vorhanden; better-sqlite3 native Binding unter Host-Node26 hier nicht erfolgreich gebaut.",
+    "storage": "Serverseitiges HTML/JS statisch plus Express-API; kein reines statisches Frontend. ARM64 nativ ungeprüft; Node-LTS passend zu better-sqlite3 festlegen.",
+    "refs": [
+      "package.json",
+      "server/auth.js",
+      "server/db.js",
+      "server/index.js",
+      "server/game.js",
+      "deploy/zackboing.service",
+      "test/e2e.js"
+    ],
+    "steps": [
+      "Node-LTS/native Binding im isolierten CI-Image validieren; Nicht-Root-Image und Readiness; offene Erstregistrierung durch Bootstrap ersetzen.",
+      "Galerie-URL, Host-/Join-QR und Socket.IO-Origin/Upgrade im Proxy testen.",
+      "Mail nicht erforderlich; IdP-Einladungen.",
+      "OIDC für Hosts/Lehrkräfte, Sessionablauf und Widerruf ergänzen; bestehende WS-Verbindungen bei Sperrung schließen.",
+      "User.id und Quizbesitz erhalten; Gäste/PIN-Teilnehmer nicht ins zentrale Verzeichnis aufnehmen.",
+      "SQLite-Backup und Uploads; Spiele vor Wartung drainen und flüchtigen Spielverlust im Betriebsvertrag benennen."
+    ],
+    "ratings": [
+      "größerer Umbau",
+      "kleine Anpassung",
+      "bereits vorhanden",
+      "größerer Umbau",
+      "kleine Anpassung",
+      "kleine Anpassung"
+    ],
+    "days": [
+      [
+        3,
+        5
+      ],
+      [
+        1,
+        3
+      ],
+      [
+        0,
+        0.5
+      ],
+      [
+        6,
+        11
+      ],
+      [
+        2,
+        4
+      ],
+      [
+        2,
+        4
+      ]
+    ],
+    "risk": "Ein erfolgreicher npm-ci-Lockinstall ohne natives Binding ist noch kein erfolgreicher Produktionsbuild. Game-State braucht kein PostgreSQL, aber geplante Neustarts."
+  }
+}

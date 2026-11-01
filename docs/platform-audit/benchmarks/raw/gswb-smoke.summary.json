@@ -1,0 +1,24 @@
+{
+  "users": 10,
+  "measurement_seconds": 30.0,
+  "warmup_seconds": 5.0,
+  "count": 298,
+  "rps": 9.933333333333334,
+  "error_rate": 0.0,
+  "response_bytes": 250346,
+  "latency_ms": {
+    "0.5": 5.553,
+    "0.95": 8.416,
+    "0.99": 12.504
+  },
+  "actions": {
+    "dictionary-home": {
+      "count": 62,
+      "p95_ms": 10.73
+    },
+    "dictionary-word": {
+      "count": 236,
+      "p95_ms": 7.253
+    }
+  }
+}

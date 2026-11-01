@@ -1,0 +1,20 @@
+{
+  "checked_at": "2026-11-01T10:25:32.477267+00:00",
+  "releases": [
+    {
+      "tag_name": "v2.11.7",
+      "published_at": "2026-10-03T05:58:33Z",
+      "html_url": "https://github.com/caddyserver/caddy/releases/tag/v2.11.7"
+    },
+    {
+      "tag_name": "26.8.1",
+      "published_at": "2026-10-13T08:58:15Z",
+      "html_url": "https://github.com/keycloak/keycloak/releases/tag/26.8.1"
+    },
+    {
+      "tag_name": "v1.33.0",
+      "published_at": "2026-10-31T02:15:12Z",
+      "html_url": "https://github.com/axllent/mailpit/releases/tag/v1.33.0"
+    }
+  ]
+}

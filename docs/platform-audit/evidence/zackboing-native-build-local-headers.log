@@ -1,0 +1,6 @@
+npm error code EUNKNOWNCONFIG
+npm error Unknown cli flags:
+npm error   - --devdir
+npm error   - --nodedir
+npm error Run `npm help config` for supported options.
+npm error A complete log of this run can be found in: /tmp/schulplattform-audit/npm-cache/_logs/2026-11-01T10_17_01_499Z-debug-0.log

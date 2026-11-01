@@ -1,0 +1,6 @@
+test_the_same_code_cannot_be_used_for_a_second_login (tests.test_two_factor.LoginFlowTests.test_the_same_code_cannot_be_used_for_a_second_login) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 1.468s
+
+OK

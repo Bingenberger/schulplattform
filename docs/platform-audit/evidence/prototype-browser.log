@@ -1,0 +1,8 @@
+{"test": "A native OIDC login", "passed": true, "detail": "Schulwissen callback completed through Caddy/Keycloak"}
+{"test": "A -> B SSO without entering password again", "passed": true, "detail": "B is synthetic Flask/Authlib RP, not second real app"}
+{"test": "B public route", "passed": true, "detail": ""}
+{"test": "A local session survives IdP logout (observed gap)", "passed": true, "detail": "200 after IdP logout; no implemented global revocation claim"}
+{"test": "direct B API without session denied", "passed": true, "detail": ""}
+{"test": "B user without grant rejected", "passed": true, "detail": ""}
+{"test": "B direct API after rejected login denied", "passed": true, "detail": ""}
+{"test": "B local session ends by ID-token expiry", "passed": true, "detail": ""}

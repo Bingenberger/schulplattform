@@ -1,0 +1,13 @@
+diff --git a/package.json b/package.json
+index 98834c2..9706ab7 100644
+--- a/package.json
++++ b/package.json
+@@ -18,5 +18,8 @@
+   },
+   "devDependencies": {
+     "socket.io-client": "^4.8.1"
++  },
++  "allowScripts": {
++    "better-sqlite3@11.10.0": true
+   }
+ }

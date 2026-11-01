@@ -1,0 +1,46 @@
+/tmp/schulplattform-audit/repos/zackboing/node_modules/bindings/bindings.js:135
+  throw err;
+  ^
+
+Error: Could not locate the bindings file. Tried:
+ → /tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/build/better_sqlite3.node
+ → /tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/build/Debug/better_sqlite3.node
+ → /tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/build/Release/better_sqlite3.node
+ → /tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/out/Debug/better_sqlite3.node
+ → /tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/Debug/better_sqlite3.node
+ → /tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/out/Release/better_sqlite3.node
+ → /tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/Release/better_sqlite3.node
+ → /tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/build/default/better_sqlite3.node
+ → /tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/compiled/26.12.1/linux/x64/better_sqlite3.node
+ → /tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/addon-build/release/install-root/better_sqlite3.node
+ → /tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/addon-build/debug/install-root/better_sqlite3.node
+ → /tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/addon-build/default/install-root/better_sqlite3.node
+ → /tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/lib/binding/node-v147-linux-x64/better_sqlite3.node
+    at bindings (/tmp/schulplattform-audit/repos/zackboing/node_modules/bindings/bindings.js:126:9)
+    at new Database (/tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/lib/database.js:48:64)
+    at Object.<anonymous> (/tmp/schulplattform-audit/repos/zackboing/server/db.js:10:12)
+    at Module._compile (node:internal/modules/cjs/loader:1968:14)
+    at Object..js (node:internal/modules/cjs/loader:2108:10)
+    at Module.load (node:internal/modules/cjs/loader:1690:32)
+    at Module._load (node:internal/modules/cjs/loader:1480:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.require (node:internal/modules/cjs/loader:1713:12)
+    at require (node:internal/modules/helpers:318:16) {
+  tries: [
+    '/tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/build/better_sqlite3.node',
+    '/tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/build/Debug/better_sqlite3.node',
+    '/tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
+    '/tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/out/Debug/better_sqlite3.node',
+    '/tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/Debug/better_sqlite3.node',
+    '/tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/out/Release/better_sqlite3.node',
+    '/tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/Release/better_sqlite3.node',
+    '/tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/build/default/better_sqlite3.node',
+    '/tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/compiled/26.12.1/linux/x64/better_sqlite3.node',
+    '/tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/addon-build/release/install-root/better_sqlite3.node',
+    '/tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/addon-build/debug/install-root/better_sqlite3.node',
+    '/tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/addon-build/default/install-root/better_sqlite3.node',
+    '/tmp/schulplattform-audit/repos/zackboing/node_modules/better-sqlite3/lib/binding/node-v147-linux-x64/better_sqlite3.node'
+  ]
+}
+
+Node.js v26.12.1

@@ -1,0 +1,26 @@
+{
+  "schulplattform-audit-keycloak": {
+    "samples": 12,
+    "memory_mib_min": 519.2,
+    "memory_mib_max": 545.2,
+    "docker_cpu_percent_max": 101.83
+  },
+  "schulplattform-audit-caddy": {
+    "samples": 12,
+    "memory_mib_min": 8.105,
+    "memory_mib_max": 14.78,
+    "docker_cpu_percent_max": 5.1
+  },
+  "schulplattform-audit-mailpit": {
+    "samples": 12,
+    "memory_mib_min": 11.62,
+    "memory_mib_max": 14.09,
+    "docker_cpu_percent_max": 2.99
+  },
+  "schulplattform-audit-pg": {
+    "samples": 12,
+    "memory_mib_min": 14.43,
+    "memory_mib_max": 24.65,
+    "docker_cpu_percent_max": 2.7
+  }
+}

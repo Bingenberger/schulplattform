@@ -1,0 +1,6 @@
+Operations to perform:
+  Apply all migrations: admin, auth, contenttypes, fachdaten, kern, sessions
+Running migrations:
+  No migrations to apply.
+Rollen und Gremien sind eingerichtet.
+Synthetic existing local account linked; ownership and teacher group retained

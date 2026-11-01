@@ -1,0 +1,35 @@
+{
+  "audit_containers": [
+    {
+      "name": "schulplattform-audit-keycloak",
+      "running": false,
+      "audit_label": "true"
+    },
+    {
+      "name": "schulplattform-audit-caddy",
+      "running": false,
+      "audit_label": "true"
+    },
+    {
+      "name": "schulplattform-audit-mailpit",
+      "running": false,
+      "audit_label": "true"
+    },
+    {
+      "name": "schulplattform-audit-pg",
+      "running": false,
+      "audit_label": "true"
+    }
+  ],
+  "listening_test_ports": {
+    "25425": false,
+    "25426": false,
+    "25432": false,
+    "25434": false,
+    "25440": false,
+    "25441": false,
+    "25442": false,
+    "25443": false
+  },
+  "passed": true
+}
