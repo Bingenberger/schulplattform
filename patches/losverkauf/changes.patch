@@ -1,0 +1,98 @@
+From 66148e21ab6acb6b7c02aa5a1e4b10645380514f Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Mon, 2 Nov 2026 11:23:36 +0100
+Subject: [PATCH] Bind administrative login to a personal identity
+
+---
+ PLATFORM.md                   | 10 ++++++++++
+ app.py                        | 11 ++++++++---
+ deploy/losverkauf.env.example |  1 +
+ templates/login.html          |  1 +
+ 4 files changed, 20 insertions(+), 3 deletions(-)
+ create mode 100644 PLATFORM.md
+
+diff --git a/PLATFORM.md b/PLATFORM.md
+new file mode 100644
+index 0000000..99a0dfe
+--- /dev/null
++++ b/PLATFORM.md
+@@ -0,0 +1,10 @@
++# Individueller Verwaltungszugang
++
++`ADMIN_USERNAME` muss den persönlichen Namen der zuständigen Person enthalten;
++`ADMIN_PASSWORD` bleibt als bestehender Variablenname erhalten. Beide Werte werden
++bei der Anmeldung geprüft. Alte reine `admin=true`-Sitzungen genügen nicht mehr.
++Ein Benutzerwechsel erfordert eine neue Anmeldung. Elternzugänge und vorhandene
++`edit_token`-Werte werden nicht verändert.
++
++Dies bindet den bisherigen einzelnen Verwaltungszugang an eine Identität. Es ist
++noch keine Mehrbenutzerverwaltung mit individuellen Passwörtern und Audit-Trail.
+diff --git a/app.py b/app.py
+index 472480c..79a762f 100644
+--- a/app.py
++++ b/app.py
+@@ -38,6 +38,7 @@ app.config.update(SESSION_COOKIE_SAMESITE="Lax", SESSION_COOKIE_HTTPONLY=True,
+ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+ ELTERN_TOKEN = os.environ.get("ELTERN_TOKEN", "")
+ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
++ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "")
+ DB_PATH = Path(os.environ.get("DB_PATH", BASE / "data" / "losverkauf.db"))
+ TITEL = os.environ.get("TITEL", "Losverkauf St. Martin")
+ GEOJSON = BASE / "static" / "bezirke.geojson"
+@@ -240,7 +241,7 @@ def eltern_zugang():
+ def admin_required(fn):
+     @wraps(fn)
+     def wrapper(*a, **kw):
+-        if not session.get("admin"):
++        if not ADMIN_USERNAME or session.get("admin_identity") != ADMIN_USERNAME:
+             return redirect(url_for("admin_login", next=request.path))
+         return fn(*a, **kw)
+     return wrapper
+@@ -345,17 +346,21 @@ def api_anmeldung_loeschen(token):
+ def admin_login():
+     fehler = None
+     if request.method == "POST":
+-        if ADMIN_PASSWORD and secrets.compare_digest(request.form.get("pw", ""), ADMIN_PASSWORD):
++        if (ADMIN_USERNAME and ADMIN_PASSWORD
++                and secrets.compare_digest(request.form.get("username", ""), ADMIN_USERNAME)
++                and secrets.compare_digest(request.form.get("pw", ""), ADMIN_PASSWORD)):
+             session["admin"] = True
++            session["admin_identity"] = ADMIN_USERNAME
+             ziel = request.args.get("next", "")
+             return redirect(ziel if ziel.startswith("/") and not ziel.startswith("//") else url_for("admin"))
+-        fehler = "Passwort falsch."
++        fehler = "Anmeldedaten falsch."
+     return render_template("login.html", titel=TITEL, fehler=fehler)
+ 
+ 
+ @app.route("/admin/logout")
+ def admin_logout():
+     session.pop("admin", None)
++    session.pop("admin_identity", None)
+     return redirect(url_for("admin_login"))
+ 
+ 
+diff --git a/deploy/losverkauf.env.example b/deploy/losverkauf.env.example
+index 627ea8c..4ee098b 100644
+--- a/deploy/losverkauf.env.example
++++ b/deploy/losverkauf.env.example
+@@ -16,3 +16,4 @@ SMTP_USER=
+ SMTP_PASSWORD=
+ MAIL_FROM=Losverkauf St. Martin <lose@example.de>
+ MAIL_REPLY_TO=
++ADMIN_USERNAME=
+diff --git a/templates/login.html b/templates/login.html
+index fe8fb9f..0875fbe 100644
+--- a/templates/login.html
++++ b/templates/login.html
+@@ -3,6 +3,7 @@
+ <main class="seite">
+   <h1>{{ titel }} – Verwaltung</h1>
+   <form method="post" class="login">
++    <label>Persönlicher Benutzername <input name="username" autocomplete="username" required></label>
+     <label>Passwort <input type="password" name="pw" autofocus></label>
+     <button class="primaer">Anmelden</button>
+     {% if fehler %}<p class="fehler">{{ fehler }}</p>{% endif %}
+-- 
+2.43.0
+

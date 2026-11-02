@@ -1,0 +1,308 @@
+From 79e4991283c2fd765dcfecfdd996185e74c1841a Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Mon, 2 Nov 2026 11:23:36 +0100
+Subject: [PATCH] Replace default login with local single-use bootstrap
+
+---
+ PLATFORM.md                               | 20 +++++++++
+ scripts/bootstrap.mjs                     | 24 +++++++++++
+ scripts/test-users.cjs                    | 38 +++++++++++++++++
+ src/app/api/auth/change-password/route.ts |  4 ++
+ src/app/api/auth/login/route.ts           |  6 +--
+ src/app/change-password/page.tsx          |  8 ++++
+ src/app/login/page.tsx                    |  7 ++++
+ src/lib/users.ts                          | 50 ++++++++++++++---------
+ 8 files changed, 134 insertions(+), 23 deletions(-)
+ create mode 100644 PLATFORM.md
+ create mode 100644 scripts/bootstrap.mjs
+ create mode 100644 scripts/test-users.cjs
+
+diff --git a/PLATFORM.md b/PLATFORM.md
+new file mode 100644
+index 0000000..e270540
+--- /dev/null
++++ b/PLATFORM.md
+@@ -0,0 +1,20 @@
++# Lokaler Erstzugang
++
++Ein HTTP-Aufruf legt keinen Standardadministrator mehr an. Auf einer neuen
++Installation lokal `node scripts/bootstrap.mjs PERSOENLICHER_NAME` ausführen.
++Der zufällige Code erscheint ausschließlich auf dem kontrollierenden Terminal,
++gilt 15 Minuten und kann nur für eine erfolgreiche Anmeldung verwendet werden.
++Die normale Anmeldung bietet dafür „Erstzugang mit Einmalcode“. Beim anschließenden
++PIN-Wechsel denselben Code unter dieser Option eingeben und eine eigene PIN setzen.
++
++Bestehende Nutzerdateien werden nicht überschrieben. Nach Verbrauch/Verlust des
++Codes ohne abgeschlossenen PIN-Wechsel ist eine lokale administrative Wiederherstellung
++erforderlich; es gibt keinen offenen HTTP-Neustart des Bootstrapverfahrens.
++Vorhandene Konten und Daten-IDs bleiben erhalten. Bereits vorhandene alte Standardkonten
++werden nicht automatisch gelöscht oder verändert; sie müssen individuell geprüft werden.
++
++`users.json` wird mit privaten Rechten atomar ersetzt. Das verhindert halbe Dateien,
++ersetzt aber noch keine Transaktion für konkurrierende vollständige Nutzerlisten.
++Die Gerätebindung der 30-Tage-Sitzung ist noch nicht umgesetzt.
++
++Tests: `node scripts/test-users.cjs`; `node node_modules/typescript/bin/tsc --noEmit`.
+diff --git a/scripts/bootstrap.mjs b/scripts/bootstrap.mjs
+new file mode 100644
+index 0000000..6a5581f
+--- /dev/null
++++ b/scripts/bootstrap.mjs
+@@ -0,0 +1,24 @@
++// Run locally: node scripts/bootstrap.mjs PERSONAL_USERNAME
++// Refuses existing installations. Secret is written only to the controlling TTY.
++import fs from 'node:fs';
++import crypto from 'node:crypto';
++import path from 'node:path';
++import bcrypt from 'bcryptjs';
++
++const username = process.argv[2];
++if (!username || !/^[\p{L}\p{N}_.@-]{3,80}$/u.test(username)) {
++  throw new Error('Specify a personal username (3–80 characters).');
++}
++const tty = fs.openSync('/dev/tty', 'w');
++const directory = path.join(process.cwd(), 'data');
++fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
++const token = crypto.randomBytes(24).toString('base64url');
++const user = { id: crypto.randomUUID(), username, role: 'admin',
++  passwordHash: await bcrypt.hash(token, 10), createdAt: new Date().toISOString(),
++  mustChangePassword: true, bootstrapExpiresAt: Date.now() + 15 * 60 * 1000 };
++const destination = path.join(directory, 'users.json');
++const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
++fs.writeFileSync(temporary, JSON.stringify([user]), { mode: 0o600, flag: 'wx' });
++try { fs.linkSync(temporary, destination); } finally { fs.unlinkSync(temporary); }
++fs.writeSync(tty, `Initial login for ${username}; valid for 15 minutes:\n${token}\nChange it immediately after login.\n`);
++fs.closeSync(tty);
+diff --git a/scripts/test-users.cjs b/scripts/test-users.cjs
+new file mode 100644
+index 0000000..a329320
+--- /dev/null
++++ b/scripts/test-users.cjs
+@@ -0,0 +1,38 @@
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const os = require('node:os');
++const path = require('node:path');
++const Module = require('node:module');
++const ts = require('typescript');
++const source = path.resolve(__dirname, '../src/lib/users.ts');
++const compiled = ts.transpileModule(fs.readFileSync(source, 'utf8'), {
++  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
++}).outputText;
++const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'tafel-users-test-'));
++const original = process.cwd();
++process.chdir(temporary);
++const loaded = new Module(source, module);
++loaded.filename = source;
++loaded.paths = Module._nodeModulePaths(path.dirname(source));
++loaded._compile(compiled, source);
++const users = loaded.exports;
++(async () => {
++  try {
++    assert.deepEqual(await users.getUsers(), []);
++    assert.equal(fs.existsSync('data/users.json'), false, 'anonymous read must not bootstrap');
++    const user = { id: 'synthetic-1', username: 'synthetic', passwordHash: 'synthetic',
++      role: 'admin', createdAt: new Date().toISOString(), bootstrapExpiresAt: Date.now() + 60000 };
++    await users.saveUsers([user]);
++    const results = await Promise.all([users.consumeBootstrap(user), users.consumeBootstrap(user)]);
++    assert.equal(results.filter(Boolean).length, 1, 'bootstrap is single-use under concurrency');
++    assert.equal(await users.consumeBootstrap({ ...user, id: 'expired', bootstrapExpiresAt: 0 }), false);
++    assert.equal((fs.statSync('data/users.json').mode & 0o777), 0o600);
++    assert.deepEqual(await users.getUsers(), [user]);
++    fs.writeFileSync('data/users.json', '{invalid');
++    await assert.rejects(users.getUsers(), SyntaxError, 'corruption must not become an empty user list');
++    console.log('PASS: no default account, single-use/expired bootstrap, private atomic file, corrupt store rejected');
++  } finally {
++    process.chdir(original);
++    fs.rmSync(temporary, { recursive: true });
++  }
++})().catch(error => { console.error(error); process.exitCode = 1; });
+diff --git a/src/app/api/auth/change-password/route.ts b/src/app/api/auth/change-password/route.ts
+index 91ab1c1..9bb2873 100644
+--- a/src/app/api/auth/change-password/route.ts
++++ b/src/app/api/auth/change-password/route.ts
+@@ -26,6 +26,9 @@ export async function POST(request: NextRequest) {
+   }
+ 
+   const user = users[userIndex];
++  if (user.bootstrapExpiresAt !== undefined && user.bootstrapExpiresAt <= Date.now()) {
++    return NextResponse.json({ error: 'Erstzugang abgelaufen' }, { status: 401 });
++  }
+   const currentMatches = await bcrypt.compare(currentPassword, user.passwordHash);
+   if (!currentMatches) {
+     return NextResponse.json({ error: 'Aktuelle PIN ist falsch' }, { status: 401 });
+@@ -35,6 +38,7 @@ export async function POST(request: NextRequest) {
+     ...user,
+     passwordHash: await bcrypt.hash(newPassword, 10),
+     mustChangePassword: false,
++    bootstrapExpiresAt: undefined,
+   };
+   await saveUsers(users);
+ 
+diff --git a/src/app/api/auth/login/route.ts b/src/app/api/auth/login/route.ts
+index 795d1ba..b355648 100644
+--- a/src/app/api/auth/login/route.ts
++++ b/src/app/api/auth/login/route.ts
+@@ -1,5 +1,5 @@
+ import { NextRequest, NextResponse } from 'next/server';
+-import { getUser } from '@/lib/users';
++import { getUser, consumeBootstrap } from '@/lib/users';
+ import { createSession } from '@/lib/session';
+ import bcrypt from 'bcryptjs';
+ 
+@@ -72,14 +72,14 @@ export async function POST(request: NextRequest) {
+ 
+     const user = await getUser(username);
+ 
+-    if (!user) {
++    if (!user || (user.bootstrapExpiresAt !== undefined && user.bootstrapExpiresAt <= Date.now())) {
+       recordFailedAttempt(ip);
+       return NextResponse.json({ error: 'Ungültige Anmeldedaten' }, { status: 401 });
+     }
+ 
+     const passwordMatches = await bcrypt.compare(password, user.passwordHash);
+ 
+-    if (!passwordMatches) {
++    if (!passwordMatches || !await consumeBootstrap(user)) {
+       recordFailedAttempt(ip);
+       return NextResponse.json({ error: 'Ungültige Anmeldedaten' }, { status: 401 });
+     }
+diff --git a/src/app/change-password/page.tsx b/src/app/change-password/page.tsx
+index 56a137d..1905dea 100644
+--- a/src/app/change-password/page.tsx
++++ b/src/app/change-password/page.tsx
+@@ -114,6 +114,14 @@ export default function ChangePasswordPage() {
+         )}
+ 
+         {/* PIN display */}
++        {stage === 'current' && <details>
++          <summary>Erstzugang mit Einmalcode</summary>
++          <form onSubmit={e => { e.preventDefault(); setStage('new'); }}>
++            <label>Einmalcode <input type="password" value={pins.current}
++              onChange={e => setPins(prev => ({ ...prev, current: e.target.value }))} autoComplete="one-time-code" /></label>
++            <button disabled={!pins.current}>Neue PIN festlegen</button>
++          </form>
++        </details>}
+         <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '20px' }}>
+           {[...Array(6)].map((_, i) => (
+             <div key={i} style={{
+diff --git a/src/app/login/page.tsx b/src/app/login/page.tsx
+index 2067dc9..ae55890 100644
+--- a/src/app/login/page.tsx
++++ b/src/app/login/page.tsx
+@@ -163,6 +163,13 @@ export default function LoginPage() {
+             <p style={{ textAlign: 'center', marginBottom: '12px', color: 'var(--foreground)', opacity: 0.7, fontSize: '0.9rem' }}>
+               PIN eingeben
+             </p>
++            <details>
++              <summary>Erstzugang mit Einmalcode</summary>
++              <form onSubmit={e => { e.preventDefault(); handleLogin(pin); }}>
++                <label>Einmalcode <input type="password" value={pin} onChange={e => setPin(e.target.value)} autoComplete="one-time-code" /></label>
++                <button disabled={loading}>Anmelden</button>
++              </form>
++            </details>
+ 
+             {/* PIN dots */}
+             <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '20px' }}>
+diff --git a/src/lib/users.ts b/src/lib/users.ts
+index de480b9..52a5cc2 100644
+--- a/src/lib/users.ts
++++ b/src/lib/users.ts
+@@ -1,6 +1,7 @@
+ import { promises as fs } from 'fs';
+ import path from 'path';
+ import bcrypt from 'bcryptjs';
++import { randomUUID } from 'node:crypto';
+ 
+ const DATA_DIR = path.join(process.cwd(), 'data');
+ const USERS_FILE = path.join(DATA_DIR, 'users.json');
+@@ -12,28 +13,14 @@ export interface User {
+   role: 'admin' | 'teacher';
+   createdAt: string;
+   mustChangePassword?: boolean;
++  bootstrapExpiresAt?: number;
+ }
+ 
+-// Ensure the data directory and users.json exist, and seed the default admin if empty
++// Initial administrators are provisioned exclusively through the local CLI.
+ export async function initUsersFile() {
+   await fs.mkdir(DATA_DIR, { recursive: true });
+ 
+-  try {
+-    await fs.access(USERS_FILE);
+-  } catch {
+-    // If it doesn't exist, create it with a default admin
+-    const defaultAdminPassword = await bcrypt.hash('123456', 10);
+-    const initialAdmin: User = {
+-      id: 'admin',
+-      username: 'admin',
+-      passwordHash: defaultAdminPassword,
+-      role: 'admin',
+-      createdAt: new Date().toISOString(),
+-      mustChangePassword: true,
+-    };
+-    await fs.writeFile(USERS_FILE, JSON.stringify([initialAdmin], null, 2), 'utf-8');
+-    console.log('Created default admin (admin / 123456). Please change the password later!');
+-  }
++  // Do not create an account in response to an unauthenticated HTTP request.
+ }
+ 
+ export async function getUsers(): Promise<User[]> {
+@@ -42,14 +29,22 @@ export async function getUsers(): Promise<User[]> {
+     const data = await fs.readFile(USERS_FILE, 'utf-8');
+     return JSON.parse(data) as User[];
+   } catch (error) {
+-    console.error('Error reading users.json', error);
+-    return [];
++    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
++    throw error;
+   }
+ }
+ 
+ export async function saveUsers(users: User[]): Promise<void> {
+   await initUsersFile();
+-  await fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2), 'utf-8');
++  const temporary = `${USERS_FILE}.${randomUUID()}.tmp`;
++  const handle = await fs.open(temporary, 'wx', 0o600);
++  try {
++    await handle.writeFile(JSON.stringify(users, null, 2), 'utf-8');
++    await handle.sync();
++  } finally {
++    await handle.close();
++  }
++  await fs.rename(temporary, USERS_FILE);
+ }
+ 
+ export async function getUser(username: string): Promise<User | undefined> {
+@@ -58,6 +53,20 @@ export async function getUser(username: string): Promise<User | undefined> {
+   return users.find(u => u.username.toLowerCase() === username.toLowerCase());
+ }
+ 
++export async function consumeBootstrap(user: User): Promise<boolean> {
++  if (user.bootstrapExpiresAt === undefined) return true;
++  if (user.bootstrapExpiresAt <= Date.now()) return false;
++  if (!/^[a-zA-Z0-9-]+$/.test(user.id)) return false;
++  try {
++    const handle = await fs.open(path.join(DATA_DIR, `bootstrap-consumed-${user.id}`), 'wx', 0o600);
++    await handle.close();
++    return true;
++  } catch (error) {
++    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
++    throw error;
++  }
++}
++
+ export async function deleteUser(username: string): Promise<void> {
+   const users = await getUsers();
+   const filtered = users.filter(u => u.username.toLowerCase() !== username.toLowerCase());
+@@ -71,6 +80,7 @@ export async function updateUserPassword(username: string, newPasswordPlain: str
+   if (!user) throw new Error('Benutzer nicht gefunden');
+   user.passwordHash = await bcrypt.hash(newPasswordPlain, 10);
+   user.mustChangePassword = false;
++  delete user.bootstrapExpiresAt;
+   await saveUsers(users);
+ }
+ 
+-- 
+2.43.0
+
