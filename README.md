@@ -65,8 +65,10 @@ Die lokalen Prüfungen belegen Standalone-Starts, privaten Backendzugang, TLS,
 Negativzugriffe, Mail in den Sink, Domainwechsel mit Rückfall und einen synthetischen
 PostgreSQL-Restore. Sie ersetzen keine vollständige Produktionsabnahme.
 
+Das [Dashboard](docs/implementation/dashboard.md) mit TOTP und eingeschränktem
+Unix-Steuerdienst ist für den Zweierpilot implementiert und geprüft.
 Verschlüsseltes Offsitebackup, konsistente gemeinsame DB-/Datei-/Schlüsselsicherung,
-Dashboard, die weiteren acht Appintegrationen und Zielservermessungen sind offen.
+weitere Dashboardfunktionen, acht Appintegrationen und Zielservermessungen sind offen.
 RPO/RTO und die geschätzten 16 GB RAM/4 vCPU sind noch nicht bestätigt.
 
 Kein Keycloak, keine zentrale Benutzersperrung und kein zentraler Logout.

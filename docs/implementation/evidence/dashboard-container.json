@@ -1,0 +1,16 @@
+{
+  "scope": "synthetic admin, real dashboard container, real authenticated Unix service and pilot actions",
+  "imageId": "sha256:0bbcec8f052ecee9c09020e9853d6432aad0556ddbba22bb0556308529df944c",
+  "tls": true,
+  "totpRequired": true,
+  "anonymousAdminDenied": true,
+  "csrfEnforced": true,
+  "unknownActionDenied": true,
+  "appStartAndStop": true,
+  "logoutRevokes": true,
+  "noDockerSocket": true,
+  "nonRootReadOnly": true,
+  "noCredentialsInHtmlOrEnv": true,
+  "appAccessProjectionEnforced": true,
+  "stoppedAfterTest": true
+}

@@ -1,0 +1,48 @@
+$ docker build --platform linux/amd64 -f Dockerfile.dashboard -t schulplattform-dashboard:0.1.0-dev .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  134.1kB
+Step 1/12 : FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c
+ ---> 9cb180cb36bd
+Step 2/12 : ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+ ---> Using cache
+ ---> e52442871aa1
+Step 3/12 : WORKDIR /app
+ ---> Using cache
+ ---> 36467582d1d0
+Step 4/12 : COPY requirements-dashboard.lock ./
+ ---> Using cache
+ ---> 8c2efadf5f91
+Step 5/12 : RUN pip install --no-cache-dir --require-hashes -r requirements-dashboard.lock
+ ---> Using cache
+ ---> 979fbf08b62b
+Step 6/12 : COPY schulplattform ./schulplattform
+ ---> 7e8a4287e918
+Step 7/12 : COPY templates/dashboard ./templates/dashboard
+ ---> e3a6c100be5b
+Step 8/12 : RUN groupadd --gid 10001 platform && useradd --uid 10001 --gid 10001 --no-create-home platform     && mkdir -p /state && chown 10001:10001 /state && chmod 700 /state
+ ---> Running in fc18cc238bed
+ ---> Removed intermediate container fc18cc238bed
+ ---> aacde7c6d369
+Step 9/12 : USER 10001:10001
+ ---> Running in 03c82fc45c87
+ ---> Removed intermediate container 03c82fc45c87
+ ---> 71314e1fca3f
+Step 10/12 : EXPOSE 8000
+ ---> Running in 91158f6282a9
+ ---> Removed intermediate container 91158f6282a9
+ ---> c25d5f67cbdd
+Step 11/12 : HEALTHCHECK --interval=15s --timeout=3s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"
+ ---> Running in 3bac149a647a
+ ---> Removed intermediate container 3bac149a647a
+ ---> 4aa02c62568a
+Step 12/12 : CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "180", "--worker-tmp-dir", "/tmp", "schulplattform.dashboard:from_env()"]
+ ---> Running in f1035522385e
+ ---> Removed intermediate container f1035522385e
+ ---> 0bbcec8f052e
+Successfully built 0bbcec8f052e
+Successfully tagged schulplattform-dashboard:0.1.0-dev
+
+exit_code=0

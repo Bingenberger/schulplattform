@@ -9,10 +9,12 @@ Docker meldet für die lokal gebauten amd64-Images:
 | --- | ---: |
 | gswb | 190.572.022 Byte |
 | schulwissen | 424.460.181 Byte |
+| Dashboard | 148.103.491 Byte |
 
 [gswb-Rohdaten](../implementation/evidence/gswb-image.json),
-[schulwissen-Rohdaten](../implementation/evidence/schulwissen-image.json).
-Beide verwenden das fixierte Python-3.12.12-Basisimage. gswb installiert aus einem
+[schulwissen-Rohdaten](../implementation/evidence/schulwissen-image.json),
+[Dashboard-Rohdaten](../implementation/evidence/dashboard-image.json).
+Die drei Images verwenden das fixierte Python-3.12.12-Basisimage. gswb installiert aus einem
 Hash-Lockfile, schulwissen aus uv.lock. schulwissen enthält zusätzlich Pango und
 Schriften sowie komprimierte Produktions-Static-Dateien.
 

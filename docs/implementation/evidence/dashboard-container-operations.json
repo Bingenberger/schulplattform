@@ -1,0 +1,100 @@
+[
+  {
+    "command": [
+      "docker",
+      "volume",
+      "create",
+      "sp-dashboard-ea2dc05137-state"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "-i",
+      "--network",
+      "none",
+      "--user",
+      "10001:1003",
+      "-v",
+      "sp-dashboard-ea2dc05137-state:/state",
+      "schulplattform-dashboard:0.1.0-dev",
+      "python",
+      "-c",
+      "import json,sys; from schulplattform.dashboard_auth import AdminStore; data=json.load(sys.stdin); store=AdminStore('/state',initialize=True); store.create_admin(data['username'],data['password'],data['seed']); print('initialized')"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-dashboard-ea2dc05137",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/dashboard-test-a43b88e926/compose.json",
+      "up",
+      "-d",
+      "--no-build",
+      "--wait",
+      "--wait-timeout",
+      "90"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-dashboard-ea2dc05137",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/dashboard-test-a43b88e926/compose.json",
+      "ps",
+      "-q",
+      "proxy"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "cp",
+      "a547a4b20a8d40a9db5cc1694f374fd188091cb19a5628ed5ed590da804fa70e:/data/caddy/pki/authorities/local/root.crt",
+      "/home/emrichschule/schulplattform/.work/dashboard-test-a43b88e926/root.crt"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-dashboard-ea2dc05137",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/dashboard-test-a43b88e926/compose.json",
+      "ps",
+      "-q",
+      "dashboard"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "inspect",
+      "d0378911c250c2968a39dcac791e13f021e30387a7302029162ecf2ae6b6c25c"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-dashboard-ea2dc05137",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/dashboard-test-a43b88e926/compose.json",
+      "down"
+    ],
+    "exitCode": 0
+  }
+]

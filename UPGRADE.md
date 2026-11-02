@@ -7,6 +7,7 @@ bestehende Hostinstallation automatisch.
 | --- | --- | --- |
 | Manifeste | Schema 1 | keine vollständige Releasekombination |
 | Releasebundle | Schema 1, Ed25519, unabhängiger Trust-Key | noch kein freigegebenes oder veröffentlichtes Bundle |
+| Dashboard | Python 3.12.12, SQLite Schema 1, TOTP-Wrapping-Key | lokaler TLS-/Unix-Dienst-Test; keine produktive Serviceinstallation |
 | gswb | Python 3.12.12, SQLite user_version 1 | lokaler Standalone- und Plattformtest |
 | schulwissen | Python 3.12.12, eigener PG16, Django-Migrationen | lokaler Standalone-, TLS-, Domain- und DB-Teilstrestore |
 | Zackboing | unverändertes SQLite-Schema | Sessionablauf ergänzt |

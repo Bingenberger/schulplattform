@@ -29,6 +29,12 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
 - SQLite-Onlinebackup und PostgreSQL-Custom-Dump/Restore. Nichtleere Restoreziele
   werden abgewiesen. Der PostgreSQL-Nachweis betrifft eine neue, vom Netzwerk
   isolierte Datenbankinstanz mit neuem Volume und synthetischen Nutzerdaten.
+- Serverseitiges Dashboard mit eigener Admin-Datenbank, TOTP, serverseitigen
+  Sitzungen, CSRF und Betriebsprotokoll. Öffentliche Kacheln und bestätigte
+  Zugangsprojektion sind von der Administrationsansicht getrennt.
+- Separater Unix-Socket-Steuerdienst mit Peer-UID, HMAC und persistenten Nonces;
+  derzeit ausschließlich Status, Start und Stop für die zwei bekannten Pilot-Apps.
+  Das Dashboard besitzt keinen Docker-Socket.
 - Releasebundles werden mit einem unabhängig bereitgestellten Ed25519-Schlüssel
   geprüft. Signatur, Dateiinventar, Prüfsummen, Manifest-Schema und signierte
   Abnahmenachweise sind Pflicht. Es existiert noch kein freigegebenes Bundle.
@@ -37,7 +43,7 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
 
 | Prüfung | Ergebnis | Rohbeleg |
 | --- | --- | --- |
-| Python-Suite für Sicherheit, Manifeste, Signaturen, State, Domains, SQLite | 46 bestanden | [Log](evidence/python-tests.log) |
+| Python-Suite für Sicherheit, Manifeste, Signaturen, State, Domains, SQLite | 64 bestanden | [Log](evidence/python-tests.log) |
 | schulwissen-Vertragstests im Produktionsimage ohne Netzwerk | 5 bestanden | [Log](evidence/schulwissen-runtime.log) |
 | Zackboing-Session-Negativtests | bestanden | [Log](evidence/zackboing-session.log) |
 | Grundschultafel Bootstrap-/Dateitests und TypeScript | bestanden | [Nodetest](evidence/grundschultafel-users.log), [TypeScript](evidence/grundschultafel-types.log) |
@@ -48,6 +54,7 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
 | Domainwechsel und erzwungener Rückfall mit echten lokalen Diensten | bestanden | [Ergebnis](evidence/pilot-domain-rollback.json) |
 | pg_dump -Fc und Restore in neue leere Instanz | bestanden | [Ergebnis](evidence/pilot-postgres-restore.json) |
 | Pilot stoppen/starten, Schlüssel und Daten erhalten, kein erneuter Bootstrap | bestanden | [Ergebnis](evidence/pilot-lifecycle.json) |
+| Dashboard-TLS, Passwort/TOTP, CSRF, Logout, reale Start-/Stop-Aktionen über Unix-Dienst | bestanden | [Ergebnis](evidence/dashboard-container.json), [Kommandos](evidence/dashboard-container-operations.json) |
 
 Die Wiederaufnahmetests umfassen einen tatsächlich mit Exit 17 beendeten
 Kindprozess nach erfolgter Nebenwirkung. Nach Wiederaufnahme wurde die bereits
@@ -60,7 +67,11 @@ erkannt und korrigiert. Ein Login-Test entdeckte außerdem das fehlende
 Produktions-Static-Manifest im ursprünglichen schulwissen-Dockerfile.
 Die anschließend ausgeführten Prüfungen beziehen sich auf die Korrekturen.
 
-Der Pilot ist nach der Lebenszyklusprüfung gestoppt. Daten, Schlüssel und
+Der Dashboardversuch und seine Korrekturen sind in
+[Dashboard-Prüfhinweise](dashboard-tests.md) dokumentiert; Architektur, Konten und
+verbleibende Privilegien in [Dashboardbetrieb](dashboard.md).
+
+Der Pilot und die Dashboard-Testdienste sind nach den Prüfungen gestoppt. Daten, Schlüssel und
 Testvolumes bleiben erhalten. Es wurden keine globalen Docker-Aufräumkommandos
 oder Löschungen von Bestandsvolumes ausgeführt.
 
@@ -76,7 +87,7 @@ oder Löschungen von Bestandsvolumes ausgeführt.
 | A5 | State-Maschine und Pilot-Lebenszyklus getestet | Host-Provisionierung, alle zehn Apps, vollständige Bootstrap-/Verify-Stufen auf Ubuntu |
 | A6 | lokaler Domainwechsel mit Rückfall getestet | öffentliche DNS-/Besitz-/ACME-Prüfung, Verwaltungsdomain, alle Link-/Callback-/WS-Varianten |
 | A7 | SQLite und PostgreSQL als Bausteine getestet | konsistentes DB-/Datei-/Secret-Gesamtbackup, Verschlüsselung und Offsite, vollständiger Apprestore |
-| A8 | offen | Dashboard mit TOTP und eingeschränkter Deployment-Dienst |
+| A8 | Zweierpilot mit TOTP und eingeschränktem Steuerdienst getestet | produktive Serviceinstallation, Updates/Domains/Backup/SMTP-Oberfläche, tatsächliche Zugangsprojektion aller zehn Apps |
 | A9 | offen | Containerisierung und vollständige Abnahme der übrigen acht Apps |
 | A10 | nicht ausgeführt | Zielservermessung, definierte Last- und Dauerläufe |
 | A11 | nicht begonnen | bleibt bis zur Abnahme der Pflichtpakete zurückgestellt |

@@ -1,0 +1,4 @@
+$ /home/emrichschule/schulplattform/.venv/bin/python -m schulplattform.installer pilot-up --state-dir .work/pilot-v2
+Plattform: Pilot installed but not ready; use pilot-start or inspect the stopped services
+
+exit_code=1

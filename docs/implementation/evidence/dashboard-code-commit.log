@@ -1,0 +1,30 @@
+$ git diff --cached --check
+
+exit_code=0
+
+$ git commit -m Add TOTP administration and authenticated bounded Unix deployment control
+[main 1dbc80a] Add TOTP administration and authenticated bounded Unix deployment control
+ 26 files changed, 1649 insertions(+), 8 deletions(-)
+ create mode 100644 .dockerignore
+ create mode 100644 Dockerfile.dashboard
+ create mode 100644 compose.dashboard.yml
+ create mode 100644 requirements-dashboard.in
+ create mode 100644 requirements-dashboard.lock
+ create mode 100644 schulplattform/dashboard.py
+ create mode 100644 schulplattform/dashboard_auth.py
+ create mode 100644 schulplattform/deployment.py
+ create mode 100644 schulplattform/pilot_engine.py
+ create mode 100644 scripts/build_dashboard.py
+ create mode 100644 scripts/lock_dashboard.py
+ create mode 100644 scripts/verify_cli_errors.py
+ create mode 100644 scripts/verify_dashboard_container.py
+ create mode 100644 templates/dashboard/admin.html
+ create mode 100644 templates/dashboard/base.html
+ create mode 100644 templates/dashboard/login.html
+ create mode 100644 templates/dashboard/operation_failed.html
+ create mode 100644 templates/dashboard/tiles.html
+ create mode 100644 tests/test_dashboard.py
+ create mode 100644 tests/test_dashboard_auth.py
+ create mode 100644 tests/test_deployment.py
+
+exit_code=0
