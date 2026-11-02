@@ -76,12 +76,14 @@ def _main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["preflight", "plan", "apply", "pilot-up", "pilot-start", "pilot-stop", "pilot-status"])
     parser.add_argument("--state-dir", type=Path, default=Path(".work/pilot-v2"))
+    parser.add_argument("--apps", help="Pilot app selection; requires a new installation directory")
     parser.add_argument('--bundle', type=Path)
     parser.add_argument('--trusted-key', type=Path)
     args = parser.parse_args(argv)
     if args.action.startswith("pilot-"):
         from .pilot import Pilot
-        pilot = Pilot(args.state_dir)
+        selected = tuple(args.apps.split(",")) if args.apps else None
+        pilot = Pilot(args.state_dir, apps=selected)
         if args.action in ("pilot-up", "pilot-start"):
             result = pilot.up() if args.action == "pilot-up" else pilot.start()
             print(json.dumps({"mode": "local-pilot", "status": result["status"], "id": result["id"],

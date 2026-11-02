@@ -12,6 +12,6 @@
 <h2>Betriebsprotokoll</h2><table><thead><tr><th>Zeit</th><th>Person</th><th>Aktion</th><th>App</th><th>Ergebnis</th></tr></thead>
 <tbody>{% for event in audit %}<tr><td>{{ event.at|stamp }}</td><td>{{ event.actor }}</td>
 <td>{{ {'start':'Start','stop':'Stopp'}.get(event.action,event.action) }}</td><td>{{ event.app_id }}</td>
-<td>{{ {'accepted':'angefordert','completed':'abgeschlossen','failed':'fehlgeschlagen'}.get(event.outcome,event.outcome) }}</td></tr>
+<td>{{ {'accepted':'angefordert','completed':'abgeschlossen','failed':'fehlgeschlagen','blocked':'noch ein Spiel aktiv'}.get(event.outcome,event.outcome) }}</td></tr>
 {% else %}<tr><td colspan="5">Noch keine administrativen Änderungen.</td></tr>{% endfor %}</tbody></table>
 {% endblock %}

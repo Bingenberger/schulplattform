@@ -1,0 +1,16 @@
+# Compose >= 2.24.4. Overlay on the independent app Compose file.
+services:
+  app:
+    image: ${ZACKBOING_IMAGE:?version and digest required}
+    ports: !reset []
+    environment:
+      ZACKBOING_PUBLIC_URL: ${ZACKBOING_PUBLIC_URL:?canonical public origin required}
+      ZACKBOING_PROXY_IPS: ${ZACKBOING_PROXY_IPS:?explicit proxy IP required}
+    networks:
+      default: {}
+      proxy:
+        aliases: [zackboing]
+networks:
+  proxy:
+    external: true
+    name: ${ZACKBOING_PROXY_NETWORK:?isolated proxy network required}

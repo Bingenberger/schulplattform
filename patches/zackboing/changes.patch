@@ -1,7 +1,7 @@
 From ec68806032e8fc5216fb33058b3e5265352c3c06 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Mon, 2 Nov 2026 11:23:36 +0100
-Subject: [PATCH] Reject expired and invalid server sessions
+Subject: [PATCH 1/2] Reject expired and invalid server sessions
 
 ---
  server/auth.js         |  2 ++
@@ -53,6 +53,947 @@ index 0000000..aec3d77
 +  db.close();
 +  fs.rmSync(process.env.ZACKBOING_DATA, { recursive: true });
 +}
+-- 
+2.43.0
+
+
+From 668b7f724e69e431215610183745886958b08d25 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Mon, 2 Nov 2026 20:05:55 +0100
+Subject: [PATCH 2/2] Add isolated Node LTS container, explicit migration and
+ closed bootstrap
+
+---
+ .dockerignore             |  11 ++++
+ Dockerfile                |  30 +++++++++++
+ PLATFORM.md               |  84 ++++++++++++++++++++++++++++++
+ docker-compose.yml        |  33 ++++++++++++
+ public/js/teacher.js      |   2 +-
+ public/teacher.html       |   1 +
+ server/auth.js            |   6 +--
+ server/bootstrap.js       |  77 +++++++++++++++++++++++++++
+ server/config.js          |  28 ++++++++++
+ server/db.js              |  22 ++++++--
+ server/game.js            |   2 +
+ server/index.js           |  70 +++++++++++++++++--------
+ server/migrate.js         |   7 +++
+ test/bootstrap.js         |  63 ++++++++++++++++++++++
+ test/e2e.js               |  52 +++++++++++-------
+ test/platform-contract.js | 107 ++++++++++++++++++++++++++++++++++++++
+ test/run-fixtures.js      |  14 +++++
+ test/session-expiry.js    |   1 +
+ 18 files changed, 564 insertions(+), 46 deletions(-)
+ create mode 100644 .dockerignore
+ create mode 100644 Dockerfile
+ create mode 100644 PLATFORM.md
+ create mode 100644 docker-compose.yml
+ create mode 100644 server/bootstrap.js
+ create mode 100644 server/config.js
+ create mode 100644 server/migrate.js
+ create mode 100644 test/bootstrap.js
+ create mode 100644 test/platform-contract.js
+ create mode 100644 test/run-fixtures.js
+
+diff --git a/.dockerignore b/.dockerignore
+new file mode 100644
+index 0000000..b3959cb
+--- /dev/null
++++ b/.dockerignore
+@@ -0,0 +1,11 @@
++**
++!package.json
++!package-lock.json
++!server/
++!server/**
++!public/
++!public/**
++!docs/
++!docs/**
++!test/
++!test/**
+diff --git a/Dockerfile b/Dockerfile
+new file mode 100644
+index 0000000..a9b6c81
+--- /dev/null
++++ b/Dockerfile
+@@ -0,0 +1,30 @@
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS dependencies
++ENV npm_config_cache=/tmp/npm-cache npm_config_devdir=/tmp/node-gyp npm_config_nodedir=/usr/local MAKEFLAGS=-j2
++RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
++    && rm -rf /var/lib/apt/lists/*
++WORKDIR /build
++COPY package.json package-lock.json ./
++RUN npm ci --omit=dev --no-audit --no-fund \
++    && node -e "const db=require('better-sqlite3')(':memory:');db.close();"
++
++FROM dependencies AS tests
++RUN npm ci --no-audit --no-fund
++COPY server ./server
++COPY public ./public
++COPY docs ./docs
++COPY test ./test
++USER 10001:10001
++
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS runtime
++ENV NODE_ENV=production PORT=3000 HOST=0.0.0.0 ZACKBOING_DATA=/data
++WORKDIR /app
++COPY --from=dependencies /build/node_modules ./node_modules
++COPY package.json package-lock.json ./
++COPY server ./server
++COPY public ./public
++COPY docs ./docs
++RUN groupadd --gid 10001 zackboing && useradd --uid 10001 --gid 10001 --no-create-home zackboing \
++    && mkdir -p /data && chown 10001:10001 /data && chmod 700 /data
++USER 10001:10001
++EXPOSE 3000
++CMD ["node", "server/index.js"]
+diff --git a/PLATFORM.md b/PLATFORM.md
+new file mode 100644
+index 0000000..17f3cbe
+--- /dev/null
++++ b/PLATFORM.md
+@@ -0,0 +1,84 @@
++# Zackboing: eigenständiger Containerbetrieb
++
++Die lokale Anmeldung und öffentliche Spiel-PINs bleiben erhalten. Nur amd64
++wurde gebaut und geprüft. Keine zentrale Sperrung, kein zentraler Logout.
++
++## Erster Start
++
++```sh
++docker compose up -d --no-build
++docker compose run --rm --no-deps app node server/migrate.js
++docker compose run --rm --no-deps app node server/bootstrap.js
++```
++
++Das Runtimeimage muss zuvor mit `docker compose build` gebaut oder als geprüfte
++Version bereitgestellt sein. Die erste Readiness bleibt bis zum expliziten
++Migrationsjob 503. Import und Serverstart migrieren nicht. Migration ist durch
++eine SQLite-IMMEDIATE-Transaktion exklusiv; neuere Schemaversionen werden abgewiesen.
++
++Bootstrap erfordert ein kontrollierendes Terminal: Code nur dort ausgeben, weder
++in Shellargumente noch in Logdateien übernehmen. Der erste Admin registriert sich
++mit diesem Code im Formular. Es gibt kein Standardpasswort. Codeablauf maximal
++15 Minuten, Speicherung nur als Hash, einmaliger Verbrauch in derselben
++Transaktion wie der erste Account. Offene Selbstregistrierung ist standardmäßig
++geschlossen; bestehende explizite Einstellungen bleiben erhalten.
++
++Standalone veröffentlicht nur `127.0.0.1:${ZACKBOING_PORT:-3100}`.
++TLS ist Aufgabe eines vorgeschalteten Proxys. Bestehende Variablen
++`PORT` und `ZACKBOING_DATA` bleiben gültig.
++`ZACKBOING_PUBLIC_URL` setzt zur Laufzeit eine vollständige HTTP(S)-Origin,
++einschließlich eines abweichenden Ports. Sie steuert QR-Links, sichere Cookies
++bei HTTPS und die WebSocket-Originprüfung.
++`ZACKBOING_PROXY_IPS` akzeptiert nur explizite IP-Adressen, keine Wildcards.
++Vertrauensheader müssen schon am Proxy entfernt werden. Ohne öffentliche URL
++bleibt der bisherige Standalone-Hostbezug erhalten. Nichtbrowser-PIN-Clients ohne
++Origin bleiben erlaubt.
++
++## Container und Daten
++
++Node 22.23.4, Basisdigest im Dockerfile, npm ci aus package-lock.json.
++better-sqlite3 wird mit lokalen Node-Headern und beschreibbarem Cache gebaut.
++Compiler bleiben in der Buildstufe. UID:GID 10001:10001, Read-only-Root,
++begrenztes tmpfs und Compose-Ressourcenlimit 384 MiB/1 CPU/128 Prozesse.
++Ein Initprozess übernimmt Signalweiterleitung und das Aufräumen von Kindprozessen.
++Das sind gesetzte Limits, keine nachgewiesene Kapazität.
++
++Persistenz: `/data/zackboing.db` samt SQLite-WAL und `/data/uploads`.
++Verzeichnisse 0700, DB und neue Dateien 0600, Eigentümer 10001:10001.
++Uploads werden als Daten über HTTP bedient, niemals als Programme ausgeführt.
++`/health/live` prüft nur den Prozess; `/health/ready` prüft die eigene
++Datenbank und Schemaversion. WebSockets und API bleiben vor Migration gesperrt.
++
++## Stop, Sicherung und Wiederherstellung
++
++Spielzustände liegen ausschließlich im Speicher. Der Pilot fragt deshalb vor
++Stop oder konsistenter Sicherung den nur über rohes Container-Loopback erreichbaren
++Kontrollpfad ab und blockiert neue Spiele. Solange ein Spiel nicht im Podium ist,
++wird Stop verweigert und die Sperre wieder aufgehoben. Der private Kontrollpfad
++ist über veröffentlichte Ports und den Proxy verboten.
++Ein manuelles `docker compose stop` umgeht diese Plattformprüfung und kann ein
++laufendes Spiel beenden; vorher alle Spiele abschließen.
++
++Für ein gemeinsames DB-/Medienabbild alle Writer stoppen, SQLite-.backup-API
++verwenden und Uploads mitsichern. Keine laufende DBdatei kopieren. Restore in ein
++neues leeres Volume unter derselben UID, dann App ohne Migration/Bootstrap starten.
++Container- und DB-Rollback sind getrennte Vorgänge; ein Image-Rollback macht eine
++Datenmigration nicht rückgängig. `docker compose down` behält das Volume.
++
++Die Plattform enthält einen generischen lokalen Snapshotbaustein und einen
++synthetischen Restoreversuch. Verschlüsselter Offsitetransport, Rotation und
++Alarmierung sind noch offen.
++
++## Prüfungen
++
++`node test/bootstrap.js` und `node test/session-expiry.js` verwenden lokale
++Testdaten. Der E2E-Treiber erhält seinen kurzlebigen Bootstrapcode ausschließlich
++über eine private Fixturedatei. Galerieprüfung benötigt eine lokale Fixture;
++ohne Fixture wird sie ausdrücklich als nicht ausgeführt gemeldet.
++
++Die Plattformprüfungen nutzen eine lokale CA mit Zertifikatsprüfung, einen lokalen
++Galerieserver und synthetische Accounts unter example.invalid. Keine externen
++SMTP-, KI- oder Galeriedienste erforderlich. Sessionablauf wird für HTTP und
++jedes neue host:create geprüft, auch bei bereits offener Verbindung.
++Ein bestehendes Spiel verwendet weiterhin eigene Host-/Rejoin-Capabilities bis
++zum Spielende; daraus folgt keine zentrale Sessionrevokation.
+diff --git a/docker-compose.yml b/docker-compose.yml
+new file mode 100644
+index 0000000..a4c9837
+--- /dev/null
++++ b/docker-compose.yml
+@@ -0,0 +1,33 @@
++services:
++  app:
++    build: .
++    image: zackboing:0.1.0-dev
++    user: "10001:10001"
++    init: true
++    read_only: true
++    cap_drop: [ALL]
++    security_opt: [no-new-privileges:true]
++    tmpfs: ["/tmp:size=64m,mode=1777"]
++    mem_limit: 384m
++    cpus: 1.0
++    pids_limit: 128
++    environment:
++      NODE_ENV: production
++      PORT: "3000"
++      HOST: 0.0.0.0
++      ZACKBOING_DATA: /data
++      ZACKBOING_PUBLIC_URL: ${ZACKBOING_PUBLIC_URL:-}
++      ZACKBOING_PROXY_IPS: ${ZACKBOING_PROXY_IPS:-127.0.0.1,::1}
++    volumes:
++      - data:/data
++    ports: ["127.0.0.1:${ZACKBOING_PORT:-3100}:3000"]
++    healthcheck:
++      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
++      interval: 5s
++      timeout: 3s
++      retries: 6
++    logging:
++      driver: json-file
++      options: {max-size: 10m, max-file: "3"}
++volumes:
++  data:
+diff --git a/public/js/teacher.js b/public/js/teacher.js
+index 94f5cc3..5f150cf 100644
+--- a/public/js/teacher.js
++++ b/public/js/teacher.js
+@@ -73,7 +73,7 @@
+     try {
+       const data = await api('/api/register', {
+         method: 'POST',
+-        body: { name: $('reg-name').value, email: $('reg-email').value, password: $('reg-password').value },
++        body: { name: $('reg-name').value, email: $('reg-email').value, password: $('reg-password').value, bootstrapToken: $('reg-bootstrap').value },
+       });
+       enterDashboard(data.user);
+     } catch (e) { flashError('auth-error', e.message); }
+diff --git a/public/teacher.html b/public/teacher.html
+index c2e184d..79eb7b8 100644
+--- a/public/teacher.html
++++ b/public/teacher.html
+@@ -29,6 +29,7 @@
+         <input type="text" id="reg-name" placeholder="Dein Name (z. B. Frau Förster)" autocomplete="name">
+         <input type="email" id="reg-email" placeholder="E-Mail-Adresse" autocomplete="email">
+         <input type="password" id="reg-password" placeholder="Passwort (mind. 8 Zeichen)" autocomplete="new-password">
++        <input type="password" id="reg-bootstrap" placeholder="Einmalcode (nur für das allererste Konto)" autocomplete="one-time-code">
+         <button class="btn big" id="btn-register">Registrieren</button>
+         <p class="link-row">Schon ein Konto? <a id="show-login">Zur Anmeldung</a></p>
+       </div>
+diff --git a/server/auth.js b/server/auth.js
+index acaa79e..ad3158a 100644
+--- a/server/auth.js
++++ b/server/auth.js
+@@ -27,7 +27,7 @@ function destroySession(token) {
+ }
+ 
+ function userForToken(token) {
+-  if (!token) return null;
++  if (typeof token !== "string" || !/^[a-f0-9]{64}$/.test(token)) return null;
+   return db.prepare(`
+     SELECT u.id, u.email, u.name, u.role FROM sessions s
+     JOIN users u ON u.id = s.user_id
+@@ -38,12 +38,12 @@ function userForToken(token) {
+ }
+ 
+ function parseCookies(header) {
+-  const out = {};
++  const out = Object.create(null);
+   if (!header) return out;
+   for (const part of header.split(';')) {
+     const idx = part.indexOf('=');
+     if (idx === -1) continue;
+-    out[part.slice(0, idx).trim()] = decodeURIComponent(part.slice(idx + 1).trim());
++    try { out[part.slice(0, idx).trim()] = decodeURIComponent(part.slice(idx + 1).trim()); } catch { /* malformed cookie is not a session */ }
+   }
+   return out;
+ }
+diff --git a/server/bootstrap.js b/server/bootstrap.js
+new file mode 100644
+index 0000000..64617b4
+--- /dev/null
++++ b/server/bootstrap.js
+@@ -0,0 +1,77 @@
++// Local, expiring, single-use capability for the first account.
++const crypto = require('node:crypto');
++const fs = require('node:fs');
++const db = require('./db');
++const auth = require('./auth');
++
++class RegistrationError extends Error {
++  constructor(status, message) { super(message); this.status = status; }
++}
++
++function issueBootstrap({ now = Date.now(), ttlSeconds = 900 } = {}) {
++  if (!Number.isFinite(now) || !Number.isInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > 900) {
++    throw new Error('Bootstrap validity must be between 1 and 900 seconds.');
++  }
++  return db.transaction(() => {
++    if (db.prepare('SELECT COUNT(*) AS n FROM users').get().n) {
++      throw new Error('Accounts already exist; bootstrap is disabled.');
++    }
++    if (Number(db.getSetting('_bootstrap_expires')) > now) {
++      throw new Error('A bootstrap code is already active; refusing replacement.');
++    }
++    const token = crypto.randomBytes(32).toString('base64url');
++    db.setSetting('_bootstrap_hash', crypto.createHash('sha256').update(token).digest('hex'));
++    db.setSetting('_bootstrap_expires', now + ttlSeconds * 1000);
++    return token;
++  }).immediate();
++}
++
++function validToken(token, now) {
++  if (typeof token !== 'string' || token.length > 256) return false;
++  const expected = db.getSetting('_bootstrap_hash');
++  const expires = Number(db.getSetting('_bootstrap_expires'));
++  if (typeof expected !== 'string' || !/^[a-f0-9]{64}$/.test(expected) ||
++      !Number.isFinite(expires) || expires <= now) return false;
++  const actual = crypto.createHash('sha256').update(token).digest();
++  return crypto.timingSafeEqual(Buffer.from(expected, 'hex'), actual);
++}
++
++function register(fields, now = Date.now()) {
++  const { email, name, password, bootstrapToken } = fields || {};
++  if (typeof email !== 'string' || email.length > 254 || !email.includes('@') ||
++      typeof name !== 'string' || !name.trim() || name.length > 120 ||
++      typeof password !== 'string' || password.length < 8 || password.length > 256) {
++    throw new RegistrationError(400, 'Bitte gültige Kontodaten und ein Passwort mit mindestens 8 Zeichen angeben.');
++  }
++  return db.transaction(() => {
++    const first = db.prepare('SELECT COUNT(*) AS n FROM users').get().n === 0;
++    if (first ? !validToken(bootstrapToken, now) : db.getSetting('registration_open') !== '1') {
++      throw new RegistrationError(403, first ?
++        'Der Erstzugang benötigt einen gültigen Einmalcode vom lokalen Terminal.' :
++        'Die Registrierung ist deaktiviert. Bitte wende dich an die Administration.');
++    }
++    const role = first ? 'admin' : 'teacher';
++    const info = db.prepare('INSERT INTO users(email,name,pass_hash,role) VALUES(?,?,?,?)')
++      .run(email.trim(), name.trim(), auth.hashPassword(password), role);
++    if (first) {
++      db.prepare("DELETE FROM settings WHERE key IN ('_bootstrap_hash','_bootstrap_expires')").run();
++      db.setSetting('registration_open', '0');
++    }
++    const token = auth.createSession(info.lastInsertRowid);
++    return { token, user: { id: info.lastInsertRowid, email: email.trim(), name: name.trim(), role } };
++  }).immediate();
++}
++
++module.exports = { issueBootstrap, register, RegistrationError };
++
++if (require.main === module) {
++  let terminal;
++  try {
++    terminal = fs.openSync('/dev/tty', 'w'); // fail before issuing if no console is attached
++    const token = issueBootstrap();
++    fs.writeSync(terminal, 'Zackboing: einmaliger Erstzugang, gültig für 15 Minuten:\n' + token + '\n');
++  } finally {
++    if (terminal !== undefined) fs.closeSync(terminal);
++    db.close();
++  }
++}
+diff --git a/server/config.js b/server/config.js
+new file mode 100644
+index 0000000..d201ab3
+--- /dev/null
++++ b/server/config.js
+@@ -0,0 +1,28 @@
++const net = require('node:net');
++
++const raw = process.env.ZACKBOING_PUBLIC_URL || '';
++let publicOrigin = '';
++if (raw) {
++  const url = new URL(raw);
++  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password ||
++      url.search || url.hash || url.pathname !== '/') throw new Error('ZACKBOING_PUBLIC_URL must be an HTTP(S) origin.');
++  publicOrigin = url.origin;
++}
++const proxyAddresses = process.env.ZACKBOING_PROXY_IPS ?
++  process.env.ZACKBOING_PROXY_IPS.split(',').map((value) => value.trim()) : null;
++if (proxyAddresses && (!proxyAddresses.length || proxyAddresses.some((value) => !net.isIP(value)))) {
++  throw new Error('ZACKBOING_PROXY_IPS requires explicit IP addresses.');
++}
++function originAllowed(request) {
++  if (!request.headers.origin) return true; // non-browser PIN clients remain possible
++  try {
++    const origin = new URL(request.headers.origin);
++    if (!['http:', 'https:'].includes(origin.protocol)) return false;
++    return publicOrigin ? origin.origin === publicOrigin : origin.host === request.headers.host;
++  } catch { return false; }
++}
++function joinUrl(request, pin) {
++  const origin = publicOrigin || request.protocol + '://' + request.get('host');
++  return origin + '/?pin=' + encodeURIComponent(pin);
++}
++module.exports = { publicOrigin, proxyAddresses, originAllowed, joinUrl };
+diff --git a/server/db.js b/server/db.js
+index ca394b8..aa16a48 100644
+--- a/server/db.js
++++ b/server/db.js
+@@ -1,16 +1,25 @@
+ const Database = require('better-sqlite3');
+ const path = require('path');
+ const fs = require('fs');
++process.umask(0o077);
+ 
+ // Über ZACKBOING_DATA lässt sich ein anderes Datenverzeichnis wählen (z. B. für Tests)
+ const DATA_DIR = process.env.ZACKBOING_DATA || path.join(__dirname, '..', 'data');
+ const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
+-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
++fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
++fs.mkdirSync(UPLOAD_DIR, { recursive: true, mode: 0o700 });
+ 
+ const db = new Database(path.join(DATA_DIR, 'zackboing.db'));
+ db.pragma('journal_mode = WAL');
+ db.pragma('foreign_keys = ON');
+ 
++function migrate() {
++  return db.transaction(() => {
++    const version = db.pragma("user_version", { simple: true });
++    if (version > 1) throw new Error("Database schema is newer than this release.");
++    fs.chmodSync(DATA_DIR, 0o700);
++    fs.chmodSync(UPLOAD_DIR, 0o700);
++    fs.chmodSync(path.join(DATA_DIR, 'zackboing.db'), 0o600);
+ db.exec(`
+   CREATE TABLE IF NOT EXISTS users (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+@@ -74,8 +83,13 @@ if (!db.prepare("PRAGMA table_info(quizzes)").all().some((c) => c.name === 'mode
+   db.exec('ALTER TABLE quizzes ADD COLUMN mental TEXT');
+ }
+ 
++
++    db.pragma("user_version = 1");
++  }).immediate();
++}
++
+ const SETTING_DEFAULTS = {
+-  registration_open: '1',
++  registration_open: '0',
+   gallery_url: 'https://pix.foerster.rocks',
+   subjects: [
+     'Deutsch', 'Mathematik', 'Englisch', 'Französisch', 'Spanisch', 'Latein',
+@@ -97,7 +111,7 @@ function setSetting(key, value) {
+ 
+ function allSettings() {
+   const out = { ...SETTING_DEFAULTS };
+-  for (const row of db.prepare('SELECT key, value FROM settings').all()) out[row.key] = row.value;
++  for (const row of db.prepare('SELECT key, value FROM settings').all()) if (Object.hasOwn(SETTING_DEFAULTS, row.key)) out[row.key] = row.value;
+   return out;
+ }
+ 
+@@ -106,3 +120,5 @@ module.exports.UPLOAD_DIR = UPLOAD_DIR;
+ module.exports.getSetting = getSetting;
+ module.exports.setSetting = setSetting;
+ module.exports.allSettings = allSettings;
++
++module.exports.migrate = migrate;
+diff --git a/server/game.js b/server/game.js
+index ec65ff3..7eec8d9 100644
+--- a/server/game.js
++++ b/server/game.js
+@@ -445,3 +445,5 @@ module.exports = {
+   addPlayer, shuffleAvatar, resumePlayer, nameTaken, currentQuestion, shuffledIndices,
+   registerAnswer, everyoneDone, finishQuestion, podium, leaderboard, destroyGame,
+ };
++
++module.exports.activeGameCount = () => [...games.values()].filter(game => game.state !== 'podium').length;
+diff --git a/server/index.js b/server/index.js
+index c19f44f..d70046f 100644
+--- a/server/index.js
++++ b/server/index.js
+@@ -12,21 +12,59 @@ const engine = require('./game');
+ const quizformat = require('./quizformat');
+ const mental = require('./mental');
+ 
++const config = require('./config');
++const bootstrap = require('./bootstrap');
+ const PORT = process.env.PORT || 3000;
+ 
+ const app = express();
++app.use((req, res, next) => { res.setHeader('X-Content-Type-Options', 'nosniff'); next(); });
+ // Hinter einem lokalen Reverse-Proxy (nginx/Caddy auf demselben Rechner) stimmen so
+ // req.protocol und req.get('host') – wichtig für die QR-Code-URL. Im Schul-WLAN ohne Proxy
+ // ändert sich nichts.
+-app.set('trust proxy', 'loopback');
++app.set('trust proxy', config.proxyAddresses || 'loopback');
+ const server = http.createServer(app);
+ const io = new Server(server, {
+   maxHttpBufferSize: 1e6,
++  allowRequest: (request, callback) => {
++    let ready = false;
++    try { ready = db.pragma("user_version", { simple: true }) === 1; } catch { /* unavailable */ }
++    callback(null, ready && config.originAllowed(request));
++  },
+   // Abbrüche im Schul-WLAN schnell erkennen, damit der Client zügig neu verbindet
+   pingInterval: 10000,
+   pingTimeout: 15000,
+ });
+ 
++let draining = false;
++function localControl(req, res, next) {
++  if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) {
++    return res.status(403).json({ error: 'Local management only.' });
++  }
++  next();
++}
++app.post('/_platform/prepare-stop', localControl, (req, res) => {
++  draining = true;
++  res.json({ draining, activeGames: engine.activeGameCount() });
++});
++app.post('/_platform/cancel-stop', localControl, (req, res) => {
++  draining = false;
++  res.json({ draining });
++});
++
++app.get('/health/live', (req, res) => res.json({ status: 'alive' }));
++app.get('/health/ready', (req, res) => {
++  try {
++    if (db.pragma('user_version', { simple: true }) !== 1) throw new Error('migration required');
++    db.prepare('SELECT id FROM users LIMIT 1').get();
++    res.json({ status: 'ready' });
++  } catch { res.status(503).json({ status: 'not-ready' }); }
++});
++app.use('/api', (req, res, next) => {
++  if (db.pragma('user_version', { simple: true }) !== 1) {
++    return res.status(503).json({ error: 'Eine explizite Datenbankmigration ist erforderlich.' });
++  }
++  next();
++});
+ app.use(express.json({ limit: '2mb' }));
+ app.use(auth.attachUser);
+ app.use(express.static(path.join(__dirname, '..', 'public')));
+@@ -35,24 +73,12 @@ app.use('/media', express.static(db.UPLOAD_DIR, { maxAge: '30d', immutable: true
+ // ---------------------------------------------------------------- Konten
+ 
+ app.post('/api/register', (req, res) => {
+-  const { email, name, password } = req.body || {};
+-  const userCount = db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
+-  if (userCount > 0 && db.getSetting('registration_open') !== '1') {
+-    return res.status(403).json({ error: 'Die Registrierung ist deaktiviert. Bitte wende dich an die Administration.' });
+-  }
+-  if (!email || !email.includes('@')) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' });
+-  if (!name || !name.trim()) return res.status(400).json({ error: 'Bitte einen Namen angeben.' });
+-  if (!password || password.length < 8) return res.status(400).json({ error: 'Das Passwort braucht mindestens 8 Zeichen.' });
+-
+   try {
+-    // Das allererste Konto wird automatisch Admin.
+-    const role = userCount === 0 ? 'admin' : 'teacher';
+-    const info = db.prepare('INSERT INTO users (email, name, pass_hash, role) VALUES (?, ?, ?, ?)')
+-      .run(email.trim(), name.trim(), auth.hashPassword(password), role);
+-    const token = auth.createSession(info.lastInsertRowid);
+-    setSessionCookie(res, token);
+-    res.json({ user: { id: info.lastInsertRowid, email: email.trim(), name: name.trim(), role } });
++    const result = bootstrap.register(req.body);
++    setSessionCookie(res, result.token);
++    res.json({ user: result.user });
+   } catch (err) {
++    if (err instanceof bootstrap.RegistrationError) return res.status(err.status).json({ error: err.message });
+     if (String(err).includes('UNIQUE')) return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits registriert.' });
+     throw err;
+   }
+@@ -80,7 +106,7 @@ app.get('/api/me', (req, res) => {
+ });
+ 
+ function setSessionCookie(res, token) {
+-  res.setHeader('Set-Cookie', `zackboing_session=${token}; Path=/; Max-Age=${60 * 60 * 24 * 90}; HttpOnly; SameSite=Lax`);
++  res.setHeader('Set-Cookie', `zackboing_session=${token}; Path=/; Max-Age=${60 * 60 * 24 * 90}; HttpOnly; SameSite=Lax${config.publicOrigin.startsWith('https:') ? '; Secure' : ''}`);
+ }
+ 
+ // ---------------------------------------------------------------- Medien
+@@ -564,7 +590,7 @@ app.put('/api/admin/settings', auth.requireAdmin, (req, res) => {
+ // QR-Code für den Spielbeitritt (PNG). Nutzt die Adresse, über die der Host
+ // die Seite aufgerufen hat – so funktioniert es auch im Schul-WLAN per IP.
+ app.get('/qr/:pin.png', async (req, res) => {
+-  const url = `${req.protocol}://${req.get('host')}/?pin=${encodeURIComponent(req.params.pin)}`;
++  const url = config.joinUrl(req, req.params.pin);
+   const png = await QRCode.toBuffer(url, { width: 480, margin: 1 });
+   res.type('png').send(png);
+ });
+@@ -762,10 +788,12 @@ function hostGameInfo(game) {
+ 
+ io.on('connection', (socket) => {
+   const cookies = auth.parseCookies(socket.handshake.headers.cookie);
+-  const user = auth.userForToken(cookies.zackboing_session);
++  const sessionToken = cookies.zackboing_session;
+ 
+   // --- Lehrkraft eröffnet ein Spiel
+   socket.on('host:create', ({ quizId }, cb = () => {}) => {
++    if (draining) return cb({ error: 'Die App wird gewartet; neue Spiele sind vorübergehend gesperrt.' });
++    const user = auth.userForToken(sessionToken);
+     if (!user) return cb({ error: 'Nicht angemeldet.' });
+     // Eigene Quizze immer, fremde nur wenn freigegeben
+     const row = db.prepare('SELECT * FROM quizzes WHERE id = ? AND (user_id = ? OR shared = 1)').get(quizId, user.id);
+@@ -1009,7 +1037,7 @@ io.on('connection', (socket) => {
+   });
+ });
+ 
+-server.listen(PORT, () => {
++server.listen(PORT, process.env.HOST || '0.0.0.0', () => {
+   console.log(`Zackboing läuft auf http://localhost:${PORT}`);
+   console.log('Im Schul-WLAN: die IP-Adresse dieses Rechners + Port verwenden.');
+ });
+diff --git a/server/migrate.js b/server/migrate.js
+new file mode 100644
+index 0000000..43659ed
+--- /dev/null
++++ b/server/migrate.js
+@@ -0,0 +1,7 @@
++const db = require('./db');
++try {
++  db.migrate();
++  console.log('Zackboing: schema version 1 verified.');
++} finally {
++  db.close();
++}
+diff --git a/test/bootstrap.js b/test/bootstrap.js
+new file mode 100644
+index 0000000..6f40331
+--- /dev/null
++++ b/test/bootstrap.js
+@@ -0,0 +1,63 @@
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const os = require('node:os');
++const path = require('node:path');
++const { spawn } = require('node:child_process');
++
++const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'zackboing-bootstrap-test-'));
++process.env.ZACKBOING_DATA = directory;
++const db = require('../server/db');
++const bootstrap = require('../server/bootstrap');
++const fields = { email: 'synthetic-admin@example.invalid', name: 'Synthetic Admin', password: 'synthetic-password' };
++
++async function main() {
++  try {
++    assert.equal(db.pragma('user_version', { simple: true }), 0, 'import must not migrate');
++    db.migrate();
++    assert.equal(db.pragma('user_version', { simple: true }), 1);
++    assert.throws(() => bootstrap.register(fields, 1000), (error) => error.status === 403);
++    const expired = bootstrap.issueBootstrap({ now: 1000, ttlSeconds: 1 });
++    assert(!JSON.stringify(db.prepare('SELECT * FROM settings').all()).includes(expired));
++    assert(!Object.keys(db.allSettings()).some((key) => key.startsWith('_bootstrap')));
++    assert.throws(() => bootstrap.register({ ...fields, bootstrapToken: expired }, 2001), (error) => error.status === 403);
++    const token = bootstrap.issueBootstrap({ now: 2001, ttlSeconds: 900 });
++    assert.throws(() => bootstrap.issueBootstrap({ now: 2002 }), /already active/);
++    assert.throws(() => bootstrap.register({ ...fields, bootstrapToken: 'wrong' }, 2002), (error) => error.status === 403);
++    const admin = bootstrap.register({ ...fields, bootstrapToken: token }, 2002);
++    assert.equal(admin.user.role, 'admin');
++    assert.equal(db.getSetting('registration_open'), '0');
++    assert.equal(db.getSetting('_bootstrap_hash'), undefined);
++    assert.throws(() => bootstrap.register({ ...fields, email: 'second@example.invalid', bootstrapToken: token }, 2003),
++                  (error) => error.status === 403);
++    assert.throws(() => bootstrap.issueBootstrap(), /Accounts already exist/);
++    db.setSetting('registration_open', '1');
++    const teacher = bootstrap.register({ ...fields, email: 'teacher@example.invalid', bootstrapToken: token }, 2003);
++    assert.equal(teacher.user.role, 'teacher');
++    assert.equal(db.prepare("SELECT count(*) AS n FROM users WHERE role='admin'").get().n, 1);
++    assert.equal(fs.statSync(path.join(directory, 'zackboing.db')).mode & 0o777, 0o600);
++    db.close();
++
++    const race = path.join(directory, 'race');
++    const init = require('node:child_process').execFileSync(process.execPath, ['-e',
++      "const db=require('./server/db'); db.migrate(); const token=require('./server/bootstrap').issueBootstrap(); process.stdout.write(token); db.close();"],
++      { cwd: path.resolve(__dirname, '..'), env: { ...process.env, ZACKBOING_DATA: race }, encoding: 'utf8' });
++    const childSource = "let s='';process.stdin.on('data',x=>s+=x);process.stdin.on('end',()=>{const db=require('./server/db');try{require('./server/bootstrap').register(JSON.parse(s));process.stdout.write('created');}catch(e){if(e.status!==403)throw e;process.stdout.write('denied');}finally{db.close();}});";
++    async function attempt(email) {
++      return new Promise((resolve, reject) => {
++        const child = spawn(process.execPath, ['-e', childSource], {
++          cwd: path.resolve(__dirname, '..'), env: { ...process.env, ZACKBOING_DATA: race }, stdio: ['pipe','pipe','pipe'] });
++        let output = '';
++        child.stdout.on('data', data => { output += data; });
++        child.on('error', reject);
++        child.on('exit', code => code === 0 ? resolve(output) : reject(new Error('Concurrent registration process failed')));
++        child.stdin.end(JSON.stringify({ ...fields, email, bootstrapToken: init }));
++      });
++    }
++    assert.deepEqual((await Promise.all([attempt('one@example.invalid'), attempt('two@example.invalid')])).sort(), ['created','denied']);
++    console.log('PASS: explicit migration, closed first access, expiry, hash-only storage, private settings, one-use race, normal teacher registration');
++  } finally {
++    if (db.open) db.close();
++    fs.rmSync(directory, { recursive: true, force: true });
++  }
++}
++main().catch(error => { console.error(error); process.exitCode = 1; });
+diff --git a/test/e2e.js b/test/e2e.js
+index 3d01ec5..a67abf0 100644
+--- a/test/e2e.js
++++ b/test/e2e.js
+@@ -1,14 +1,21 @@
+ /* End-to-End-Test: Admin, Medien, alle Fragetypen, komplettes Spiel.
+- * Voraussetzung: Server frisch gestartet mit LEERER Datenbank (data/ löschen),
+- * denn das erste registrierte Konto muss Admin werden.
++ * Nur isolierte synthetische Instanzen: explizite Migration und Bootstrapcode-Datei.
++ * Keine produktiven Datenbanken oder Domains verwenden.
+  */
+ const { io } = require('socket.io-client');
+ 
++const fs = require('node:fs');
+ const BASE = process.env.BASE_URL || 'http://localhost:3000';
++const target = new URL(BASE);
++if (!['app','zackboing','localhost','127.0.0.1'].includes(target.hostname) && !target.hostname.endsWith('.localhost')) {
++  throw new Error('End-to-End tests require an isolated local hostname.');
++}
++const BOOTSTRAP = process.env.ZACKBOING_TEST_BOOTSTRAP_FILE ? fs.readFileSync(process.env.ZACKBOING_TEST_BOOTSTRAP_FILE, 'utf8').trim() : '';
+ let failures = 0;
+ 
+ function check(label, cond, extra = '') {
+-  console.log(`${cond ? '✅' : '❌'} ${label}${extra ? ` (${extra})` : ''}`);
++  const safe = String(extra).replace(/("(?:token|hostToken|sessionToken|bootstrapToken|pin)"[ ]*:[ ]*")[^"]+/gi, "$1<redacted>");
++  console.log(`${cond ? '✅' : '❌'} ${label}${safe ? ` (${safe})` : ''}`);
+   if (!cond) failures++;
+ }
+ 
+@@ -41,27 +48,28 @@ async function jsonReq(path, { method = 'GET', body, cookie, raw } = {}) {
+ }
+ 
+ async function main() {
++  if (!BOOTSTRAP) throw new Error('ZACKBOING_TEST_BOOTSTRAP_FILE is required for this fresh synthetic database.');
+   // ---------- Konten & Admin ----------
+-  let r = await jsonReq('/api/register', { method: 'POST', body: { email: 'admin@schule.de', name: 'Frau Admin', password: 'geheim123' } });
++  let r = await jsonReq('/api/register', { method: 'POST', body: { email: 'admin@example.invalid', name: 'Frau Admin', password: 'geheim123', bootstrapToken: BOOTSTRAP } });
+   check('Erstes Konto registriert', r.res.ok);
+   check('Erstes Konto ist automatisch Admin', r.data.user && r.data.user.role === 'admin');
+   const adminCookie = (r.res.headers.get('set-cookie') || '').split(';')[0];
+ 
+   r = await jsonReq('/api/admin/settings', { cookie: adminCookie });
+-  check('Admin: Einstellungen abrufbar', r.res.ok && r.data.settings.registration_open === '1');
++  check('Admin: Einstellungen abrufbar', r.res.ok && r.data.settings.registration_open === '0');
+   check('Admin: Galerie-URL voreingestellt', r.data.settings.gallery_url === 'https://pix.foerster.rocks');
+ 
+   r = await jsonReq('/api/admin/settings', { method: 'PUT', cookie: adminCookie, body: { registration_open: '0' } });
+   check('Admin: Registrierung deaktiviert', r.res.ok);
+ 
+-  r = await jsonReq('/api/register', { method: 'POST', body: { email: 'fremd@schule.de', name: 'Fremd', password: 'geheim123' } });
++  r = await jsonReq('/api/register', { method: 'POST', body: { email: 'fremd@example.invalid', name: 'Fremd', password: 'geheim123' } });
+   check('Registrierung bei geschlossener Anmeldung blockiert', r.res.status === 403);
+ 
+-  r = await jsonReq('/api/admin/users', { method: 'POST', cookie: adminCookie, body: { email: 'lehrer@schule.de', name: 'Herr Lehrer', password: 'geheim123', role: 'teacher' } });
++  r = await jsonReq('/api/admin/users', { method: 'POST', cookie: adminCookie, body: { email: 'lehrer@example.invalid', name: 'Herr Lehrer', password: 'geheim123', role: 'teacher' } });
+   check('Admin: Konto manuell angelegt', r.res.ok);
+   const teacherId = r.data.id;
+ 
+-  r = await jsonReq('/api/login', { method: 'POST', body: { email: 'lehrer@schule.de', password: 'geheim123' } });
++  r = await jsonReq('/api/login', { method: 'POST', body: { email: 'lehrer@example.invalid', password: 'geheim123' } });
+   check('Manuell angelegtes Konto kann sich anmelden', r.res.ok && r.data.user.role === 'teacher');
+   const teacherCookie = (r.res.headers.get('set-cookie') || '').split(';')[0];
+ 
+@@ -70,7 +78,7 @@ async function main() {
+ 
+   r = await jsonReq(`/api/admin/users/${teacherId}`, { method: 'PATCH', cookie: adminCookie, body: { password: 'neues-geheim99' } });
+   check('Admin: Passwort zurückgesetzt', r.res.ok);
+-  r = await jsonReq('/api/login', { method: 'POST', body: { email: 'lehrer@schule.de', password: 'neues-geheim99' } });
++  r = await jsonReq('/api/login', { method: 'POST', body: { email: 'lehrer@example.invalid', password: 'neues-geheim99' } });
+   check('Login mit neuem Passwort klappt', r.res.ok);
+   const teacherCookie2 = (r.res.headers.get('set-cookie') || '').split(';')[0];
+ 
+@@ -229,7 +237,7 @@ async function main() {
+   // ---------- Spiel ----------
+   const host = io(BASE, { extraHeaders: { Cookie: adminCookie } });
+   const created = await emitAck(host, 'host:create', { quizId });
+-  check('Spiel eröffnet', !!created.pin, `PIN ${created.pin}`);
++  check('Spiel eröffnet', !!created.pin);
+ 
+   const anna = io(BASE);
+   const ben = io(BASE);
+@@ -530,17 +538,25 @@ async function main() {
+     kim.disconnect();
+   }
+ 
+-  // ---------- Bildarchiv (optional, braucht Internet) ----------
+-  r = await jsonReq('/api/gallery?q=hund', { cookie: adminCookie });
+-  if (r.res.ok && r.data.items.length) {
+-    check('Bildarchiv-Suche liefert Treffer', true, `${r.data.items.length} Bilder`);
+-    const imp = await jsonReq('/api/gallery/import', { method: 'POST', cookie: adminCookie, body: { file: r.data.items[0].file } });
+-    check('Bildarchiv-Import speichert lokal', imp.res.ok && imp.data.url.startsWith('/media/'));
++  // ---------- Ausschließlich lokales synthetisches Bildarchiv ----------
++  if (process.env.ZACKBOING_TEST_GALLERY_URL) {
++    const fixture = new URL(process.env.ZACKBOING_TEST_GALLERY_URL);
++    if (!['fixture', 'localhost', '127.0.0.1'].includes(fixture.hostname)) {
++      throw new Error('Gallery tests require the local fixture.');
++    }
++    await jsonReq('/api/admin/settings', { method: 'PUT', cookie: adminCookie,
++      body: { gallery_url: fixture.origin } });
++    r = await jsonReq('/api/gallery?q=hund', { cookie: adminCookie });
++    check('Bildarchiv-Suche liefert lokale Fixture', r.res.ok && r.data.items.length > 0);
++    if (r.res.ok && r.data.items.length) {
++      const imp = await jsonReq('/api/gallery/import', { method: 'POST', cookie: adminCookie, body: { file: r.data.items[0].file } });
++      check('Bildarchiv-Import speichert lokale Fixture', imp.res.ok && imp.data.url.startsWith('/media/'));
++    }
+   } else {
+-    console.log(`⚠️ Bildarchiv nicht erreichbar – Test übersprungen (${r.data.error || r.res.status})`);
++    console.log('NICHT AUSGEFÜHRT: optionales Bildarchiv ohne lokale Fixture.');
+   }
+ 
+-  console.log(failures ? `\n${failures} Test(s) fehlgeschlagen.` : '\nAlle Tests bestanden. 🎉');
++  console.log(failures ? `\n${failures} Test(s) fehlgeschlagen.` : '\nAlle ausgeführten Tests bestanden. 🎉');
+   process.exit(failures ? 1 : 0);
+ }
+ 
+diff --git a/test/platform-contract.js b/test/platform-contract.js
+new file mode 100644
+index 0000000..8a65854
+--- /dev/null
++++ b/test/platform-contract.js
+@@ -0,0 +1,107 @@
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const crypto = require('node:crypto');
++const { io } = require('socket.io-client');
++const QRCode = require('qrcode');
++const BASE = process.env.BASE_URL;
++const ORIGIN = process.env.ZACKBOING_EXPECTED_ORIGIN;
++const mode = process.env.ZACKBOING_CONTRACT_MODE || 'game';
++if (new URL(BASE).hostname.endsWith('.localhost') !== true || process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
++  throw new Error('Contract checks require verified local TLS.');
++}
++let cookie = '';
++let phase = 'initial';
++async function api(path, method = 'GET', body) {
++  const headers = { Cookie: cookie, Origin: ORIGIN };
++  if (body !== undefined) headers['Content-Type'] = 'application/json';
++  const response = await fetch(BASE + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
++  return { response, body: await response.json() };
++}
++async function connect(origin, authenticated = false) {
++  const socket = io(BASE, { transports: ['websocket'], reconnection: false,
++    extraHeaders: { Origin: origin, ...(authenticated ? { Cookie: cookie } : {}) } });
++  await new Promise((resolve, reject) => {
++    const timer = setTimeout(() => { socket.disconnect(); reject(new Error('TLS websocket connection timeout')); }, 10000);
++    socket.once('connect', () => { clearTimeout(timer); resolve(); });
++    socket.once('connect_error', error => { clearTimeout(timer); socket.disconnect(); reject(new Error('Websocket rejected')); });
++  });
++  return socket;
++}
++const once = (socket, event) => new Promise((resolve, reject) => {
++  const timer = setTimeout(() => reject(new Error('Event timeout: ' + event)), 15000);
++  socket.once(event, value => { clearTimeout(timer); resolve(value); });
++});
++const ack = (socket, event, payload) => new Promise(resolve => socket.emit(event, payload, resolve));
++
++async function main() {
++  assert.equal((await api('/api/admin/users')).response.status, 401);
++  const data = { email: 'tls-admin@example.invalid', name: 'Synthetic TLS', password: 'synthetic-zack-password' };
++  if (mode === 'game' && process.env.ZACKBOING_TEST_EXISTING !== '1') {
++    assert.equal((await api('/api/register', 'POST', data)).response.status, 403);
++    const bootstrapToken = fs.readFileSync(process.env.ZACKBOING_TEST_BOOTSTRAP_FILE, 'utf8').trim();
++    const registration = await api('/api/register', 'POST', { ...data, bootstrapToken });
++    assert(registration.response.ok && registration.body.user.role === 'admin');
++  }
++  const login = await api('/api/login', 'POST', data);
++  assert(login.response.ok);
++  const header = login.response.headers.get('set-cookie');
++  assert(header.includes('Secure') && header.includes('HttpOnly'));
++  cookie = header.split(';')[0];
++  const userId = login.body.user.id;
++  const qr = await fetch(BASE + '/qr/123456.png', { headers: { 'X-Forwarded-Host': 'spoof.example.invalid', 'X-Forwarded-Proto': 'http' } });
++  const expected = await QRCode.toBuffer(ORIGIN + '/?pin=123456', { width: 480, margin: 1 });
++  assert.equal(crypto.createHash('sha256').update(Buffer.from(await qr.arrayBuffer())).digest('hex'),
++               crypto.createHash('sha256').update(expected).digest('hex'));
++  const wrong = await connect('https://spoof.example.invalid').then(socket => { socket.disconnect(); return false; }, () => true);
++  assert(wrong);
++  if (process.env.ZACKBOING_OLD_ORIGIN) {
++    assert(await connect(process.env.ZACKBOING_OLD_ORIGIN).then(socket => { socket.disconnect(); return false; }, () => true));
++  }
++  const guest = await connect(ORIGIN);
++  assert((await ack(guest, 'host:create', { quizId: 1 })).error);
++  if (mode !== 'game') {
++    const host = await connect(ORIGIN, true);
++    host.disconnect(); guest.disconnect();
++    const mine = await api('/api/quizzes');
++    assert(mine.body.quizzes.some(quiz => quiz.title === 'TLS synthetic'));
++    console.log(JSON.stringify({ tls: true, canonicalQr: true, websocketOrigin: true, oldOriginDenied: !!process.env.ZACKBOING_OLD_ORIGIN, userId }));
++    return;
++  }
++  const quiz = await api('/api/quizzes', 'POST', { title: 'TLS synthetic',
++    questions: [{ type: 'truefalse', text: 'Synthetic?', correct: 1, time: 5 }] });
++  assert(quiz.response.ok);
++  const upload = await fetch(BASE + '/api/media?name=synthetic.png', { method: 'POST',
++    headers: { Cookie: cookie, 'Content-Type': 'image/png' },
++    body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==','base64') });
++  assert(upload.ok);
++  const mediaUrl = (await upload.json()).url;
++  phase = 'teacher';
++  const teacher = await api('/api/admin/users', 'POST', { email: 'tls-teacher@example.invalid', name: 'Synthetic Teacher',
++    password: 'synthetic-teacher-password', role: 'teacher' });
++  assert(teacher.response.ok || (process.env.ZACKBOING_TEST_EXISTING === '1' && teacher.response.status === 409));
++  const host = await connect(ORIGIN, true);
++  const created = await ack(host, 'host:create', { quizId: quiz.body.id });
++  assert(created.pin);
++  assert((await ack(guest, 'player:join', { pin: created.pin, name: 'Synthetic Child' })).ok);
++  const resume = new Promise(resolve => process.stdin.once('data', resolve));
++  console.log('GAME_ACTIVE');
++  await resume; phase = 'expired-session'; // parent verifies stop refusal and expires the original session
++  assert.equal((await api('/api/me')).body.user, null);
++  assert((await ack(host, 'host:create', { quizId: quiz.body.id })).error);
++  phase = 'question';
++  const question = once(guest, 'game:question');
++  host.emit('host:start');
++  await question;
++  phase = 'answer';
++  const results = once(host, 'game:results');
++  assert((await ack(guest, 'player:answer', { index: 1 })).ok);
++  await results;
++  phase = 'podium';
++  const podium = once(guest, 'player:podium');
++  host.emit('host:next');
++  await podium;
++  host.disconnect(); guest.disconnect();
++  console.log(JSON.stringify({ tls: true, canonicalQr: true, websocketOrigin: true, publicPinJoin: true,
++    expiredSessionCannotCreateAnotherGame: true, gameCompleted: true, userId, quizId: quiz.body.id, mediaUrl }));
++}
++main().then(() => process.exit(0)).catch(error => { console.error('Contract check failed at ' + phase + ' (' + error.name + '); no credentials emitted.'); process.exit(1); });
+diff --git a/test/run-fixtures.js b/test/run-fixtures.js
+new file mode 100644
+index 0000000..5f4c83a
+--- /dev/null
++++ b/test/run-fixtures.js
+@@ -0,0 +1,14 @@
++const http = require('node:http');
++const pixel = Buffer.from('UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA', 'base64');
++const server = http.createServer((req, res) => {
++  if (req.url.startsWith('/static/display/')) {
++    res.writeHead(200, { 'Content-Type': 'image/webp' });
++    return res.end(pixel);
++  }
++  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
++  res.end('<img src="/static/thumbnails/synthetic_abc123.webp">');
++});
++server.listen(8081, '0.0.0.0', () => {
++  process.env.ZACKBOING_TEST_GALLERY_URL = 'http://fixture:8081';
++  require('./e2e');
++});
+diff --git a/test/session-expiry.js b/test/session-expiry.js
+index aec3d77..a75e7a1 100644
+--- a/test/session-expiry.js
++++ b/test/session-expiry.js
+@@ -4,6 +4,7 @@ const os = require('node:os');
+ const path = require('node:path');
+ process.env.ZACKBOING_DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'zackboing-session-test-'));
+ const db = require('../server/db');
++db.migrate();
+ const auth = require('../server/auth');
+ try {
+   const id = db.prepare('INSERT INTO users(email,name,pass_hash) VALUES(?,?,?)')
 -- 
 2.43.0
 

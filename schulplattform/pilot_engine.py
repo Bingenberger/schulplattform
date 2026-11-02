@@ -1,6 +1,6 @@
-"""Fixed two-app pilot operations; production release control is separate."""
+"""Fixed selected-app pilot operations; production release control is separate."""
 import json
-from .deployment import APPS, ACTIONS
+from .deployment import APPS, ACTIONS, DeploymentBusy
 from .proxy import caddyfile
 from .state import StateError
 from .storage import exclusive
@@ -15,9 +15,10 @@ class PilotEngine:
         return path.exists() and json.loads(path.read_text()).get("status") == "completed"
 
     def status(self, app):
-        backend = self.pilot.inspect_service(app, "app") if self.installed() else None
+        installed = self.installed() and app in self.pilot.apps
+        backend = self.pilot.inspect_service(app, "app") if installed else None
         state = backend["State"] if backend else {}
-        return {"app": app, "installed": self.installed(), "running": state.get("Running") is True,
+        return {"app": app, "installed": installed, "running": state.get("Running") is True,
                 "health": state.get("Health", {}).get("Status", "stopped"),
                 "image": backend["Image"] if backend else None}
 
@@ -29,12 +30,17 @@ class PilotEngine:
             raise ValueError("Unknown deployment action or app")
         if action == "status":
             return self.status(app)
-        if not self.installed():
+        if not self.installed() or app not in self.pilot.apps:
             raise StateError("Pilot must be installed first")
         if action == "start":
             self.pilot.up(check_running=False)  # rejects image changes; never a bootstrap
         with exclusive(self.pilot.directory / "state/installation.lock"):
             if action == "stop":
+                if app == "zackboing" and self.status(app)["running"]:
+                    pending = self.pilot.quiz_control("prepare-stop")
+                    if pending["activeGames"]:
+                        self.pilot.quiz_control("cancel-stop")
+                        raise DeploymentBusy("Active games must finish before stop")
                 self.routes({app})
                 self.pilot.compose_command(app, "stop", "--timeout", "130", "app")
             else:
@@ -43,6 +49,8 @@ class PilotEngine:
                     self.pilot.compose_command(app, "up", "-d", "--no-build", "--wait", "db")
                     self.pilot.configure_proxy()
                 self.pilot.compose_command(app, "up", "-d", "--no-build", "--wait", "--wait-timeout", "90", "app")
+                if app == "zackboing":
+                    self.pilot.quiz_control("cancel-stop")
                 if self.status(app)["health"] != "healthy":
                     raise StateError("App failed readiness")
                 self.routes(set())

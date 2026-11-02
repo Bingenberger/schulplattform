@@ -1,4 +1,4 @@
-"""Local, isolated two-app integration environment; not a production installer.
+"""Local, isolated selected-app integration environment; not a production installer.
 
 Uses the real standalone Compose files plus generated overrides. Only Caddy's
 TLS test port is published, on host loopback. No external SMTP or DNS changes.
@@ -28,8 +28,13 @@ INFRASTRUCTURE = {
 }
 
 
+APP_PORTS = {"gswb": 8000, "schulwissen": 8000, "zackboing": 3000}
+DEFAULT_DOMAINS = {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost", "zackboing": "quiz.localhost"}
+
 class Pilot:
-    def __init__(self, directory):
+    def __init__(self, directory, apps=None):
+        if apps is not None and tuple(apps) not in (("gswb", "schulwissen"), ("gswb", "schulwissen", "zackboing")):
+            raise ValueError("Unsupported app selection")
         self.directory = Path(directory).resolve()
         work = (ROOT / ".work").resolve()
         if not self.directory.is_relative_to(work) or self.directory == work:
@@ -48,11 +53,21 @@ class Pilot:
                 listener.bind(("127.0.0.1", 0))
                 port = listener.getsockname()[1]
             self.config = {"project": "sp-pilot-" + secrets.token_hex(6), "port": port}
+            if apps is not None:
+                self.config["apps"] = list(apps)
             atomic_json(self.config_path, self.config)
-        if (set(self.config) != {"project", "port"} or
+        if not isinstance(self.config, dict) or ("apps" in self.config and not isinstance(self.config["apps"], list)):
+            raise ValueError("Invalid pilot configuration")
+        if (set(self.config) not in ({"project", "port"}, {"project", "port", "apps"}) or
+                not isinstance(self.config.get("project"), str) or
                 not __import__("re").fullmatch("sp-pilot-[a-f0-9]{12}", self.config["project"]) or
                 type(self.config["port"]) is not int or not 1024 <= self.config["port"] <= 65535):
             raise ValueError("Invalid pilot configuration")
+        self.apps = tuple(self.config.get("apps", ("gswb", "schulwissen")))
+        if self.apps not in (("gswb", "schulwissen"), ("gswb", "schulwissen", "zackboing")):
+            raise ValueError("Unsupported app selection")
+        if apps is not None and tuple(apps) != self.apps:
+            raise StateError("App selection changed; use a new pilot directory or an explicit upgrade")
         self.project = self.config["project"]
         self.env = os.environ | {
             "POSTGRES_PASSWORD": "unused-overridden-by-secret-file",
@@ -104,7 +119,7 @@ class Pilot:
                 with os.fdopen(fd, "w") as stream:
                     stream.write(value)
         port = self.config["port"]
-        caddy = caddyfile([("gswb", "woerter.localhost", 8000), ("schulwissen", "wissen.localhost", 8000)])
+        caddy = caddyfile([(app, DEFAULT_DOMAINS[app], APP_PORTS[app]) for app in self.apps])
         caddy = caddy.replace("admin localhost:2019", "admin localhost:2019\n  local_certs")
         (self.directory / "Caddyfile").write_text(caddy)
         infrastructure = {
@@ -131,6 +146,9 @@ class Pilot:
             "networks": {"edge": {}, "gswb-proxy": {"internal": True}, "wissen-proxy": {"internal": True}},
             "volumes": {"caddy-data": {}, "caddy-config": {}},
         }
+        if "zackboing" in self.apps:
+            infrastructure["services"]["proxy"]["networks"].append("zack-proxy")
+            infrastructure["networks"]["zack-proxy"] = {"internal": True}
         for service in infrastructure["services"].values():
             service["logging"] = {"driver": "json-file", "options": {"max-size": "10m", "max-file": "3"}}
         (self.directory / "infra.json").write_text(json.dumps(infrastructure, indent=2))
@@ -149,6 +167,25 @@ networks:
   proxy:
     external: true
     name: {net}_gswb-proxy
+""")
+
+        if "zackboing" in self.apps:
+            (self.directory / "zackboing.yml").write_text(f"""
+services:
+  app:
+    image: zackboing:0.1.0-dev
+    ports: !reset []
+    environment:
+      ZACKBOING_PUBLIC_URL: https://quiz.localhost:{port}
+      ZACKBOING_PROXY_IPS: 127.0.0.1
+    networks:
+      default: {{}}
+      proxy:
+        aliases: [zackboing]
+networks:
+  proxy:
+    external: true
+    name: {net}_zack-proxy
 """)
         # No administrative database credential is passed to the application.
         (self.directory / "init-postgres.sh").write_text("""#!/bin/sh
@@ -246,18 +283,31 @@ networks:
                 lines.append(line)
         path.write_text("\n".join(lines) + "\n")
 
+
+        if "zackboing" in self.apps:
+            address = proxy["NetworkSettings"]["Networks"][self.project + "-infra_zack-proxy"]["IPAddress"]
+            ipaddress.ip_address(address)
+            path = self.directory / "zackboing.yml"
+            lines = [("      ZACKBOING_PROXY_IPS: " + address) if line.startswith("      ZACKBOING_PROXY_IPS:") else line
+                     for line in path.read_text().splitlines()]
+            path.write_text("\n".join(lines) + "\n")
+
     def bootstrap(self, identity):
         self.configure_proxy()
         # Schema jobs only. No administrative or real user account is created.
         self.compose_command("gswb", "run", "--rm", "--no-deps", "app", "python", "-m", "grundschul_woerterbuch.migrate")
         self.compose_command("schulwissen", "run", "--rm", "--no-deps", "app", "python", "manage.py", "platform_migrate")
+        if "zackboing" in self.apps:
+            self.compose_command("zackboing", "run", "--rm", "--no-deps", "app", "node", "server/migrate.js")
         self.compose_command("gswb", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
         self.compose_command("schulwissen", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
+        if "zackboing" in self.apps:
+            self.compose_command("zackboing", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
 
     def ready(self, identity):
         try:
             return all((self.inspect_service(app, "app") or {}).get("State", {}).get("Health", {}).get("Status") == "healthy"
-                       for app in ("gswb", "schulwissen"))
+                       for app in self.apps)
         except StateError:
             return False
 
@@ -275,11 +325,23 @@ networks:
             connection.close()
 
 
+
+    def quiz_control(self, action):
+        if action not in ("prepare-stop", "cancel-stop") or "zackboing" not in self.apps:
+            raise ValueError("Unknown local quiz control")
+        backend = self.inspect_service("zackboing", "app")
+        if not backend:
+            raise StateError("Quiz service is not running")
+        source = ("fetch('http://127.0.0.1:3000/_platform/" + action + "',{method:'POST'})"
+                  ".then(async r=>{if(!r.ok)process.exit(1);process.stdout.write(await r.text());})"
+                  ".catch(()=>process.exit(1));")
+        return json.loads(self.command(["docker", "exec", backend["Id"], "node", "-e", source]))
+
     def current_domains(self):
         path = self.directory / "domain-transactions/current.json"
         domains = (json.loads(path.read_text())["domains"] if path.exists()
-                   else {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost"})
-        if set(domains) != {"gswb", "schulwissen"}:
+                   else {app: DEFAULT_DOMAINS[app] for app in self.apps})
+        if set(domains) != set(self.apps):
             raise StateError("Unexpected pilot domains")
         from .proxy import hostname
         for domain in domains.values():
@@ -288,12 +350,12 @@ networks:
 
     def refresh_routes(self, maintenance=()):
         domains = self.current_domains()
-        config = caddyfile([(app, domains[app], 8000) for app in sorted(domains)])
+        config = caddyfile([(app, domains[app], APP_PORTS[app]) for app in sorted(domains)])
         config = config.replace("admin localhost:2019", "admin localhost:2019\n  local_certs")
         for app in domains:
             backend = self.inspect_service(app, "app")
             if app in maintenance or not backend or not backend["State"]["Running"]:
-                config = config.replace("reverse_proxy " + app + ":8000", 'respond "Wartung" 503')
+                config = config.replace("reverse_proxy " + app + ":" + str(APP_PORTS[app]), 'respond "Wartung" 503')
         with (self.directory / "Caddyfile").open("w") as stream:
             stream.write(config)
             stream.flush()
@@ -327,6 +389,11 @@ networks:
         status, _ = self.request(domains["schulwissen"], "/")
         if status != 302:
             raise StateError("Anonymous school knowledge access accepted")
+        if "zackboing" in self.apps:
+            if self.request(domains["zackboing"], "/api/admin/users")[0] != 401:
+                raise StateError("Anonymous quiz administration accepted")
+            if self.request(domains["zackboing"], "/_platform/prepare-stop", "POST")[0] != 403:
+                raise StateError("Quiz private control reachable through proxy")
         results["negative-access"] = True
         atomic_json(self.directory / "verified.json", {"installation": identity, "checks": results})
 
@@ -340,7 +407,7 @@ networks:
     def up(self, check_running=True):
         # Bind state to immutable local image IDs, not development tags.
         images = {}
-        for app in ("gswb", "schulwissen"):
+        for app in self.apps:
             images[app] = json.loads(self.command(["docker", "image", "inspect", app + ":0.1.0-dev"]))[0]["Id"]
         plan = {"mode": "local-pilot", "config": self.config, "images": images,
                 "infrastructure": INFRASTRUCTURE}
@@ -362,14 +429,21 @@ networks:
             self.compose_command("infra", "up", "-d", "--no-build")
             self.compose_command("schulwissen", "up", "-d", "--no-build", "--wait", "db")
             self.configure_proxy()
-            for app in ("gswb", "schulwissen"):
+            for app in self.apps:
                 self.compose_command(app, "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
+            if "zackboing" in self.apps:
+                self.quiz_control("cancel-stop")
             self.refresh_routes()
             self.verify(result["id"])
         return result
 
     def stop(self):
         with exclusive(self.directory / "state/installation.lock"):
-            for app in ("gswb", "schulwissen", "infra"):
+            if "zackboing" in self.apps and self.inspect_service("zackboing", "app"):
+                pending = self.quiz_control("prepare-stop")
+                if pending["activeGames"]:
+                    self.quiz_control("cancel-stop")
+                    raise StateError("Active games must finish before stopping the pilot")
+            for app in (*self.apps, "infra"):
                 if (self.directory / ("infra.json" if app == "infra" else app + ".yml")).exists():
                     self.compose_command(app, "stop")

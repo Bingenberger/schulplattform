@@ -98,3 +98,20 @@ def test_deployment_failure_is_generic_and_audited(dashboard):
     assert "synthetic-sensitive-key" not in response.text
     with store.connect() as db:
         assert db.execute("SELECT outcome FROM audit ORDER BY id DESC LIMIT 1").fetchone()[0] == "failed"
+
+
+def test_busy_app_stop_explains_safe_next_step(dashboard):
+    from schulplattform.deployment import DeploymentBusy
+    app, store, identity, backend, clock = dashboard
+    client = app.test_client()
+    login(client, clock)
+    token = csrf(client, "/admin")
+    def busy(action, app_id):
+        raise DeploymentBusy("synthetic-private-detail")
+    backend.execute = busy
+    response = client.post("/admin/actions/gswb/stop", data={"csrf": token})
+    assert response.status_code == 409
+    assert "Spiel abschließen" in response.text
+    assert "synthetic-private-detail" not in response.text
+    with store.connect() as db:
+        assert db.execute("SELECT outcome FROM audit ORDER BY id DESC LIMIT 1").fetchone()[0] == "blocked"

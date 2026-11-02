@@ -16,7 +16,13 @@ packages = {
     'gswb': ('Close editor access and add isolated standalone container', [
         'grundschul_woerterbuch', 'templates/review_entry.html', '.dockerignore',
         'Dockerfile', 'docker-compose.yml', 'requirements.lock', 'PLATFORM.md']),
-    'zackboing': ('Reject expired and invalid server sessions', ['server/auth.js', 'test/session-expiry.js']),
+    'zackboing': ('Add isolated Node LTS container, explicit migration and closed bootstrap', [
+        'Dockerfile', '.dockerignore', 'docker-compose.yml', 'PLATFORM.md',
+        'server/auth.js', 'server/bootstrap.js', 'server/config.js', 'server/db.js',
+        'server/game.js', 'server/index.js', 'server/migrate.js',
+        'public/teacher.html', 'public/js/teacher.js',
+        'test/session-expiry.js', 'test/bootstrap.js', 'test/e2e.js',
+        'test/run-fixtures.js', 'test/platform-contract.js']),
     'grundschultafel': ('Replace default login with local single-use bootstrap', [
         'src/lib/users.ts', 'src/app/api/auth/change-password/route.ts',
         'src/app/api/auth/login/route.ts', 'src/app/change-password/page.tsx',

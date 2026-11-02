@@ -14,7 +14,11 @@ import time
 
 
 ACTIONS = {"status", "start", "stop"}
-APPS = {"gswb", "schulwissen"}
+APPS = {"gswb", "schulwissen", "zackboing"}
+
+
+class DeploymentBusy(ValueError):
+    """An active workload prevents a safe stop."""
 
 
 def canonical(request):
@@ -75,6 +79,8 @@ class Gate:
             result = self.engine.execute(request["action"], request["app"])
             response = {"ok": True, "result": result}
             outcome = "completed"
+        except DeploymentBusy:
+            response, outcome = {"ok": False, "error": "busy"}, "blocked"
         except Exception:
             response, outcome = {"ok": False, "error": "operation-failed"}, "failed"
         with sqlite3.connect(self.database) as db:
@@ -151,6 +157,8 @@ class Client:
         if response.get("nonce") != request["nonce"] or not hmac.compare_digest(signature, expected):
             raise ValueError("Unauthenticated deployment response")
         if not response.get("ok"):
+            if response.get("error") == "busy":
+                raise DeploymentBusy("App has an active workload")
             raise ValueError("Deployment operation rejected")
         return response["result"]
 

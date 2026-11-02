@@ -14,7 +14,7 @@
   {
     "app": "zackboing",
     "baseCommit": "05e78a1e829a7634cd35deb5ab06c7c8a5e9d365",
-    "implementationCommit": "ec68806032e8fc5216fb33058b3e5265352c3c06",
+    "implementationCommit": "668b7f724e69e431215610183745886958b08d25",
     "patch": "patches/zackboing/changes.patch"
   },
   {

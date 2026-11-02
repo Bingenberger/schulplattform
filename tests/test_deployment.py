@@ -87,3 +87,14 @@ def test_unix_peer_uid_is_required_even_with_valid_mac(tmp_path):
         finally:
             server.shutdown()
             thread.join()
+
+
+def test_busy_workload_is_reported_without_private_exception_data(tmp_path):
+    from schulplattform.deployment import DeploymentBusy
+    class Busy:
+        def execute(self, action, app):
+            raise DeploymentBusy("synthetic-private-detail")
+    key = b"synthetic-deployment-key-1234567890"
+    gate = Gate(tmp_path / "gate.db", key, Busy())
+    response = gate.dispatch(signed_request(key, "stop", "zackboing"))
+    assert response == {"ok": False, "error": "busy"}

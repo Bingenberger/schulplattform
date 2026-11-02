@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 from flask import Flask, abort, g, redirect, render_template, request, session, url_for
 
 from .dashboard_auth import AdminStore, matching_counter
-from .deployment import APPS, ACTIONS, Client
+from .deployment import APPS, ACTIONS, Client, DeploymentBusy
 from .proxy import hostname
 
 
@@ -121,6 +121,9 @@ def create_app(state_dir, socket_path=None, key_file=None, catalogue=None, clien
         store.audit(identity, action, app_id, "accepted")
         try:
             client.execute(action, app_id)
+        except DeploymentBusy:
+            store.audit(identity, action, app_id, "blocked")
+            return render_template("operation_failed.html", busy=True), 409
         except (OSError, ValueError):
             store.audit(identity, action, app_id, "failed")
             return render_template("operation_failed.html"), 503

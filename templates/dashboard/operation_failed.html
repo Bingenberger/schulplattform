@@ -1,3 +1,5 @@
 {% extends "base.html" %}{% block body %}
-<section><h1>Aktion konnte nicht abgeschlossen werden</h1><p>Der Steuerdienst hat die Aktion nicht bestätigt. Prüfe den Dienstzustand in der Administration.</p>
+<section><h1>{% if busy %}Noch läuft ein Spiel{% else %}Aktion konnte nicht abgeschlossen werden{% endif %}</h1>
+{% if busy %}<p>Bitte das laufende Spiel abschließen und die App anschließend erneut stoppen.</p>
+{% else %}<p>Der Steuerdienst hat die Aktion nicht bestätigt. Prüfe den Dienstzustand in der Administration.</p>{% endif %}
 <a href="{{ url_for('admin') }}">Zur Administration</a></section>{% endblock %}
