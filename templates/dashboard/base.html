@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}Schulplattform{% endblock %}</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#172d38;background:#f3f6f7}
+body{margin:0}header{background:#153d4a;color:white;padding:1.2rem max(1rem,calc((100% - 68rem)/2))}
+header a{color:white}nav{display:flex;gap:1.3rem;align-items:center;flex-wrap:wrap}
+main{max-width:68rem;margin:2rem auto;padding:0 1rem}h1{font-size:2rem}h2{font-size:1.3rem}
+a{color:#125d74}section,.tile{background:white;border:1px solid #d6e0e4;border-radius:.7rem;padding:1.3rem;margin:1rem 0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:1rem}
+label{display:block;margin:.9rem 0}input{display:block;padding:.7rem;max-width:24rem;width:90%;border:1px solid #9aafb8;border-radius:.3rem;font:inherit}
+button{padding:.65rem 1rem;border:0;border-radius:.3rem;background:#175b70;color:white;cursor:pointer;font:inherit}
+button.secondary{background:#52646c}form.inline{display:inline-block;margin:.4rem .5rem .4rem 0}
+.error{color:#9c2d2d}small,.muted{color:#52646c}table{border-collapse:collapse;width:100%;background:white}
+th,td{text-align:left;border-bottom:1px solid #d6e0e4;padding:.7rem}code{overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<header><nav><strong>Schulplattform</strong><a href="{{ url_for('tiles') }}">Apps</a>
+{% if g.admin %}<a href="{{ url_for('admin') }}">Administration</a>
+<form class="inline" method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button>Abmelden</button></form>
+{% else %}<a href="{{ url_for('login') }}">Administration anmelden</a>{% endif %}
+</nav></header>
+<main>{% block body %}{% endblock %}</main>
+</body></html>

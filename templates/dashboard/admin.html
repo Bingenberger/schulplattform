@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}Plattform verwalten{% endblock %}
+{% block body %}<h1>Plattform verwalten</h1><p>Angemeldet als {{ g.admin.username }}.</p>
+{% for app_id,entry,status in services %}<section><h2>{{ entry.name }}</h2>
+<p>Zustand: <strong>{{ {'healthy':'bereit','unhealthy':'nicht bereit','starting':'startet','stopped':'gestoppt','unbekannt':'unbekannt'}.get(status.health, status.health) }}</strong></p>
+<p class="muted">Version: {{ entry.get('version','Entwicklungsstand') }}</p>
+{% if status.image %}<details><summary>Image-Kennung</summary><code>{{ status.image }}</code></details>{% endif %}
+<form class="inline" method="post" action="{{ url_for('action', app_id=app_id, action='start') }}">
+<input type="hidden" name="csrf" value="{{ csrf() }}"><button>Starten</button></form>
+<form class="inline" method="post" action="{{ url_for('action', app_id=app_id, action='stop') }}">
+<input type="hidden" name="csrf" value="{{ csrf() }}"><button class="secondary">Stoppen · Daten behalten</button></form>
+</section>{% endfor %}
+<h2>Betriebsprotokoll</h2><table><thead><tr><th>Zeit</th><th>Person</th><th>Aktion</th><th>App</th><th>Ergebnis</th></tr></thead>
+<tbody>{% for event in audit %}<tr><td>{{ event.at|stamp }}</td><td>{{ event.actor }}</td>
+<td>{{ {'start':'Start','stop':'Stopp'}.get(event.action,event.action) }}</td><td>{{ event.app_id }}</td>
+<td>{{ {'accepted':'angefordert','completed':'abgeschlossen','failed':'fehlgeschlagen'}.get(event.outcome,event.outcome) }}</td></tr>
+{% else %}<tr><td colspan="5">Noch keine administrativen Änderungen.</td></tr>{% endfor %}</tbody></table>
+{% endblock %}

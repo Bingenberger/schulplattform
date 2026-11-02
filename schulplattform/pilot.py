@@ -274,12 +274,42 @@ networks:
         finally:
             connection.close()
 
+
+    def current_domains(self):
+        path = self.directory / "domain-transactions/current.json"
+        domains = (json.loads(path.read_text())["domains"] if path.exists()
+                   else {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost"})
+        if set(domains) != {"gswb", "schulwissen"}:
+            raise StateError("Unexpected pilot domains")
+        from .proxy import hostname
+        for domain in domains.values():
+            hostname(domain)
+        return domains
+
+    def refresh_routes(self, maintenance=()):
+        domains = self.current_domains()
+        config = caddyfile([(app, domains[app], 8000) for app in sorted(domains)])
+        config = config.replace("admin localhost:2019", "admin localhost:2019\n  local_certs")
+        for app in domains:
+            backend = self.inspect_service(app, "app")
+            if app in maintenance or not backend or not backend["State"]["Running"]:
+                config = config.replace("reverse_proxy " + app + ":8000", 'respond "Wartung" 503')
+        with (self.directory / "Caddyfile").open("w") as stream:
+            stream.write(config)
+            stream.flush()
+            os.fsync(stream.fileno())
+        proxy = self.inspect_service("infra", "proxy")
+        if proxy:
+            for action in ("validate", "reload"):
+                self.command(["docker", "exec", proxy["Id"], "caddy", action, "--config", "/etc/caddy/Caddyfile"])
+
     def verify(self, identity):
         proxy = self.inspect_service("infra", "proxy")
         self.command(["docker", "cp", proxy["Id"] + ":/data/caddy/pki/authorities/local/root.crt",
                       str(self.directory / "root.crt")])
         results = {}
-        for app, host in [("gswb", "woerter.localhost"), ("schulwissen", "wissen.localhost")]:
+        domains = self.current_domains()
+        for app, host in domains.items():
             status, _ = self.request(host, "/health/ready")
             if status != 200:
                 raise StateError("TLS readiness check failed")
@@ -291,10 +321,10 @@ networks:
                 raise StateError("Backend user/root filesystem contract violated")
             results[app + "-private-backend"] = True
         for method, path in [("GET", "/review"), ("POST", "/review/synthetic/approve")]:
-            status, _ = self.request("woerter.localhost", path, method, {"X-Forwarded-User": "admin", "Remote-User": "admin"})
+            status, _ = self.request(domains["gswb"], path, method, {"X-Forwarded-User": "admin", "Remote-User": "admin"})
             if status != 401:
                 raise StateError("Anonymous editor access accepted")
-        status, _ = self.request("wissen.localhost", "/")
+        status, _ = self.request(domains["schulwissen"], "/")
         if status != 302:
             raise StateError("Anonymous school knowledge access accepted")
         results["negative-access"] = True
@@ -334,6 +364,7 @@ networks:
             self.configure_proxy()
             for app in ("gswb", "schulwissen"):
                 self.compose_command(app, "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
+            self.refresh_routes()
             self.verify(result["id"])
         return result
 

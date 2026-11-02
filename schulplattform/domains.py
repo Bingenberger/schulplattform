@@ -17,10 +17,11 @@ class DomainError(RuntimeError):
 
 
 class Domains:
-    def __init__(self, directory, initial, management_domain, preflight, activate, verify):
+    def __init__(self, directory, initial, management_domain, preflight, activate, verify, operation_lock=None):
         self.directory = Path(directory)
         self.path = self.directory / "current.json"
         self.pending = self.directory / "pending.json"
+        self.operation_lock = Path(operation_lock) if operation_lock else self.directory / "operation.lock"
         self.management_domain = hostname(management_domain)
         self.preflight, self.activate, self.verify = preflight, activate, verify
         self.validate(initial)
@@ -66,10 +67,15 @@ class Domains:
         atomic_json(self.pending, pending)
 
     def recover(self):
-        with exclusive(self.directory / "domains.lock"):
-            self._recover()
+        with exclusive(self.operation_lock):
+            with exclusive(self.directory / "domains.lock"):
+                self._recover()
 
     def change(self, app, domain):
+        with exclusive(self.operation_lock):
+            return self._change_locked(app, domain)
+
+    def _change_locked(self, app, domain):
         with exclusive(self.directory / "domains.lock"):
             self._recover()
             old = json.loads(self.path.read_text())

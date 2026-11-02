@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block body %}
+<h1>Deine Schul-Apps</h1>
+<div class="tiles">{% for app_id,entry in entries %}
+<article class="tile"><h2>{{ entry.name }}</h2><p>{{ entry.description }}</p><a href="{{ entry.url }}">App öffnen</a></article>
+{% else %}<p>Für diesen Zugang sind noch keine App-Kacheln freigegeben.</p>{% endfor %}</div>
+{% endblock %}

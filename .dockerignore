@@ -1,0 +1,8 @@
+**
+!requirements-dashboard.lock
+!schulplattform/
+!schulplattform/**
+!templates/
+!templates/dashboard/
+!templates/dashboard/**
+**/__pycache__

@@ -48,3 +48,16 @@ def test_recovery_failure_keeps_pending_and_refuses_followup(tmp_path):
     assert json.loads(driver.pending.read_text())["status"] == "recovery-required"
     with pytest.raises(DomainError, match="recovery failed"):
         driver.change("gswb", "other.example.invalid")
+
+
+def test_domain_change_serializes_with_app_lifecycle(tmp_path):
+    from schulplattform.storage import exclusive
+    mutations = []
+    lock = tmp_path / "shared-operation.lock"
+    driver = Domains(tmp_path / "domains", {"gswb": "old.example.invalid"}, "admin.example.invalid",
+                     lambda old, new: True, lambda domains: mutations.append(domains),
+                     lambda domains: True, operation_lock=lock)
+    with exclusive(lock):
+        with pytest.raises(BlockingIOError):
+            driver.change("gswb", "new.example.invalid")
+    assert not mutations

@@ -1,0 +1,13 @@
+FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+WORKDIR /app
+COPY requirements-dashboard.lock ./
+RUN pip install --no-cache-dir --require-hashes -r requirements-dashboard.lock
+COPY schulplattform ./schulplattform
+COPY templates/dashboard ./templates/dashboard
+RUN groupadd --gid 10001 platform && useradd --uid 10001 --gid 10001 --no-create-home platform \
+    && mkdir -p /state && chown 10001:10001 /state && chmod 700 /state
+USER 10001:10001
+EXPOSE 8000
+HEALTHCHECK --interval=15s --timeout=3s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "180", "--worker-tmp-dir", "/tmp", "schulplattform.dashboard:from_env()"]

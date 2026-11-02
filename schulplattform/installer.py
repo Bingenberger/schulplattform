@@ -72,7 +72,7 @@ def blockers(host):
     return issues
 
 
-def main(argv=None):
+def _main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["preflight", "plan", "apply", "pilot-up", "pilot-start", "pilot-stop", "pilot-status"])
     parser.add_argument("--state-dir", type=Path, default=Path(".work/pilot-v2"))
@@ -112,6 +112,23 @@ def main(argv=None):
                       'bundleDigest': bundle.digest, 'apps': [m['id'] for m in manifests],
                       'deployable': False}, indent=2))
     return 0
+
+
+
+def main(argv=None):
+    import sys
+    from .state import StateError
+    try:
+        return _main(argv)
+    except BlockingIOError:
+        print("Plattform: Eine andere Verwaltungsaktion läuft; bitte später erneut versuchen.", file=sys.stderr)
+        return 1
+    except StateError as exc:
+        print("Plattform: " + str(exc), file=sys.stderr)
+        return 1
+    except (ValueError, OSError):
+        print("Plattform: Konfiguration oder Dienstzugriff fehlgeschlagen; private Betriebsprotokolle prüfen.", file=sys.stderr)
+        return 1
 
 
 if __name__ == '__main__':

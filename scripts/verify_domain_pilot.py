@@ -93,7 +93,8 @@ print(json.dumps({"mailLinkMatchesDomain": True}))
 
 
 driver = Domains(pilot.directory / "domain-transactions", original, "verwaltung.localhost",
-                 preflight, activate, verify)
+                 preflight, activate, verify,
+                 operation_lock=pilot.directory / "state/installation.lock")
 try:
     driver.change("schulwissen", "wissen-neu.localhost")
     fault["enabled"] = True
