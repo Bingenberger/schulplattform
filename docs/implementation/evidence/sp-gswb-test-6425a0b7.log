@@ -1,0 +1,56 @@
+$ /home/emrichschule/schulplattform/.work/docker-compose -p sp-gswb-test-6425a0b7 -f /home/emrichschule/schulplattform/.work/apps/gswb/docker-compose.yml run --rm --no-deps app python -m grundschul_woerterbuch.migrate
+ Network sp-gswb-test-6425a0b7_default  Creating
+ Network sp-gswb-test-6425a0b7_default  Created
+ Volume sp-gswb-test-6425a0b7_dictionary  Creating
+ Volume sp-gswb-test-6425a0b7_dictionary  Created
+ Volume sp-gswb-test-6425a0b7_images  Creating
+ Volume sp-gswb-test-6425a0b7_images  Created
+ Volume sp-gswb-test-6425a0b7_audio  Creating
+ Volume sp-gswb-test-6425a0b7_audio  Created
+ Volume sp-gswb-test-6425a0b7_uploads  Creating
+ Volume sp-gswb-test-6425a0b7_uploads  Created
+
+exit_code=0
+
+$ /home/emrichschule/schulplattform/.work/docker-compose -p sp-gswb-test-6425a0b7 -f /home/emrichschule/schulplattform/.work/apps/gswb/docker-compose.yml up -d --no-build --wait --wait-timeout 90
+ Container sp-gswb-test-6425a0b7-app-1  Creating
+ Container sp-gswb-test-6425a0b7-app-1  Created
+ Container sp-gswb-test-6425a0b7-app-1  Starting
+ Container sp-gswb-test-6425a0b7-app-1  Started
+ Container sp-gswb-test-6425a0b7-app-1  Waiting
+ Container sp-gswb-test-6425a0b7-app-1  Healthy
+
+exit_code=0
+
+$ /home/emrichschule/schulplattform/.work/docker-compose -p sp-gswb-test-6425a0b7 -f /home/emrichschule/schulplattform/.work/apps/gswb/docker-compose.yml ps -q app
+f71d71e0cac2c88ac856db89a81b97846710ebb9d87eb3d34443fc598b05bc91
+
+exit_code=0
+
+$ docker inspect --format {{.Config.User}} readOnly={{.HostConfig.ReadonlyRootfs}} oom={{.State.OOMKilled}} restarts={{.RestartCount}} f71d71e0cac2c88ac856db89a81b97846710ebb9d87eb3d34443fc598b05bc91
+10001:10001 readOnly=true oom=false restarts=0
+
+exit_code=0
+
+$ /home/emrichschule/schulplattform/.work/docker-compose -p sp-gswb-test-6425a0b7 -f /home/emrichschule/schulplattform/.work/apps/gswb/docker-compose.yml restart app
+ Container sp-gswb-test-6425a0b7-app-1  Restarting
+ Container sp-gswb-test-6425a0b7-app-1  Started
+
+exit_code=0
+
+$ /home/emrichschule/schulplattform/.work/docker-compose -p sp-gswb-test-6425a0b7 -f /home/emrichschule/schulplattform/.work/apps/gswb/docker-compose.yml up -d --no-build --wait --wait-timeout 90
+ Container sp-gswb-test-6425a0b7-app-1  Running
+ Container sp-gswb-test-6425a0b7-app-1  Waiting
+ Container sp-gswb-test-6425a0b7-app-1  Healthy
+
+exit_code=0
+
+$ /home/emrichschule/schulplattform/.work/docker-compose -p sp-gswb-test-6425a0b7 -f /home/emrichschule/schulplattform/.work/apps/gswb/docker-compose.yml down
+ Container sp-gswb-test-6425a0b7-app-1  Stopping
+ Container sp-gswb-test-6425a0b7-app-1  Stopped
+ Container sp-gswb-test-6425a0b7-app-1  Removing
+ Container sp-gswb-test-6425a0b7-app-1  Removed
+ Network sp-gswb-test-6425a0b7_default  Removing
+ Network sp-gswb-test-6425a0b7_default  Removed
+
+exit_code=0

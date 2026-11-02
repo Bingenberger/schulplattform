@@ -1,0 +1,17 @@
+$ docker compose -p sp-gswb-test-57469adf -f /home/emrichschule/schulplattform/.work/apps/gswb/docker-compose.yml run --rm --no-deps app python -m grundschul_woerterbuch.migrate
+unknown shorthand flag: 'p' in -p
+
+Usage:  docker [OPTIONS] COMMAND [ARG...]
+
+Run 'docker --help' for more information
+
+exit_code=125
+
+$ docker compose -p sp-gswb-test-57469adf -f /home/emrichschule/schulplattform/.work/apps/gswb/docker-compose.yml down
+unknown shorthand flag: 'p' in -p
+
+Usage:  docker [OPTIONS] COMMAND [ARG...]
+
+Run 'docker --help' for more information
+
+exit_code=125

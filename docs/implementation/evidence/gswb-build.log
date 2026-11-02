@@ -1,0 +1,52 @@
+$ docker build --platform linux/amd64 -t gswb:0.1.0-dev .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon    492kB
+
+Step 1/14 : FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c
+ ---> 9cb180cb36bd
+Step 2/14 : ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+ ---> Using cache
+ ---> 852e22c7c175
+Step 3/14 : WORKDIR /app
+ ---> Using cache
+ ---> 78e36e3da949
+Step 4/14 : COPY requirements.lock ./
+ ---> Using cache
+ ---> abcb13b63d7d
+Step 5/14 : RUN pip install --no-cache-dir --require-hashes -r requirements.lock
+ ---> Using cache
+ ---> 5574805a0a0d
+Step 6/14 : RUN groupadd --gid 10001 dictionary && useradd --uid 10001 --gid 10001 --no-create-home dictionary
+ ---> Using cache
+ ---> 403270b2f286
+Step 7/14 : COPY grundschul_woerterbuch ./grundschul_woerterbuch
+ ---> Using cache
+ ---> 29dd5264b604
+Step 8/14 : COPY templates ./templates
+ ---> Using cache
+ ---> bbe92c0ac21b
+Step 9/14 : COPY static ./static
+ ---> Using cache
+ ---> 7f1491b34b20
+Step 10/14 : COPY app.py ./
+ ---> Using cache
+ ---> 1312b6d7a191
+Step 11/14 : RUN mkdir -p /app/data/import_words /app/static/images /app/static/audio /app/static/uploads     && chown -R 10001:10001 /app/data /app/static/images /app/static/audio /app/static/uploads
+ ---> Using cache
+ ---> 3fe68ba452a1
+Step 12/14 : USER 10001:10001
+ ---> Using cache
+ ---> c76ba41578b7
+Step 13/14 : EXPOSE 8000
+ ---> Using cache
+ ---> 406e66807825
+Step 14/14 : CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--threads", "2", "--worker-tmp-dir", "/tmp", "app:app"]
+ ---> Using cache
+ ---> 4b13436cd1e7
+Successfully built 4b13436cd1e7
+Successfully tagged gswb:0.1.0-dev
+
+exit_code=0

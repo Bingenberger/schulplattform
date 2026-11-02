@@ -1,0 +1,20 @@
+$ /home/emrichschule/schulplattform/.work/docker-compose -p sp-gswb-test-da183a96 -f /home/emrichschule/schulplattform/.work/apps/gswb/docker-compose.yml run --rm --no-deps app python -m grundschul_woerterbuch.migrate
+ Network sp-gswb-test-da183a96_default  Creating
+ Network sp-gswb-test-da183a96_default  Created
+ Volume sp-gswb-test-da183a96_images  Creating
+ Volume sp-gswb-test-da183a96_images  Created
+ Volume sp-gswb-test-da183a96_audio  Creating
+ Volume sp-gswb-test-da183a96_audio  Created
+ Volume sp-gswb-test-da183a96_uploads  Creating
+ Volume sp-gswb-test-da183a96_uploads  Created
+ Volume sp-gswb-test-da183a96_dictionary  Creating
+ Volume sp-gswb-test-da183a96_dictionary  Created
+Error response from daemon: invalid mount path: 'mode=1777' mount path must be absolute
+
+exit_code=1
+
+$ /home/emrichschule/schulplattform/.work/docker-compose -p sp-gswb-test-da183a96 -f /home/emrichschule/schulplattform/.work/apps/gswb/docker-compose.yml down
+ Network sp-gswb-test-da183a96_default  Removing
+ Network sp-gswb-test-da183a96_default  Removed
+
+exit_code=0

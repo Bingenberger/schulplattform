@@ -1,0 +1,4 @@
+$ node test/session-expiry.js
+PASS: fresh session, expired/malformed/future session rejection, revocation
+
+exit_code=0

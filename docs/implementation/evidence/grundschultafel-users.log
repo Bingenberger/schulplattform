@@ -1,0 +1,4 @@
+$ node scripts/test-users.cjs
+PASS: no default account, single-use/expired bootstrap, private atomic file, corrupt store rejected
+
+exit_code=0
