@@ -8,6 +8,11 @@ ROOT = Path(__file__).resolve().parents[1]
 rows = json.loads((ROOT / 'docs/platform-audit/evidence/repositories.json').read_text())
 audited = {row['repo']: row['sha'] for row in rows}
 packages = {
+    'schulwissen': ('Add explicit migrations, readiness, proxy trust and bounded PDF exports', [
+        'Dockerfile', 'docker-compose.yml', 'docker/start.sh',
+        'schulwissen/umgebung.py', 'schulwissen/einstellungen.py', 'schulwissen/urls.py',
+        'kern/health.py', 'kern/proxy.py', 'kern/export_limit.py', 'kern/export_views.py',
+        'kern/prozesslesen.py', 'kern/management/commands/platform_migrate.py', 'PLATFORM.md']),
     'gswb': ('Close editor access and add isolated standalone container', [
         'grundschul_woerterbuch', 'templates/review_entry.html', '.dockerignore',
         'Dockerfile', 'docker-compose.yml', 'requirements.lock', 'PLATFORM.md']),

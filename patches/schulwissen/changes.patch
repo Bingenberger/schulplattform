@@ -1,0 +1,384 @@
+From 225e4dd144a42c79b7db0855aa850bf54ec7d956 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Mon, 2 Nov 2026 13:17:50 +0100
+Subject: [PATCH] Add explicit migrations, readiness, proxy trust and bounded
+ PDF exports
+
+---
+ Dockerfile                                   |  6 ++--
+ PLATFORM.md                                  | 38 ++++++++++++++++++++
+ docker-compose.yml                           | 18 +++++++---
+ docker/start.sh                              | 10 ++----
+ kern/export_limit.py                         | 24 +++++++++++++
+ kern/export_views.py                         |  3 ++
+ kern/health.py                               | 20 +++++++++++
+ kern/management/commands/platform_migrate.py | 19 ++++++++++
+ kern/proxy.py                                | 24 +++++++++++++
+ kern/prozesslesen.py                         |  4 +++
+ schulwissen/einstellungen.py                 |  1 +
+ schulwissen/umgebung.py                      |  7 ++++
+ schulwissen/urls.py                          |  3 ++
+ 13 files changed, 162 insertions(+), 15 deletions(-)
+ create mode 100644 PLATFORM.md
+ create mode 100644 kern/export_limit.py
+ create mode 100644 kern/health.py
+ create mode 100644 kern/management/commands/platform_migrate.py
+ create mode 100644 kern/proxy.py
+
+diff --git a/Dockerfile b/Dockerfile
+index 7d24b9a..a559bfe 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -1,5 +1,5 @@
+ # Schulwissen-Plattform – Abbild für den Betrieb mit Docker Compose.
+-FROM python:3.12-slim
++FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c
+ 
+ ENV PYTHONUNBUFFERED=1 \
+     PYTHONDONTWRITEBYTECODE=1 \
+@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
+     && rm -rf /var/lib/apt/lists/*
+ 
+ # uv löst die Abhängigkeiten reproduzierbar aus uv.lock auf.
+-RUN pip install --no-cache-dir uv
++RUN pip install --no-cache-dir uv==0.9.7
+ 
+ WORKDIR /app
+ 
+@@ -34,7 +34,7 @@ COPY . .
+ 
+ # Statische Dateien einmal beim Bauen sammeln. Dafür genügen Platzhalterwerte –
+ # collectstatic braucht keine Datenbank.
+-RUN SW_DEBUG=true SW_SECRET_KEY=bauen SW_DATABASE_URL=postgresql://x:x@127.0.0.1:5432/x \
++RUN SW_DEBUG=false SW_ALLOWED_HOSTS=localhost SW_SECRET_KEY=bauen SW_DATABASE_URL=postgresql://x:x@127.0.0.1:5432/x \
+     python manage.py collectstatic --noinput --clear
+ 
+ RUN useradd --create-home --uid 10001 schulwissen \
+diff --git a/PLATFORM.md b/PLATFORM.md
+new file mode 100644
+index 0000000..3409f85
+--- /dev/null
++++ b/PLATFORM.md
+@@ -0,0 +1,38 @@
++# Container- und Plattformvertrag
++
++Die eigenständige Compose-Datei bleibt verwendbar. Migrationen laufen jetzt
++explizit und exklusiv statt bei jedem Webprozessstart:
++
++```sh
++docker compose build
++docker compose run --rm app python manage.py platform_migrate
++docker compose up -d
++```
++
++Vor einem bestehenden Deployment zuerst konsistent sichern und ein Wartungsfenster
++nutzen. Der neue Migrationsjob verwendet eine PostgreSQL-Advisory-Sperre und richtet
++danach die bisherigen Fachrollen ein. Nutzer- und Gruppen-IDs bleiben bestehen.
++
++`/health/live` benötigt keine Datenbank; `/health/ready` prüft Datenbank und
++ausstehende Django-Migrationen. Kein externer KI-/SMTP-Dienst beeinflusst Liveness.
++Der bisherige Endpunkt `/gesundheit` bleibt bestehen.
++
++`SW_*`-Namen bleiben erhalten. Für Text-/Secretwerte ist zusätzlich `SW_*_FILE`
++möglich; eine konfigurierte Datei hat Vorrang. Nur die eigene App erhält ihre
++Dateien. Das Plattformprofil verwendet eine separate Datenbankrolle ohne
++Superuser-, Rollenverwaltungs- und Datenbankerstellungsrechte.
++
++`SW_PROXY_IPS` enthält explizite Proxy-IP-Adressen, keine Wildcards. Forwarded-Header
++von anderen IPs werden vor der Django-Sicherheitsmiddleware entfernt. Standalone
++ist die Vorgabe Loopback; beim Plattformstart wird die interne Caddy-Adresse
++ermittelt. Backendports werden durch das Override entfernt.
++
++PDF-Anfragen teilen über alle Worker einen nicht blockierenden flock-Slot im
++Container. Überlauf antwortet mit 503 und Retry-After. JSON-Exporte werden nicht
++durch diesen Slot blockiert. Mehrere Container benötigen weiterhin eine gemeinsame
++externe Begrenzung; der aktuelle Betrieb sieht eine Appinstanz vor.
++
++Der Imagebuild sammelt statische Dateien im Produktionsmodus, damit das von
++WhiteNoise benötigte Manifest vorhanden ist. Zwei Worker sind Compose-Vorgabe.
++Das Entwicklungsimage wird lokal getestet und ist kein veröffentlichtes Release.
++Nextcloud-OIDC bleibt optional; keine Änderung oder Zusage zentraler Sperrung.
+diff --git a/docker-compose.yml b/docker-compose.yml
+index e59f8ec..2e506dd 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -1,7 +1,9 @@
+ # Schulwissen-Plattform – Betrieb mit Docker Compose.
+ #
+ #   cp .env.example .env      # SW_SECRET_KEY und POSTGRES_PASSWORD setzen
+-#   docker compose up -d --build
++#   docker compose build
++#   docker compose run --rm app python manage.py platform_migrate
++#   docker compose up -d
+ #   docker compose exec app python manage.py admin_anlegen deine@adresse.de
+ #
+ # Die App lauscht nur auf 127.0.0.1 – davor gehört nginx mit HTTPS
+@@ -9,7 +11,7 @@
+ 
+ services:
+   db:
+-    image: postgres:16-alpine
++    image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
+     restart: unless-stopped
+     environment:
+       POSTGRES_DB: schulwissen
+@@ -25,7 +27,7 @@ services:
+ 
+   app:
+     build: .
+-    image: schulwissen:latest
++    image: schulwissen:0.1.0-dev
+     restart: unless-stopped
+     env_file: .env
+     environment:
+@@ -35,7 +37,15 @@ services:
+       # X-Forwarded-For nur von nginx glauben. „*" ist unbedenklich, solange der
+       # Port auf 127.0.0.1 liegt. Wird der Port geöffnet, MUSS hier die Adresse
+       # des Proxys stehen (SW_PROXY_IPS).
+-      FORWARDED_ALLOW_IPS: "${SW_PROXY_IPS:-*}"
++      FORWARDED_ALLOW_IPS: "${SW_PROXY_IPS:-127.0.0.1}"
++      SW_WORKER: "${SW_WORKER:-2}"
++    read_only: true
++    cap_drop: [ALL]
++    security_opt: [no-new-privileges:true]
++    tmpfs: ["/tmp:size=256m,mode=1777"]
++    mem_limit: 768m
++    cpus: 1.0
++    pids_limit: 128
+     volumes:
+       - medien:/medien
+     depends_on:
+diff --git a/docker/start.sh b/docker/start.sh
+index 345ee5d..135a0cd 100755
+--- a/docker/start.sh
++++ b/docker/start.sh
+@@ -1,16 +1,10 @@
+ #!/bin/sh
+-# Startet die App: erst die Datenbank auf den neuesten Stand bringen, dann gunicorn.
++# Migrationen explizit vor dem Start: manage.py platform_migrate
+ set -e
+ 
+-echo "Schulwissen: Migrationen anwenden …"
+-python manage.py migrate --noinput
+-
+-echo "Schulwissen: Rollen und Stammdaten prüfen …"
+-python manage.py rollen_einrichten
+-
+ exec gunicorn schulwissen.wsgi:anwendung \
+     --bind 0.0.0.0:8000 \
+     --workers "${SW_WORKER:-3}" \
+     --timeout 120 \
+-    --access-logfile - \
++    --worker-tmp-dir /tmp \
+     --error-logfile -
+diff --git a/kern/export_limit.py b/kern/export_limit.py
+new file mode 100644
+index 0000000..eef3907
+--- /dev/null
++++ b/kern/export_limit.py
+@@ -0,0 +1,24 @@
++"""One PDF request per container, shared across workers through flock."""
++import fcntl
++import os
++from functools import wraps
++from django.http import HttpResponse
++
++
++def limited_pdf(view):
++    @wraps(view)
++    def wrapped(request, *args, **kwargs):
++        if kwargs.get("format") not in (None, "pdf"):
++            return view(request, *args, **kwargs)
++        descriptor = os.open("/tmp/schulwissen-pdf.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
++        try:
++            try:
++                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
++            except BlockingIOError:
++                response = HttpResponse("PDF-Erzeugung ausgelastet. Bitte erneut versuchen.", status=503)
++                response["Retry-After"] = "5"
++                return response
++            return view(request, *args, **kwargs)
++        finally:
++            os.close(descriptor)
++    return wrapped
+diff --git a/kern/export_views.py b/kern/export_views.py
+index 24a753f..6812852 100644
+--- a/kern/export_views.py
++++ b/kern/export_views.py
+@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404
+ 
+ from kern import beschluesse, exporte, rechte, vergleich
+ from kern.models import Dokument
++from kern.export_limit import limited_pdf
+ 
+ 
+ def download(inhalt, mimetype, name):
+@@ -16,6 +17,7 @@ def download(inhalt, mimetype, name):
+ 
+ 
+ @login_required
++@limited_pdf
+ def export(request, schluessel, format):
+     if not rechte.ist_administration(request.user):
+         raise PermissionDenied("Dokumente exportiert die Administration.")
+@@ -34,6 +36,7 @@ def export(request, schluessel, format):
+ 
+ 
+ @login_required
++@limited_pdf
+ def vorlage_pdf(request):
+     if not rechte.darf_vorlage(request.user):
+         raise PermissionDenied("Beschlussvorlagen stellt die Redaktion zusammen.")
+diff --git a/kern/health.py b/kern/health.py
+new file mode 100644
+index 0000000..a53dc63
+--- /dev/null
++++ b/kern/health.py
+@@ -0,0 +1,20 @@
++"""Separate process liveness and database/migration readiness."""
++from django.db import connection, DatabaseError
++from django.db.migrations.executor import MigrationExecutor
++from django.http import JsonResponse
++
++
++def live(request):
++    return JsonResponse({"status": "alive"})
++
++
++def ready(request):
++    try:
++        with connection.cursor() as cursor:
++            cursor.execute("SELECT 1")
++        executor = MigrationExecutor(connection)
++        if executor.migration_plan(executor.loader.graph.leaf_nodes()):
++            return JsonResponse({"status": "not-ready"}, status=503)
++    except DatabaseError:
++        return JsonResponse({"status": "not-ready"}, status=503)
++    return JsonResponse({"status": "ready"})
+diff --git a/kern/management/commands/platform_migrate.py b/kern/management/commands/platform_migrate.py
+new file mode 100644
+index 0000000..9568119
+--- /dev/null
++++ b/kern/management/commands/platform_migrate.py
+@@ -0,0 +1,19 @@
++"""Explicit migration job with a PostgreSQL advisory lock per database."""
++from django.core.management import call_command
++from django.core.management.base import BaseCommand, CommandError
++from django.db import connection
++
++
++class Command(BaseCommand):
++    help = "Apply migrations and roles exclusively; never run on web process startup."
++
++    def handle(self, *args, **options):
++        with connection.cursor() as cursor:
++            cursor.execute("SELECT pg_try_advisory_lock(hashtext(current_database()), 1729)")
++            if not cursor.fetchone()[0]:
++                raise CommandError("Another migration job holds the database lock.")
++            try:
++                call_command("migrate", interactive=False)
++                call_command("rollen_einrichten")
++            finally:
++                cursor.execute("SELECT pg_advisory_unlock(hashtext(current_database()), 1729)")
+diff --git a/kern/proxy.py b/kern/proxy.py
+new file mode 100644
+index 0000000..2b326f0
+--- /dev/null
++++ b/kern/proxy.py
+@@ -0,0 +1,24 @@
++"""Honor forwarding metadata only from explicitly configured proxy addresses."""
++import ipaddress
++import os
++
++
++class TrustedProxyHeaders:
++    def __init__(self, get_response):
++        self.get_response = get_response
++        self.allowed = {str(ipaddress.ip_address(value.strip()))
++                        for value in os.environ.get("SW_PROXY_IPS", "127.0.0.1,::1").split(",")
++                        if value.strip()}
++
++    def __call__(self, request):
++        try:
++            trusted = str(ipaddress.ip_address(request.META.get("REMOTE_ADDR", ""))) in self.allowed
++        except ValueError:
++            trusted = False
++        if not trusted:
++            for key in list(request.META):
++                if key.startswith("HTTP_X_FORWARDED_") or key in (
++                        "HTTP_FORWARDED", "HTTP_X_REAL_IP", "REMOTE_USER",
++                        "HTTP_REMOTE_USER", "HTTP_X_AUTH_REQUEST_USER"):
++                    request.META.pop(key, None)
++        return self.get_response(request)
+diff --git a/kern/prozesslesen.py b/kern/prozesslesen.py
+index e1a8b74..b0769d4 100644
+--- a/kern/prozesslesen.py
++++ b/kern/prozesslesen.py
+@@ -290,7 +290,11 @@ def aufbereiten(eintrag, daten, nutzer, version=None):
+     }
+ 
+ 
++from kern.export_limit import limited_pdf
++
++
+ @login_required
++@limited_pdf
+ def pdf(request, schluessel, kennung):
+     from kern import exporte, views
+ 
+diff --git a/schulwissen/einstellungen.py b/schulwissen/einstellungen.py
+index b800dcd..029825d 100644
+--- a/schulwissen/einstellungen.py
++++ b/schulwissen/einstellungen.py
+@@ -77,6 +77,7 @@ INSTALLED_APPS = [
+ ]
+ 
+ MIDDLEWARE = [
++    "kern.proxy.TrustedProxyHeaders",
+     "django.middleware.security.SecurityMiddleware",
+     # whitenoise liefert die statischen Dateien aus – auch in der Entwicklung,
+     # denn hinter gunicorn tut das sonst niemand.
+diff --git a/schulwissen/umgebung.py b/schulwissen/umgebung.py
+index ee2bd4c..fe544de 100644
+--- a/schulwissen/umgebung.py
++++ b/schulwissen/umgebung.py
+@@ -8,6 +8,7 @@ genügen hier drei Funktionen – das hält die Abhängigkeiten klein und macht
+ from __future__ import annotations
+ 
+ import os
++from pathlib import Path
+ from urllib.parse import unquote, urlparse
+ 
+ 
+@@ -19,6 +20,12 @@ _FEHLT = object()
+ 
+ 
+ def text(name: str, standard: object = _FEHLT) -> str:
++    datei = os.environ.get(name + "_FILE")
++    if datei:
++        wert = Path(datei).read_text().strip()
++        if not wert:
++            raise EinstellungFehlt(f"Die Secretdatei für {name} ist leer.")
++        return wert
+     wert = os.environ.get(name)
+     if wert:
+         return wert
+diff --git a/schulwissen/urls.py b/schulwissen/urls.py
+index aa4b1fc..ff71455 100644
+--- a/schulwissen/urls.py
++++ b/schulwissen/urls.py
+@@ -2,8 +2,11 @@
+ 
+ from django.contrib import admin
+ from django.urls import include, path
++from kern import health
+ 
+ urlpatterns = [
++    path("health/live", health.live),
++    path("health/ready", health.ready),
+     path("verwaltung/", admin.site.urls),
+     path("suche/", include("suche.urls")),
+     path("kompetenzen/", include("fachdaten.urls")),
+-- 
+2.43.0
+

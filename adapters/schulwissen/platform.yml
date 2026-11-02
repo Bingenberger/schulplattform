@@ -1,0 +1,16 @@
+# Compose >= 2.24.4, on top of the unchanged standalone project layout.
+services:
+  app:
+    image: ${SCHULWISSEN_IMAGE:?release image required}
+    ports: !reset []
+    networks:
+      default: {}
+      proxy:
+        aliases: [schulwissen]
+    environment:
+      SW_PROXY_IPS: ${SCHULWISSEN_PROXY_IP:?explicit proxy address required}
+      FORWARDED_ALLOW_IPS: ${SCHULWISSEN_PROXY_IP:?explicit proxy address required}
+networks:
+  proxy:
+    external: true
+    name: ${SCHULWISSEN_PROXY_NETWORK:?isolated proxy network required}

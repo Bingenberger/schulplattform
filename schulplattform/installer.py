@@ -11,7 +11,7 @@ import shutil
 import socket
 import subprocess
 
-from .release import validate_release
+from .bundle import verify_bundle
 from jsonschema.exceptions import ValidationError
 
 
@@ -72,28 +72,44 @@ def blockers(host):
     return issues
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['preflight', 'plan', 'apply'])
+    parser.add_argument("action", choices=["preflight", "plan", "apply", "pilot-up", "pilot-start", "pilot-stop", "pilot-status"])
+    parser.add_argument("--state-dir", type=Path, default=Path(".work/pilot-v2"))
     parser.add_argument('--bundle', type=Path)
-    args = parser.parse_args()
+    parser.add_argument('--trusted-key', type=Path)
+    args = parser.parse_args(argv)
+    if args.action.startswith("pilot-"):
+        from .pilot import Pilot
+        pilot = Pilot(args.state_dir)
+        if args.action in ("pilot-up", "pilot-start"):
+            result = pilot.up() if args.action == "pilot-up" else pilot.start()
+            print(json.dumps({"mode": "local-pilot", "status": result["status"], "id": result["id"],
+                              "tlsPort": pilot.config["port"], "productionReady": False}, indent=2))
+        elif args.action == "pilot-stop":
+            pilot.stop()
+            print("Pilot stopped; volumes and keys retained.")
+        else:
+            print(json.dumps({"ready": pilot.ready(None), "productionReady": False}, indent=2))
+        return 0
     if args.action == 'preflight':
         host = inventory()
         issues = blockers(host)
         print(json.dumps({'observed': host, 'blockers': issues}, indent=2))
         return 1 if issues else 0
-    if not args.bundle:
-        parser.error('--bundle is required')
+    if not args.bundle or not args.trusted_key:
+        parser.error('--bundle and --trusted-key are required; the key must be provisioned independently')
     try:
-        manifests = [json.loads(path.read_text()) for path in sorted((args.bundle / 'apps').glob('*.json'))]
-        validate_release(manifests, args.bundle / 'evidence')
+        bundle = verify_bundle(args.bundle, args.trusted_key)
+        manifests = bundle.manifests
     except ValidationError:
         parser.exit(1, 'Release blocked: manifest does not match schema version 1.\n')
     except (ValueError, OSError) as exc:
         parser.exit(1, f'Release blocked: {exc}\n')
     if args.action == 'apply':
         parser.exit(1, 'Release blocked: host provisioning/bootstrap/verification not yet implemented. No changes applied.\n')
-    print(json.dumps({'status': 'manifest-validation-only', 'apps': [m['id'] for m in manifests],
+    print(json.dumps({'status': 'signature-and-manifests-verified', 'release': bundle.release,
+                      'bundleDigest': bundle.digest, 'apps': [m['id'] for m in manifests],
                       'deployable': False}, indent=2))
     return 0
 

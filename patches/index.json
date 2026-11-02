@@ -1,5 +1,11 @@
 [
   {
+    "app": "schulwissen",
+    "baseCommit": "a9673bc343a3a6eea1c15f533d0e89061e669b32",
+    "implementationCommit": "225e4dd144a42c79b7db0855aa850bf54ec7d956",
+    "patch": "patches/schulwissen/changes.patch"
+  },
+  {
     "app": "gswb",
     "baseCommit": "7c2875b0439395487431ffaf543b0bbb3f37a8bf",
     "implementationCommit": "eebb0d6fb20eba632ae0a395b8957fb9d085ee23",
