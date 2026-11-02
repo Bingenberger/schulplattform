@@ -1,0 +1,74 @@
+$ docker build --platform linux/amd64 --memory 1024m --target tests -t schulhelfer-tests:0.1.0-dev .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  339.5kB
+Step 1/22 : FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c AS runtime
+ ---> 9cb180cb36bd
+Step 2/22 : ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+ ---> Using cache
+ ---> 852e22c7c175
+Step 3/22 : WORKDIR /app
+ ---> Using cache
+ ---> 78e36e3da949
+Step 4/22 : COPY requirements.lock ./
+ ---> Using cache
+ ---> 89fac094d6fe
+Step 5/22 : RUN pip install --no-cache-dir --require-hashes -r requirements.lock
+ ---> Using cache
+ ---> 10ac071e98f7
+Step 6/22 : COPY app ./app
+ ---> Using cache
+ ---> 76e69cd01114
+Step 7/22 : COPY templates ./templates
+ ---> Using cache
+ ---> 8ba52e1ca3bf
+Step 8/22 : COPY static ./static
+ ---> Using cache
+ ---> c3e22af91720
+Step 9/22 : COPY migrations ./migrations
+ ---> Using cache
+ ---> 0305a2759e5e
+Step 10/22 : COPY alembic.ini seed.py ./
+ ---> Using cache
+ ---> 8cc5d273501e
+Step 11/22 : RUN groupadd --gid 10001 schulhelfer && useradd --uid 10001 --gid 10001 --no-create-home schulhelfer     && mkdir -p /app/data && chown 10001:10001 /app/data && chmod 700 /app/data
+ ---> Using cache
+ ---> 81258729526e
+Step 12/22 : USER 10001:10001
+ ---> Using cache
+ ---> e236468d5069
+Step 13/22 : EXPOSE 8000
+ ---> Using cache
+ ---> 113cf2c096be
+Step 14/22 : CMD ["python", "-m", "app.run"]
+ ---> Using cache
+ ---> d8c4c9c46d8d
+Step 15/22 : FROM runtime AS tests
+ ---> d8c4c9c46d8d
+Step 16/22 : COPY requirements-test.lock ./
+ ---> Using cache
+ ---> f2ad607f3d9d
+Step 17/22 : USER 0
+ ---> Using cache
+ ---> 7e5aa7943f57
+Step 18/22 : RUN pip install --no-cache-dir --require-hashes -r requirements-test.lock
+ ---> Using cache
+ ---> e503bb79bf9f
+Step 19/22 : USER 10001:10001
+ ---> Using cache
+ ---> 2e502beb2783
+Step 20/22 : COPY tests ./tests
+ ---> Using cache
+ ---> e052922cda8c
+Step 21/22 : COPY contract_tests ./contract_tests
+ ---> Using cache
+ ---> 60c34c9c4298
+Step 22/22 : CMD ["python", "-m", "pytest", "-q"]
+ ---> Using cache
+ ---> d50bedd3d6f2
+Successfully built d50bedd3d6f2
+Successfully tagged schulhelfer-tests:0.1.0-dev
+
+exit_code=0

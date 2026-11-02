@@ -1,0 +1,136 @@
+$ docker build --platform linux/amd64 --memory 1024m --target final -t schulhelfer:0.1.0-dev .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  339.5kB
+Step 1/23 : FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c AS runtime
+ ---> 9cb180cb36bd
+Step 2/23 : ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+ ---> Using cache
+ ---> 852e22c7c175
+Step 3/23 : WORKDIR /app
+ ---> Using cache
+ ---> 78e36e3da949
+Step 4/23 : COPY requirements.lock ./
+ ---> Using cache
+ ---> 89fac094d6fe
+Step 5/23 : RUN pip install --no-cache-dir --require-hashes -r requirements.lock
+ ---> Using cache
+ ---> 10ac071e98f7
+Step 6/23 : COPY app ./app
+ ---> 76e69cd01114
+Step 7/23 : COPY templates ./templates
+ ---> 8ba52e1ca3bf
+Step 8/23 : COPY static ./static
+ ---> c3e22af91720
+Step 9/23 : COPY migrations ./migrations
+ ---> 0305a2759e5e
+Step 10/23 : COPY alembic.ini seed.py ./
+ ---> 8cc5d273501e
+Step 11/23 : RUN groupadd --gid 10001 schulhelfer && useradd --uid 10001 --gid 10001 --no-create-home schulhelfer     && mkdir -p /app/data && chown 10001:10001 /app/data && chmod 700 /app/data
+ ---> Running in f7c124adeb7d
+ ---> Removed intermediate container f7c124adeb7d
+ ---> 81258729526e
+Step 12/23 : USER 10001:10001
+ ---> Running in 1dba6e139dd4
+ ---> Removed intermediate container 1dba6e139dd4
+ ---> e236468d5069
+Step 13/23 : EXPOSE 8000
+ ---> Running in 7e5982db89a0
+ ---> Removed intermediate container 7e5982db89a0
+ ---> 113cf2c096be
+Step 14/23 : CMD ["python", "-m", "app.run"]
+ ---> Running in 9b5ef11b568a
+ ---> Removed intermediate container 9b5ef11b568a
+ ---> d8c4c9c46d8d
+Step 15/23 : FROM runtime AS tests
+ ---> d8c4c9c46d8d
+Step 16/23 : COPY requirements-test.lock ./
+ ---> f2ad607f3d9d
+Step 17/23 : USER 0
+ ---> Running in 88b516a25f18
+ ---> Removed intermediate container 88b516a25f18
+ ---> 7e5aa7943f57
+Step 18/23 : RUN pip install --no-cache-dir --require-hashes -r requirements-test.lock
+ ---> Running in fa91ec0242f3
+Requirement already satisfied: aiosmtplib==5.1.3 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 2)) (5.1.3)
+Requirement already satisfied: alembic==1.20.1 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 3)) (1.20.1)
+Requirement already satisfied: annotated-doc==0.0.5 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 4)) (0.0.5)
+Requirement already satisfied: annotated-types==0.8.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 5)) (0.8.0)
+Requirement already satisfied: anyio==4.16.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 6)) (4.16.0)
+Requirement already satisfied: APScheduler==3.11.3 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 7)) (3.11.3)
+Requirement already satisfied: argon2-cffi==25.1.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 8)) (25.1.0)
+Requirement already satisfied: argon2-cffi-bindings==26.1.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 9)) (26.1.0)
+Collecting certifi==2026.10.23 (from -r requirements-test.lock (line 10))
+  Downloading certifi-2026.10.23-py3-none-any.whl (135 kB)
+Requirement already satisfied: cffi==2.1.1 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 11)) (2.1.1)
+Requirement already satisfied: charset-normalizer==3.5.2 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 12)) (3.5.2)
+Requirement already satisfied: click==8.5.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 13)) (8.5.0)
+Requirement already satisfied: dnspython==2.9.1 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 14)) (2.9.1)
+Requirement already satisfied: email-validator==2.3.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 15)) (2.3.0)
+Requirement already satisfied: fastapi==0.162.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 16)) (0.162.0)
+Requirement already satisfied: h11==0.16.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 17)) (0.16.0)
+Collecting httpcore==1.0.9 (from -r requirements-test.lock (line 18))
+  Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+Requirement already satisfied: httptools==0.9.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 19)) (0.9.0)
+Collecting httpx==0.28.1 (from -r requirements-test.lock (line 20))
+  Downloading httpx-0.28.1-py3-none-any.whl (73 kB)
+Requirement already satisfied: idna==3.20 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 21)) (3.20)
+Collecting iniconfig==2.3.1 (from -r requirements-test.lock (line 22))
+  Downloading iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+Requirement already satisfied: itsdangerous==2.2.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 23)) (2.2.0)
+Requirement already satisfied: Jinja2==3.1.6 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 24)) (3.1.6)
+Requirement already satisfied: Mako==1.4.3 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 25)) (1.4.3)
+Requirement already satisfied: MarkupSafe==3.0.4 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 26)) (3.0.4)
+Requirement already satisfied: opentelemetry-api==1.45.2 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 27)) (1.45.2)
+Collecting packaging==26.3 (from -r requirements-test.lock (line 28))
+  Downloading packaging-26.3-py3-none-any.whl (129 kB)
+Requirement already satisfied: pillow==13.0.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 29)) (13.0.0)
+Collecting pluggy==1.7.0 (from -r requirements-test.lock (line 30))
+  Downloading pluggy-1.7.0-py3-none-any.whl (27 kB)
+Requirement already satisfied: pycparser==3.12 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 31)) (3.12)
+Requirement already satisfied: pydantic==2.14.2 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 32)) (2.14.2)
+Requirement already satisfied: pydantic-settings==2.16.2 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 33)) (2.16.2)
+Requirement already satisfied: pydantic_core==2.50.2 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 34)) (2.50.2)
+Collecting Pygments==2.21.0 (from -r requirements-test.lock (line 35))
+  Downloading pygments-2.21.0-py3-none-any.whl (1.3 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.3/1.3 MB 7.7 MB/s eta 0:00:00
+Collecting pytest==8.4.2 (from -r requirements-test.lock (line 36))
+  Downloading pytest-8.4.2-py3-none-any.whl (365 kB)
+Requirement already satisfied: python-dotenv==1.2.4 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 37)) (1.2.4)
+Requirement already satisfied: python-multipart==0.0.33 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 38)) (0.0.33)
+Requirement already satisfied: PyYAML==6.0.3 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 39)) (6.0.3)
+Requirement already satisfied: reportlab==5.1.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 40)) (5.1.0)
+Requirement already satisfied: SQLAlchemy==2.1.6 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 41)) (2.1.6)
+Requirement already satisfied: starlette==1.10.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 42)) (1.10.0)
+Requirement already satisfied: typing-inspection==0.4.4 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 43)) (0.4.4)
+Requirement already satisfied: typing_extensions==4.16.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 44)) (4.16.0)
+Requirement already satisfied: tzlocal==5.4.5 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 45)) (5.4.5)
+Requirement already satisfied: uvicorn==0.54.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 46)) (0.54.0)
+Requirement already satisfied: uvloop==0.23.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 47)) (0.23.0)
+Requirement already satisfied: watchfiles==1.3.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 48)) (1.3.0)
+Requirement already satisfied: websockets==17.4 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 49)) (17.4)
+Installing collected packages: Pygments, pluggy, packaging, iniconfig, certifi, pytest, httpcore, httpx
+Successfully installed Pygments-2.21.0 certifi-2026.10.23 httpcore-1.0.9 httpx-0.28.1 iniconfig-2.3.1 packaging-26.3 pluggy-1.7.0 pytest-8.4.2
+[91mWARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+[0m ---> Removed intermediate container fa91ec0242f3
+ ---> e503bb79bf9f
+Step 19/23 : USER 10001:10001
+ ---> Running in bf2264315cd7
+ ---> Removed intermediate container bf2264315cd7
+ ---> 2e502beb2783
+Step 20/23 : COPY tests ./tests
+ ---> e052922cda8c
+Step 21/23 : COPY contract_tests ./contract_tests
+ ---> 60c34c9c4298
+Step 22/23 : CMD ["python", "-m", "pytest", "-q"]
+ ---> Running in a4f64998cbcf
+ ---> Removed intermediate container a4f64998cbcf
+ ---> d50bedd3d6f2
+Step 23/23 : FROM runtime AS final
+ ---> d8c4c9c46d8d
+Successfully built d8c4c9c46d8d
+Successfully tagged schulhelfer:0.1.0-dev
+
+exit_code=0

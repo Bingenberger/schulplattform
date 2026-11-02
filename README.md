@@ -4,7 +4,7 @@ Die Plattform bündelt eigenständige Apps für einen selbst gehosteten Schulser
 Maßgeblich sind der [Auftrag](Coding_Agent_Umsetzungsauftrag_Schulplattform.md) und
 der [Umfangsbeschluss](docs/platform-audit/scope-decision.md).
 
-**Aktuell ist ein lokaler Pilot mit schulwissen, gswb und optional Zackboing geprüft.** Die vollständige
+**Aktuell ist ein lokaler Pilot mit schulwissen, gswb und optional Zackboing sowie Schulhelfer geprüft.** Die vollständige
 Installation auf leerem Ubuntu 24.04 und der Zehn-App-Stack sind noch offen.
 [Umsetzungsstand und Testnachweise](docs/implementation/status.md).
 
@@ -55,7 +55,10 @@ Zackboing lässt sich in einer neuen Pilotinstallation ergänzen:
 ```
 
 [Standalone, Bootstrap, Spieltest und Restore](docs/implementation/zackboing.md).
-Bestehende Zweierinstallationen behalten ihre Auswahl.
+Bestehende Installationen behalten ihre Auswahl. Für den Viererpilot zusätzlich
+`scripts/build_schulhelfer.py` ausführen und in einem neuen Zustandsordner
+`--apps gswb,schulwissen,zackboing,schulhelfer` wählen.
+[Schulhelfer: Standalone, Domainwechsel und Restore](docs/implementation/schulhelfer.md).
 
 ## Releaseprüfung
 
@@ -76,9 +79,9 @@ Negativzugriffe, Mail in den Sink, Domainwechsel mit Rückfall und einen synthet
 PostgreSQL-Restore sowie einen kombinierten Zackboing-DB-/Medienrestore. Sie ersetzen keine vollständige Produktionsabnahme.
 
 Das [Dashboard](docs/implementation/dashboard.md) mit TOTP und eingeschränktem
-Unix-Steuerdienst unterstützt die drei Pilot-Apps; aktive Zackboing-Spiele blockieren Stop.
+Unix-Steuerdienst unterstützt die vier Pilot-Apps; aktive Zackboing-Spiele blockieren Stop.
 Verschlüsseltes Offsitebackup, konsistente gemeinsame DB-/Datei-/Schlüsselsicherung,
-weitere Dashboardfunktionen, sieben weitere Appintegrationen und Zielservermessungen sind offen.
+weitere Dashboardfunktionen, sechs weitere Appintegrationen und Zielservermessungen sind offen.
 RPO/RTO und die geschätzten 16 GB RAM/4 vCPU sind noch nicht bestätigt.
 
 Kein Keycloak, keine zentrale Benutzersperrung und kein zentraler Logout.

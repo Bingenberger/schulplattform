@@ -11,6 +11,7 @@ bestehende Hostinstallation automatisch.
 | gswb | Python 3.12.12, SQLite user_version 1 | lokaler Standalone- und Plattformtest |
 | schulwissen | Python 3.12.12, eigener PG16, Django-Migrationen | lokaler Standalone-, TLS-, Domain- und DB-Teilstrestore |
 | Zackboing | Node 22.23.4, better-sqlite3 11.10.0, SQLite user_version 1 | Standalone, TLS-Spiel, Domainrückfall und leerer Apprestore lokal geprüft |
+| Schulhelfer | Python 3.12.12, SQLite user_version 1 / Alembic b7c2e9a41d38 | Standalone, Parallelbuchung, SMTP-Ausfall, lokaler Domainrückfall und leerer Restore |
 | Grundschultafel | users.json mit optionalem Bootstrapablauf | atomare Dateien, keine vollständige Schreibtransaktion |
 | Losverkauf | unverändertes SQLite-Schema | persönlicher Adminname zusätzlich erforderlich |
 | Übrige Apps | unveränderte Auditcommits | noch keine Container-/Plattformabnahme |
@@ -43,6 +44,12 @@ und Nutzer-IDs bleiben erhalten; die geprüfte Legacy-Migration setzt user_versi
 Neue Erstregistrierungen erfordern den lokalen einmaligen Bootstrapcode; eine
 bereits explizit geöffnete Registrierung bleibt bestehen. Vor Stop müssen Spiele
 abgeschlossen sein. Ein neuer Pilotzustandsordner ist kein Datenupgrade.
+
+Schulhelfer benötigt `python -m app.migrate`, einen Pflicht-Session-Schlüssel und
+lokale persönliche Erstadministration. Unversionierte create_all-Bestandsdaten
+werden ohne geprüften Adoptionspfad abgewiesen. Keine Änderung bestehender IDs
+oder Neugenerierung von Elternlinks durch einen Installationslauf. Mail-Outbox
+und verlustfreier Drain von Massenversand sind noch offen.
 
 Vor Änderungen bestehender Deployments konsistent sichern und ein Wartungsfenster
 nutzen. Der vorliegende Auftrag umfasst weiterhin keine Produktivumstellung.

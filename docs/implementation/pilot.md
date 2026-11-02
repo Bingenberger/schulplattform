@@ -77,3 +77,23 @@ kein Account angelegt.
 Stop, konsistente Sicherung und Domainwechsel verweigern den Eingriff bei aktiven
 Spielen. Die erweiterte Abnahme und die sieben noch nicht integrierten Apps sind
 in [Zackboing](zackboing.md) beziehungsweise im [Status](status.md) dokumentiert.
+
+
+## Optionaler vierter Dienst: Schulhelfer
+
+Nach dem Build mit `scripts/build_schulhelfer.py` eine neue Installation anlegen:
+
+```sh
+./install.sh pilot-up --state-dir .work/pilot-v7 --apps gswb,schulwissen,zackboing,schulhelfer
+```
+
+Schulhelfer erhält einen eigenen Session-Schlüssel, ein eigenes SQLite-Datenvolume
+und ein internes Proxynetz. Mailpit ist dort ausschließlich als lokaler Sink ohne
+Upstream erreichbar. Die explizite Migration läuft nur im Erstlauf. Erstadmin
+und Fachrechte werden nicht aus dem Dashboard übernommen.
+
+[Stand und Abnahme](schulhelfer.md) enthalten die ausgeführten Fach-, Negativ-,
+Restore-, Domain- und Parallelbuchungsprüfungen sowie die Grenzen von Mailqueue,
+Legacy-Adoption und Browserassets. Bestehende Zwei-/Dreierkonfigurationen werden
+nicht umgeschrieben. Nach neuen Runtime-Builds ist ein neuer Pilotzustandsordner
+erforderlich; der lokale Pilot ersetzt keinen produktiven Upgradecontroller.
