@@ -31,9 +31,9 @@ def test_legacy_configuration_keeps_two_apps_without_rewrite(root):
     assert config.read_bytes() == before
 
 
-def test_third_app_persists_and_excluded_app_never_creates_state(root):
+@pytest.mark.parametrize("selected", [("gswb", "schulwissen", "zackboing"), ("gswb", "schulwissen", "zackboing", "schulhelfer")])
+def test_optional_apps_persist_and_excluded_app_never_creates_state(root, selected):
     directory = root / "three"
-    selected = ("gswb", "schulwissen", "zackboing")
     assert Pilot(directory, apps=selected).apps == selected
     assert Pilot(directory).apps == selected
     forbidden = root / "forbidden"

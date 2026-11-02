@@ -27,6 +27,14 @@ packages = {
         'src/lib/users.ts', 'src/app/api/auth/change-password/route.ts',
         'src/app/api/auth/login/route.ts', 'src/app/change-password/page.tsx',
         'src/app/login/page.tsx', 'scripts/bootstrap.mjs', 'scripts/test-users.cjs', 'PLATFORM.md']),
+    'schulhelfer': ('Add isolated standalone runtime, explicit migrations and private local setup', [
+        'Dockerfile', '.dockerignore', '.gitignore', 'docker-compose.yml',
+        'requirements.txt', 'requirements.lock', 'requirements-test.lock', 'PLATFORM.md', 'README.md',
+        '.env.example', 'prepare_secret.py', 'seed.py', 'schulfest-helfer.service',
+        'app/config.py', 'app/database.py', 'app/dependencies.py', 'app/email_service.py',
+        'app/jobs.py', 'app/main.py', 'app/scheduler.py', 'app/routers/admin.py', 'app/routers/public.py',
+        'app/platform.py', 'app/migrate.py', 'app/setup_admin.py', 'app/export_limit.py', 'app/run.py',
+        'migrations/env.py', 'tests/conftest.py', 'contract_tests/test_contract.py']),
     'losverkauf': ('Bind administrative login to a personal identity', [
         'app.py', 'templates/login.html', 'deploy/losverkauf.env.example', 'PLATFORM.md']),
 }

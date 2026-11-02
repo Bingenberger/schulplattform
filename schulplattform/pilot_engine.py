@@ -47,7 +47,7 @@ class PilotEngine:
                 self.pilot.compose_command("infra", "up", "-d", "--no-build")
                 if app == "schulwissen":
                     self.pilot.compose_command(app, "up", "-d", "--no-build", "--wait", "db")
-                    self.pilot.configure_proxy()
+                self.pilot.configure_proxy()
                 self.pilot.compose_command(app, "up", "-d", "--no-build", "--wait", "--wait-timeout", "90", "app")
                 if app == "zackboing":
                     self.pilot.quiz_control("cancel-stop")

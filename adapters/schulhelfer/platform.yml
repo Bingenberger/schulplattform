@@ -1,0 +1,15 @@
+services:
+  app:
+    image: ${SCHULHELFER_IMAGE:?version and digest required by release validator}
+    ports: !reset []
+    environment:
+      BASE_URL: ${SCHULHELFER_PUBLIC_URL:?canonical runtime origin required}
+      PROXY_IPS: ${SCHULHELFER_PROXY_IPS:?explicit proxy addresses required}
+    networks:
+      default: {}
+      proxy:
+        aliases: [schulhelfer]
+networks:
+  proxy:
+    external: true
+    name: schulplattform-schulhelfer-proxy

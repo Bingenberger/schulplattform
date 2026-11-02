@@ -14,7 +14,7 @@ import time
 
 
 ACTIONS = {"status", "start", "stop"}
-APPS = {"gswb", "schulwissen", "zackboing"}
+APPS = {"gswb", "schulwissen", "zackboing", "schulhelfer"}
 
 
 class DeploymentBusy(ValueError):

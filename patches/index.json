@@ -24,6 +24,12 @@
     "patch": "patches/grundschultafel/changes.patch"
   },
   {
+    "app": "schulhelfer",
+    "baseCommit": "01fb181a120a215d8ec9935a05ade3abbcba3309",
+    "implementationCommit": "721563454b9362f15ddca1e1ae4a810d865161a4",
+    "patch": "patches/schulhelfer/changes.patch"
+  },
+  {
     "app": "losverkauf",
     "baseCommit": "2e471ea8abc5fb6acac8acabb292d8e99ede2787",
     "implementationCommit": "66148e21ab6acb6b7c02aa5a1e4b10645380514f",

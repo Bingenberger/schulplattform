@@ -1,0 +1,1940 @@
+From 9b2237162956d80c32befa05c6ab08a24092444f Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Mon, 2 Nov 2026 21:18:09 +0100
+Subject: [PATCH 1/2] Add isolated standalone runtime, explicit migrations and
+ private local setup
+
+---
+ .dockerignore                   |  17 +++
+ .env.example                    |  28 ++--
+ .gitignore                      |   2 +
+ Dockerfile                      |  34 +++--
+ PLATFORM.md                     | 109 ++++++++++++++++
+ README.md                       | 220 ++++++++++++--------------------
+ app/config.py                   |  34 ++++-
+ app/database.py                 |   6 +-
+ app/dependencies.py             |   4 +-
+ app/email_service.py            |  24 ++--
+ app/export_limit.py             |  15 +++
+ app/jobs.py                     |   4 +-
+ app/main.py                     |  23 +++-
+ app/migrate.py                  |  43 +++++++
+ app/platform.py                 |  45 +++++++
+ app/routers/admin.py            |  62 ++++-----
+ app/routers/public.py           |  24 ++--
+ app/run.py                      |  15 +++
+ app/scheduler.py                |  25 +++-
+ app/setup_admin.py              |  41 ++++++
+ contract_tests/test_contract.py | 126 ++++++++++++++++++
+ docker-compose.yml              |  45 +++++++
+ migrations/env.py               |   6 +
+ prepare_secret.py               |  33 +++++
+ requirements-test.lock          |  49 +++++++
+ requirements.lock               |  41 ++++++
+ requirements.txt                |   4 +-
+ schulfest-helfer.service        |   2 +-
+ seed.py                         |  10 +-
+ tests/conftest.py               |  13 +-
+ 30 files changed, 859 insertions(+), 245 deletions(-)
+ create mode 100644 .dockerignore
+ create mode 100644 PLATFORM.md
+ create mode 100644 app/export_limit.py
+ create mode 100644 app/migrate.py
+ create mode 100644 app/platform.py
+ create mode 100644 app/run.py
+ create mode 100644 app/setup_admin.py
+ create mode 100644 contract_tests/test_contract.py
+ create mode 100644 docker-compose.yml
+ create mode 100644 prepare_secret.py
+ create mode 100644 requirements-test.lock
+ create mode 100644 requirements.lock
+
+diff --git a/.dockerignore b/.dockerignore
+new file mode 100644
+index 0000000..64a2c37
+--- /dev/null
++++ b/.dockerignore
+@@ -0,0 +1,17 @@
++*
++!requirements.lock
++!requirements-test.lock
++!app/
++!app/**
++!templates/
++!templates/**
++!static/
++!static/**
++!migrations/
++!migrations/**
++!alembic.ini
++!seed.py
++!tests/
++!tests/**
++!contract_tests/
++!contract_tests/**
+diff --git a/.env.example b/.env.example
+index 2334004..55a8d44 100644
+--- a/.env.example
++++ b/.env.example
+@@ -1,23 +1,19 @@
+-BASE_URL=https://helfer.ggs-ndk.de
+-SECRET_KEY=<zufallswert-mindestens-32-zeichen>
++BASE_URL=http://localhost:8007
++SECRET_KEY_FILE=.private-secrets/session-key
+ DATABASE_URL=sqlite:///./data/app.db
+ 
+-SMTP_HOST=smtp.strato.de
+-SMTP_PORT=465
++# Ausschließlich lokaler Mail-Sink, ohne Upstream.
++SMTP_HOST=localhost
++SMTP_PORT=1025
+ SMTP_STARTTLS=false
+-SMTP_USE_TLS=true
+-SMTP_USER=helfer@ggs-ndk.de
+-SMTP_PASS=<geheim>
+-SMTP_FROM=GGS Niederkassel <helfer@ggs-ndk.de>
++SMTP_USE_TLS=false
++SMTP_USER=
++SMTP_PASS_FILE=
++SMTP_FROM=Helfer <noreply@example.invalid>
+ SMTP_SEND_DELAY_MS=400
++SMTP_TIMEOUT_S=5
+ 
+-PRIVACY_NOTICE_URL=https://www.ggs-niederkassel.de/datenschutz-helfer
+-
+-# Zeitzone für Anmeldefristen und Schichtzeiten
++PRIVACY_NOTICE_URL=/datenschutz
+ TIMEZONE=Europe/Berlin
+-
+-# Absender-Signatur in E-Mails
+ ORGANISATION=Das Organisationsteam
+-
+-# Abbruch, wenn der Mailserver nicht antwortet (Sekunden)
+-SMTP_TIMEOUT_S=15
++PROXY_IPS=
+diff --git a/.gitignore b/.gitignore
+index a4c592d..db56a26 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -27,3 +27,5 @@ htmlcov/
+ .idea/
+ .vscode/
+ *.log
++
++.private-secrets/
+diff --git a/Dockerfile b/Dockerfile
+index 0e20edb..3ec1d68 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -1,14 +1,26 @@
+-FROM python:3.12-slim
+-
++FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c AS runtime
++ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+ WORKDIR /app
+-
+-COPY requirements.txt .
+-RUN pip install --no-cache-dir -r requirements.txt
+-
+-COPY . .
+-
+-RUN mkdir -p data
+-
++COPY requirements.lock ./
++RUN pip install --no-cache-dir --require-hashes -r requirements.lock
++COPY app ./app
++COPY templates ./templates
++COPY static ./static
++COPY migrations ./migrations
++COPY alembic.ini seed.py ./
++RUN groupadd --gid 10001 schulhelfer && useradd --uid 10001 --gid 10001 --no-create-home schulhelfer \
++    && mkdir -p /app/data && chown 10001:10001 /app/data && chmod 700 /app/data
++USER 10001:10001
+ EXPOSE 8000
++CMD ["python", "-m", "app.run"]
++
++FROM runtime AS tests
++COPY requirements-test.lock ./
++USER 0
++RUN pip install --no-cache-dir --require-hashes -r requirements-test.lock
++USER 10001:10001
++COPY tests ./tests
++COPY contract_tests ./contract_tests
++CMD ["python", "-m", "pytest", "-q"]
+ 
+-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
++FROM runtime AS final
+diff --git a/PLATFORM.md b/PLATFORM.md
+new file mode 100644
+index 0000000..98e02b7
+--- /dev/null
++++ b/PLATFORM.md
+@@ -0,0 +1,109 @@
++# Schulhelfer: Container- und Plattformvertrag
++
++Python 3.12.12, amd64, fixierter Basisdigest und Hash-Lockfiles. Nur SQLite ist
++für dieses Release geprüft. Lokale Adminanmeldung und öffentliche Veranstaltungen,
++Buchungen und persönliche Elternlinks bleiben erhalten. Kein OIDC-Zwang.
++
++## Standalone ohne Plattform
++
++Im Repository eine private Sessiondatei anlegen; der Inhalt wird nicht ausgegeben:
++
++```sh
++python3 prepare_secret.py .private-secrets
++export SCHULHELFER_SECRET_FILE="$PWD/.private-secrets/session-key"
++docker compose build
++docker compose up -d --no-build
++docker compose run --rm --no-deps app python -m app.migrate
++docker compose run --rm --no-deps app python -m app.setup_admin
++```
++
++`.private-secrets` ist 0700. Die einzelne Schlüsseldatei ist eine 0444-Projektion
++für den Container unter UID 10001; auf dem Host schützt das private Elternverzeichnis
++den Zugriff. Datei und Verzeichnis niemals committen. Ein zweiter Lauf ersetzt
++keinen Schlüssel. Im Plattformbetrieb übernimmt der zentrale Secretstore die Projektion.
++
++Die persönliche Erstadministration liest Name und Passwort ausschließlich über
++das kontrollierende Terminal, ohne Standardkonto oder Standardpasswort.
++Wiederholte Erstadministration wird verweigert. Es gibt keine öffentliche
++Adminregistrierung. Die Plattform automatisiert noch keinen interaktiven
++Erstzugang. `seed.py` erfordert ebenfalls einen ausdrücklichen persönlichen
++Adminnamen und ein Terminalpasswort; Demo-Daten sind nur mit --demo optional.
++
++Der erste Webstart bleibt live, meldet aber bis zur Migration Readiness 503 und
++sperrt Fachrouten. Kein create_all beim Import oder Webstart. Alembic-Job mit
++exklusiver Dateisperre, BEGIN IMMEDIATE, Fremdschlüsselprüfung und user_version 1.
++Bekannte Alembic-Revisionsketten werden migriert; unversionierte Bestandsdaten
++und neuere/unerwartete Schemas werden abgewiesen. Keine automatische Übernahme
++alter create_all-Datenbanken: vorab sichern, Schema fachlich prüfen und einen
++gesonderten Adoptionspfad erstellen.
++
++## Konfiguration, Proxy und Daten
++
++Bestehende Namen bleiben bestehen: BASE_URL, DATABASE_URL, SECRET_KEY und SMTP_*.
++Neue FILE-Varianten sind optional für SECRET_KEY und SMTP_PASS. Beide Quellen
++gleichzeitig werden verweigert. Fehlender/kurzer Session-Schlüssel blockiert
++den Start. BASE_URL ist eine HTTP(S)-Origin und wird zur Laufzeit gelesen;
++keine öffentliche URL im Frontend-Build.
++
++Standalone publiziert nur 127.0.0.1:${SCHULHELFER_PORT:-8007}; BASE_URL passend
++zum eigenen Proxy setzen. HTTPS-BASE_URL erzeugt Secure-Sessioncookies.
++PROXY_IPS enthält ausschließlich explizite vertrauenswürdige Proxy-IP-Adressen,
++keine Wildcard. Der Standard vertraut keinen Forwarded-Headern. Tokenisierte
++Elternlinks werden nicht in Uvicorn-Accesslogs geschrieben; Referrer-Policy
++no-referrer und Cache-Control private,no-store verhindern deren Weitergabe durch
++Referrer beziehungsweise gemeinsame Caches.
++
++SMTP zeigt standardmäßig auf einen lokal hinzuzufügenden Mail-Sink namens
++mailpit:1025. Es wird kein Upstream konfiguriert. Für einen späteren authentifizierten
++Relaybetrieb SMTP_USER und SMTP_PASS_FILE verwenden und die betreffende private
++Datei ausdrücklich per Override schreibgeschützt mounten. Das IMAGE enthält keine
++.env und keine Zugangsdaten. Der Gesamt-SMTP-Aufruf hat ein Zeitlimit;
++ein Ausfall bleibt unabhängig von Datenbank-Readiness.
++
++Persistenz: /app/data/app.db einschließlich SQLite-WAL; UID:GID 10001:10001,
++Verzeichnis 0700, neue Dateien 0600. Runtime nicht Root, schreibgeschütztes
++Root-Dateisystem, Initprozess, 64-MiB-tmpfs, 384 MiB RAM/1 CPU/128 Prozesse als
++gesetzte Limits. Kein Kapazitätsnachweis. Der feste Starter verwendet genau einen
++Uvicorn-Prozess. Ein exklusiver Schedulerlock verhindert einen zweiten Scheduler
++am selben Datenroot. Retention läuft höchstens einmal parallel.
++ReportLab läuft in einem Thread mit genau einem PDF-Slot; Konkurrenz erhält 503
++mit Retry-After. Normale Requests teilen dadurch keinen blockierten Eventloop
++mit dem PDF-Renderer.
++
++Request-Datenbanksitzungen enden vor BackgroundTasks. Einzelmail-Reader werden
++vor dem SMTP-await geschlossen; Zustellprotokolle verwenden eine frische
++Schreibtransaktion. Das vermeidet unter dem fixierten FastAPI die im Paralleltest
++aufgetretene Bindung von DB-Verbindungen über den Mailaufruf hinweg.
++
++## Wartung und Grenzen
++
++Stop behält das Volume. Der Prozess wartet auf BackgroundTasks bis zum
++Uvicorn-Limit von 120 Sekunden; Compose erlaubt 130 Sekunden.
++Es gibt weiterhin keine persistente Mail-Outbox und keine automatische
++Wiederholungszustellung nach Prozessausfall. Für Bestätigungsmails bleibt der
++bestehende manuelle Wiederholungsweg. Dieser Stand ist keine Abnahme eines
++verlustfreien Queue-/Drain-Konzepts.
++
++DB-Sicherung über SQLite-.backup-API bei koordiniertem Schreibstopp, niemals
++die laufende DBdatei kopieren. Restore in ein neues leeres Volume und die passende
++Konfiguration samt Session-Schlüssel bereitstellen; dann ohne Migration oder
++erneuten Adminsetup starten. Image-Rollback setzt keine Datenbank zurück.
++Verschlüsseltes Offsitebackup, Schlüsselrestore und Rotation sind noch offen.
++
++Die App speichert Eltern-Capabilities wie bisher zusätzlich im Klartext in der
++Datenbank für Wiederholversand. Datenbank und Archive deshalb privat behandeln;
++keine Tokenwerte in Berichte übernehmen. Login bleibt eine signierte
++Starlette-Cookiesitzung: keine zentrale Sperrung, keine zentrale Logout-Revokation.
++
++## Lokal geprüfte Abnahme
++
++52 bestehende Fachtests und acht Vertragsprüfungen im gepinnten Runtimeumfeld.
++Standalone-HTTP, öffentliche Elternlinks, lokale Adminanmeldung, CSRF-Negativzugriff,
++PDF, Mail-Sink, SMTP-Ausfall, acht gleichzeitige Buchungen auf genau einen Platz,
++Neustart und Restore in ein leeres Volume wurden mit synthetischen Daten geprüft.
++Im Plattformpilot zusätzlich TLS mit lokaler CA, BASE_URL-/Mail-Linkwechsel,
++automatischer Domainrückfall, zwei No-op-Läufe und Stop/Start ohne Migration.
++
++Keine öffentliche DNS-/ACME-Prüfung, kein ARM64-Nachweis, keine globale
++Last-/Dauermessung, keine vollständige Retention-/Massenversandabnahme.
++Lizenzfreigabe, SBOM und veröffentlichter Registrydigest stehen aus.
+diff --git a/README.md b/README.md
+index 3daad48..ea6c5a0 100644
+--- a/README.md
++++ b/README.md
+@@ -1,159 +1,99 @@
+ # Schulfest-Helfer-App
+ 
+-Selbst gehostete Web-App für die Helfer-Organisation bei Schulveranstaltungen.
+-Eltern buchen Schichten und sagen Sachspenden zu – ohne Registrierung.
+-Die Schulleitung konfiguriert Events, überwacht Füllstände und versendet Bestätigungen.
+-
+-## Stack
+-
+-Python 3.12 · FastAPI · Jinja2 · SQLite · Pico.css
+-
+----
+-
+-## Setup – Nativ (empfohlen für Produktion)
+-
+-```bash
+-python3 -m venv .venv
+-source .venv/bin/activate
+-pip install -r requirements.txt
+-
+-cp .env.example .env
+-# .env anpassen (SECRET_KEY, SMTP-Daten, BASE_URL)
+-
+-# Datenbank initialisieren und Admin anlegen:
+-python seed.py --admin-user admin --admin-pass SICHERESPASSWORT
+-
+-# Optional: Demo-Daten
+-python seed.py --demo
+-
+-# Server starten
+-uvicorn app.main:app --host 127.0.0.1 --port 8000
++Selbst gehostete Helferorganisation: öffentliche Veranstaltungen, Schichten,
++Sachspenden und persönliche Elternlinks; lokale Administrationsanmeldung.
++
++Der geprüfte Containerstand und seine Grenzen stehen in [PLATFORM.md](PLATFORM.md).
++Python 3.12.12, SQLite, genau ein Webprozess und ein exklusiver Scheduler.
++Kein Standardkonto und keine automatische Schemaänderung beim Webstart.
++
++## Eigenständiger Dockerbetrieb
++
++```sh
++python3 prepare_secret.py .private-secrets
++export SCHULHELFER_SECRET_FILE="$PWD/.private-secrets/session-key"
++docker compose build
++docker compose up -d --no-build
++docker compose run --rm --no-deps app python -m app.migrate
++docker compose run --rm --no-deps app python -m app.setup_admin
+ ```
+ 
+-### systemd-Unit
++Readiness bleibt vor dem expliziten Migrationsjob 503. Die persönliche
++Erstadministration fragt Name und Passwort am Terminal ab. Sie ist einmalig.
++Der Schlüssel wird weder ausgegeben noch bei Wiederholung ersetzt.
++Das private Schlüsselverzeichnis nicht in Git aufnehmen.
+ 
+-```bash
+-sudo cp schulfest-helfer.service /etc/systemd/system/
+-sudo systemctl enable --now schulfest-helfer
+-```
+-
+-### Caddy als Reverse-Proxy
+-
+-```bash
+-# Caddyfile.example nach /etc/caddy/Caddyfile kopieren und anpassen
+-sudo systemctl reload caddy
+-```
+-
+-### nginx als Reverse-Proxy
++Nur 127.0.0.1:${SCHULHELFER_PORT:-8007} wird veröffentlicht.
++BASE_URL auf die vollständige Origin des eigenen Proxys setzen.
++Bei HTTPS setzt die App Secure-Cookies automatisch. SMTP zeigt ohne eigene
++Konfiguration auf einen separat bereitzustellenden lokalen Mail-Sink mailpit:1025,
++ohne Upstream. App, Datenvolume und Secretdatei bleiben eigenständig.
+ 
+-```bash
+-sudo cp nginx.conf.example /etc/nginx/sites-available/schulfest-helfer
+-sudo ln -s /etc/nginx/sites-available/schulfest-helfer /etc/nginx/sites-enabled/
+-sudo nginx -t && sudo systemctl reload nginx
++## Nativer Betrieb
+ 
+-# TLS per Let's Encrypt (baut die Config automatisch auf HTTPS inkl. Redirect um):
+-sudo apt install certbot python3-certbot-nginx
+-sudo certbot --nginx -d helfer.ggs-ndk.de
+-```
+-
+-Sobald HTTPS aktiv ist: `https_only=True` in `app/main.py` setzen und den Dienst
+-neu starten (die systemd-Unit übergibt uvicorn bereits `--proxy-headers`, damit
+-`X-Forwarded-Proto` von nginx ausgewertet wird).
+-
+----
++In einer Python-3.12-Umgebung für linux/amd64:
+ 
+-## Setup – Docker
+-
+-```bash
++```sh
++python3 -m venv .venv
++. .venv/bin/activate
++pip install --require-hashes -r requirements.lock
++python3 prepare_secret.py .private-secrets
+ cp .env.example .env
+-# .env anpassen
+-
+-docker build -t schulfest-helfer .
+-docker run -d \
+-  --name schulfest-helfer \
+-  -p 127.0.0.1:8000:8000 \
+-  -v $(pwd)/data:/app/data \
+-  --env-file .env \
+-  schulfest-helfer
+-
+-# Admin anlegen (einmalig):
+-docker exec schulfest-helfer python seed.py --admin-user admin --admin-pass SICHERESPASSWORT
++# BASE_URL und private Schlüsseldatei in .env prüfen; ausschließlich eigener Mail-Sink.
++python -m app.migrate
++python -m app.setup_admin
++uvicorn app.main:app --host 127.0.0.1 --port 8007 --workers 1 --no-access-log
+ ```
+ 
+----
++Bei Proxybetrieb nur die tatsächlichen Proxy-IP-Adressen ausdrücklich freigeben.
++Die systemd- und Proxydateien sind Beispiele; Bestandskonfigurationen vor einer
++Übernahme prüfen. Ein nicht versioniertes Bestands-SQLite-Schema wird nicht
++automatisch übernommen. Bestehende IDs und Elternlinks nicht durch Demo-Seeding ersetzen.
+ 
+-## Alembic-Migrationen
++## Migration, Tests und Export
+ 
+-```bash
+-# Neue Migration generieren
+-alembic revision --autogenerate -m "beschreibung"
++Anwendungsmigration nur über `python -m app.migrate`, bei pausierten Writern.
++Der Job verwendet die geprüfte Alembic-Kette mit exklusiver Sperre.
++Unbekannte Schema-Versionen blockieren die Freigabe.
++Neue Migrationen können mit Alembic entwickelt werden, benötigen aber eine
++eigene Prüfung und neue Releasefreigabe.
+ 
+-# Migrationen anwenden
+-alembic upgrade head
++```sh
++pip install --require-hashes -r requirements-test.lock
++# Nur synthetischer Testschlüssel, keine Produktivdatei:
++SECRET_KEY=synthetic-session-fixture-key-0123456789 pytest tests/ contract_tests/
+ ```
+ 
+----
+-
+-## Tests
+-
+-```bash
+-pytest tests/ -v
+-```
+-
+----
+-
+-## Betrieb
+-
+-### Backup der SQLite-Datei
+-
+-Die gesamte Datenbank liegt in `data/app.db`. Tägliches Backup per cron:
+-
+-```cron
+-0 3 * * * cp /opt/schulfest-helfer/data/app.db /backup/app-$(date +\%Y\%m\%d).db
+-```
+-
+-### Datenlöschung (Retention)
+-
+-Der eingebaute APScheduler läuft täglich und löscht automatisch `Participant`-, `Booking`- und `Donation`-Datensätze, sobald `event.retention_weeks` Wochen nach dem `event_date` vergangen sind. Kein manueller Eingriff nötig.
+-
+-### E-Mail (Strato)
+-
+-```env
+-SMTP_HOST=smtp.strato.de
+-SMTP_PORT=465
+-SMTP_STARTTLS=false
+-SMTP_USE_TLS=true
+-SMTP_USER=helfer@ggs-ndk.de
+-SMTP_PASS=<Postfach-Passwort>
+-```
+-
+-Strato bietet auf Port 465 ausschließlich implizites TLS (SMTPS) an, kein
+-STARTTLS – deshalb `SMTP_USE_TLS=true` **und** `SMTP_STARTTLS=false`. Bei
+-einem anderen Provider mit STARTTLS auf Port 587 ist es umgekehrt.
+-
+-DKIM wird über DNS-Eintrag der Schule aktiviert – kein App-seitiger Aufwand.
+-
+-### Zeitzone
+-
+-Alle Datums- und Zeitangaben werden als lokale Wandzeit gespeichert und verglichen.
+-Maßgeblich ist `TIMEZONE` in der `.env` (Standard `Europe/Berlin`). Eine auf 18:00
+-gesetzte Anmeldefrist endet damit tatsächlich um 18:00 Ortszeit.
+-
+-### Sicherheitshinweise
+-
+-- `SECRET_KEY` muss ein langer Zufallswert sein: `python -c "import secrets; print(secrets.token_hex(32))"`
+-- Hinter HTTPS-Proxy betreiben (Caddy/nginx)
+-- `https_only=True` in `app/main.py` setzen, sobald HTTPS aktiv ist
+-- Zustandsändernde Admin-Formulare sind CSRF-geschützt (Token in der Session).
+-  Öffentliche Formulare bleiben ohne Token, damit die Anmeldung auch bei
+-  restriktiven Cookie-Einstellungen funktioniert; sie sind über den geheimen
+-  Zugangslink bzw. die Duplikatsprüfung abgesichert.
+-- Das Zugangstoken wird zusätzlich im Klartext gespeichert (`participant.token`),
+-  damit der Link der Eltern über die gesamte Laufzeit stabil bleibt – auch beim
+-  Veröffentlichen. Wer die Datenbank lesen kann, sieht ohnehin alle Daten, auf
+-  die ein solcher Link Zugriff gibt.
+-
+----
++Der Integrationsnachweis verwendet getrennte Testläufe für Fachsuite und
++Vertragsprüfungen in einem isolierten Testimage. SMTP ist in Fachtests absichtlich
++unerreichbar. Echte lokale Sink-Zustellung und parallele Buchungen sind separat
++im Plattformrepository nachgewiesen. PDF ist auf einen Slot im einzigen
++Webprozess begrenzt; belegter Slot ergibt 503 mit Retry-After.
++
++## Sicherung, Retention und Mail
++
++SQLite ausschließlich über die .backup-API sichern, niemals die laufende Datei
++mit cp kopieren. Mit passendem Sicherungsdienst koordiniert Writer pausieren.
++Die eigenständige Datenbank liegt unter data/app.db, im Container unter
++/app/data/app.db. Session-Schlüssel und Konfiguration zusätzlich privat sichern.
++Restore in eine leere Umgebung und mit passendem Image prüfen. Ein Image-Rollback
++macht keine DB-Migration rückgängig.
++
++Retention läuft alle 24 Stunden und soll Teilnehmerdaten nach dem konfigurierten
++Zeitraum entfernen. Eine vollständige Retention-Abnahme steht aus.
++Mailversand läuft als BackgroundTask mit Gesamtzeitlimit und Zustellprotokoll.
++Es gibt noch keine persistente Outbox für Prozessausfälle; fehlgeschlagene
++Bestätigungsmails lassen sich über den vorhandenen Verwaltungsweg wiederholen.
++Ein SMTP-Ausfall beeinflusst die eigene Datenbank-Readiness nicht.
++
++BASE_URL, DATABASE_URL, SECRET_KEY und SMTP_* bleiben gültige Konfigurationsnamen.
++Für Secrets bevorzugt SECRET_KEY_FILE und SMTP_PASS_FILE verwenden.
++Bei Compose eine zusätzliche SMTP-Passwortdatei nur über einen ausdrücklichen
++schreibgeschützten Mount bereitstellen. Kein externer SMTP-Upstream im Testaufbau.
++
++Eltern-Capabilities werden für Wiederholversand weiterhin auch im Klartext in der
++Datenbank gespeichert. Datenbank und Archive schützen. Tokenisierte Pfade nicht
++in Accesslogs schreiben. Es gibt keine zentrale Sperrung oder Logout-Revokation.
+ 
+ ## Routen
+ 
+diff --git a/app/config.py b/app/config.py
+index 585610d..7c51944 100644
+--- a/app/config.py
++++ b/app/config.py
+@@ -1,11 +1,16 @@
++from pathlib import Path
++from urllib.parse import urlsplit
++from pydantic import Field, model_validator
+ from pydantic_settings import BaseSettings, SettingsConfigDict
+ 
+ 
+ class Settings(BaseSettings):
+-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
++    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", hide_input_in_errors=True)
+ 
+     BASE_URL: str = "http://localhost:8000"
+-    SECRET_KEY: str = "changeme-use-a-long-random-value"
++    SECRET_KEY: str = Field(default="", repr=False)
++    SECRET_KEY_FILE: str = ""
++    PROXY_IPS: str = ""
+     DATABASE_URL: str = "sqlite:///./data/app.db"
+ 
+     SMTP_HOST: str = "localhost"
+@@ -16,7 +21,8 @@ class Settings(BaseSettings):
+     SMTP_STARTTLS: bool = True
+     SMTP_USE_TLS: bool = False
+     SMTP_USER: str = ""
+-    SMTP_PASS: str = ""
++    SMTP_PASS: str = Field(default="", repr=False)
++    SMTP_PASS_FILE: str = ""
+     SMTP_FROM: str = "Schulfest <noreply@example.com>"
+     SMTP_SEND_DELAY_MS: int = 400
+     # Ein hängender Mailserver darf einen Hintergrund-Worker nicht dauerhaft binden.
+@@ -27,5 +33,27 @@ class Settings(BaseSettings):
+     TIMEZONE: str = "Europe/Berlin"
+     ORGANISATION: str = "Das Organisationsteam"
+ 
++    @model_validator(mode="after")
++    def runtime_contract(self):
++        if self.SECRET_KEY_FILE:
++            if self.SECRET_KEY:
++                raise ValueError("Configure one session key source")
++            self.SECRET_KEY = Path(self.SECRET_KEY_FILE).read_text().strip()
++        if len(self.SECRET_KEY) < 32 or self.SECRET_KEY.startswith(("changeme", "<")):
++            raise ValueError("A private session key of at least 32 characters is required")
++        if self.SMTP_PASS_FILE:
++            if self.SMTP_PASS:
++                raise ValueError("Configure one SMTP password source")
++            self.SMTP_PASS = Path(self.SMTP_PASS_FILE).read_text().strip()
++        origin = urlsplit(self.BASE_URL)
++        if (origin.scheme not in ("http", "https") or not origin.hostname or origin.username or origin.password or
++                origin.query or origin.fragment or origin.path not in ("", "/")):
++            raise ValueError("BASE_URL must be an HTTP(S) origin")
++        _ = origin.port
++        self.BASE_URL = self.BASE_URL.rstrip("/")
++        if self.SMTP_STARTTLS and self.SMTP_USE_TLS:
++            raise ValueError("Choose one SMTP TLS mode")
++        return self
++
+ 
+ settings = Settings()
+diff --git a/app/database.py b/app/database.py
+index 6449ed8..ecb18ec 100644
+--- a/app/database.py
++++ b/app/database.py
+@@ -43,6 +43,6 @@ def get_db():
+ 
+ 
+ def init_db():
+-    os.makedirs("data", exist_ok=True)
+-    from app import models  # noqa: F401
+-    Base.metadata.create_all(bind=engine)
++    from app.platform import schema_ready
++    if not schema_ready():
++        raise RuntimeError("Run python -m app.migrate explicitly before initializing application data")
+diff --git a/app/dependencies.py b/app/dependencies.py
+index 317817f..e06f1b9 100644
+--- a/app/dependencies.py
++++ b/app/dependencies.py
+@@ -6,7 +6,7 @@ from app.models import AdminUser
+ from app.security import verify_csrf
+ 
+ 
+-def get_current_admin(request: Request, db: Session = Depends(get_db)) -> AdminUser:
++def get_current_admin(request: Request, db: Session = Depends(get_db, scope="function")) -> AdminUser:
+     admin_id = request.session.get("admin_id")
+     if not admin_id:
+         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={"Location": "/admin/login"})
+@@ -17,7 +17,7 @@ def get_current_admin(request: Request, db: Session = Depends(get_db)) -> AdminU
+     return admin
+ 
+ 
+-def require_admin(request: Request, db: Session = Depends(get_db)) -> AdminUser:
++def require_admin(request: Request, db: Session = Depends(get_db, scope="function")) -> AdminUser:
+     return get_current_admin(request, db)
+ 
+ 
+diff --git a/app/email_service.py b/app/email_service.py
+index fffb7dc..136639a 100644
+--- a/app/email_service.py
++++ b/app/email_service.py
+@@ -1,4 +1,5 @@
+ import logging
++import asyncio
+ from email.header import Header
+ from email.mime.multipart import MIMEMultipart
+ from email.mime.text import MIMEText
+@@ -39,7 +40,7 @@ async def _send(to_addr: str, subject: str, text_body: str, html_body: str) -> b
+     msg.attach(MIMEText(html_body, "html", "utf-8"))
+ 
+     try:
+-        await aiosmtplib.send(
++        await asyncio.wait_for(aiosmtplib.send(
+             msg,
+             hostname=settings.SMTP_HOST,
+             port=settings.SMTP_PORT,
+@@ -50,17 +51,20 @@ async def _send(to_addr: str, subject: str, text_body: str, html_body: str) -> b
+             username=settings.SMTP_USER or None,
+             password=settings.SMTP_PASS or None,
+             timeout=settings.SMTP_TIMEOUT_S,
+-        )
++        ), timeout=settings.SMTP_TIMEOUT_S)
+         return True
+-    except Exception:
+-        log.exception("E-Mail-Versand fehlgeschlagen an %s", to_addr)
++    except Exception as exc:
++        log.error("E-Mail-Versand fehlgeschlagen (%s); SMTP-Zustand prüfen", type(exc).__name__)
+         return False
+ 
+ 
+ def _log_email(db: Session, participant: Participant, kind: str, success: bool):
+-    entry = EmailLog(participant_id=participant.id, kind=kind, success=success)
+-    db.add(entry)
+-    db.commit()
++    # SMTP awaits may outlive a SQLite read snapshot. Record delivery in a fresh
++    # write transaction, never upgrade the stale reader after the network await.
++    from app.database import session_factory
++    with session_factory() as writer:
++        writer.add(EmailLog(participant_id=participant.id, kind=kind, success=success))
++        writer.commit()
+ 
+ 
+ # ─── Zusammenfassung der Buchungen ────────────────────────────────────────────
+@@ -265,8 +269,10 @@ async def deliver(kind: str, participant_id: int, token: str) -> None:
+         if participant is None:
+             log.warning("Teilnehmer %d nicht mehr vorhanden – Mail entfällt", participant_id)
+             return
++        # Release the eagerly loaded reader before SMTP to avoid pool exhaustion.
++        db.close()
+         await sender(db, participant, token)
+-    except Exception:
+-        log.exception("Hintergrund-Mailversand fehlgeschlagen (%s, %d)", kind, participant_id)
++    except Exception as exc:
++        log.error("Hintergrund-Mailversand fehlgeschlagen (%s, %d, %s)", kind, participant_id, type(exc).__name__)
+     finally:
+         db.close()
+diff --git a/app/export_limit.py b/app/export_limit.py
+new file mode 100644
+index 0000000..51522c0
+--- /dev/null
++++ b/app/export_limit.py
+@@ -0,0 +1,15 @@
++"""One PDF slot in the declared single web process; no queued exporters."""
++from contextlib import contextmanager
++import threading
++from fastapi import HTTPException
++
++_slot = threading.BoundedSemaphore(1)
++
++
++def pdf_slot():
++    if not _slot.acquire(blocking=False):
++        raise HTTPException(503, "PDF-Export ist belegt. Bitte später erneut versuchen.", headers={"Retry-After": "5"})
++    try:
++        yield
++    finally:
++        _slot.release()
+diff --git a/app/jobs.py b/app/jobs.py
+index 71f2c11..9bad261 100644
+--- a/app/jobs.py
++++ b/app/jobs.py
+@@ -85,11 +85,11 @@ async def send_confirmations(event_id: int, only_unsent: bool = False) -> None:
+             try:
+                 await send_confirmation(db, participant, token)
+             except Exception:
+-                log.exception("Bestätigung an %s fehlgeschlagen", participant.email)
++                log.error("Bestätigung fehlgeschlagen; Teilnehmer-ID %d", participant.id)
+             await asyncio.sleep(settings.SMTP_SEND_DELAY_MS / 1000)
+         log.info("Bestätigungsversand für Event %d abgeschlossen", event_id)
+     except Exception:
+-        log.exception("Bestätigungsversand für Event %d abgebrochen", event_id)
++        log.error("Bestätigungsversand für Event %d abgebrochen", event_id)
+     finally:
+         db.close()
+ 
+diff --git a/app/main.py b/app/main.py
+index 36ebf09..1bec72c 100644
+--- a/app/main.py
++++ b/app/main.py
+@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
+ from starlette.middleware.sessions import SessionMiddleware
+ 
+ from app.config import settings
+-from app.database import init_db
++from app.platform import schema_ready
+ from app.routers import admin, public
+ from app.scheduler import start_scheduler, stop_scheduler
+ from app.templating import templates
+@@ -23,7 +23,7 @@ app.add_middleware(
+     secret_key=settings.SECRET_KEY,
+     session_cookie="session",
+     max_age=3600 * 8,
+-    https_only=False,  # set True in production behind HTTPS proxy
++    https_only=settings.BASE_URL.startswith("https://"),
+     same_site="lax",
+ )
+ 
+@@ -31,10 +31,21 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
+ app.include_router(public.router)
+ app.include_router(admin.router)
+ 
++@app.get("/health/live")
++def live():
++    return {"status": "live"}
++
++
++@app.get("/health/ready")
++def ready():
++    from fastapi.responses import JSONResponse
++    healthy = schema_ready()
++    return JSONResponse({"status": "ready" if healthy else "migration-required"},
++                        status_code=200 if healthy else 503)
++
+ 
+ @app.on_event("startup")
+ async def startup():
+-    init_db()
+     start_scheduler()
+ 
+ 
+@@ -68,8 +79,12 @@ async def redirect_handler(request: Request, exc):
+ 
+ @app.middleware("http")
+ async def security_headers(request: Request, call_next):
++    if request.url.path not in ("/health/live", "/health/ready") and not schema_ready():
++        from fastapi.responses import JSONResponse
++        return JSONResponse({"status": "migration-required"}, status_code=503)
+     response = await call_next(request)
+     response.headers["X-Content-Type-Options"] = "nosniff"
+-    response.headers["Referrer-Policy"] = "same-origin"
++    response.headers["Referrer-Policy"] = "no-referrer"
++    response.headers["Cache-Control"] = "private, no-store"
+     response.headers["X-Frame-Options"] = "SAMEORIGIN"
+     return response
+diff --git a/app/migrate.py b/app/migrate.py
+new file mode 100644
+index 0000000..5918ab3
+--- /dev/null
++++ b/app/migrate.py
+@@ -0,0 +1,43 @@
++"""Explicit, exclusive Alembic job. Run with all application writers paused."""
++import argparse
++import os
++from pathlib import Path
++from alembic import command
++from alembic.config import Config
++from sqlalchemy import inspect
++from app.database import engine
++from app.platform import data_lock, database_path, HEAD, SCHEMA
++
++
++def migrate():
++    path = database_path()
++    with data_lock("migration"):
++        with engine.connect() as connection:
++            connection.exec_driver_sql("BEGIN IMMEDIATE")
++            try:
++                version = connection.exec_driver_sql("PRAGMA user_version").scalar()
++                if version not in (0, SCHEMA):
++                    raise RuntimeError("Unsupported database schema")
++                tables = set(inspect(connection).get_table_names()) - {"sqlite_sequence"}
++                if tables and "alembic_version" not in tables:
++                    raise RuntimeError("Unversioned existing database: reviewed adoption required")
++                cfg = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
++                cfg.set_main_option("script_location", str(Path(__file__).resolve().parents[1] / "migrations"))
++                cfg.attributes["connection"] = connection
++                command.upgrade(cfg, HEAD)
++                if connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall():
++                    raise RuntimeError("Foreign key check failed")
++                connection.exec_driver_sql("PRAGMA user_version=" + str(SCHEMA))
++                connection.commit()
++            except BaseException:
++                connection.rollback()
++                raise
++        path.chmod(0o600)
++
++
++if __name__ == "__main__":
++    try:
++        migrate()
++        print("Migration verified.")
++    except Exception:
++        raise SystemExit("Migration refused or failed; inspect the private database and release compatibility.")
+diff --git a/app/platform.py b/app/platform.py
+new file mode 100644
+index 0000000..e4b3d26
+--- /dev/null
++++ b/app/platform.py
+@@ -0,0 +1,45 @@
++"""Local runtime contract. SQLite jobs and scheduler share a private data root."""
++import fcntl
++import os
++from pathlib import Path
++from contextlib import contextmanager
++from sqlalchemy import text
++from sqlalchemy.engine import make_url
++from app.config import settings
++
++HEAD = "b7c2e9a41d38"
++SCHEMA = 1
++os.umask(0o077)
++
++
++def database_path():
++    url = make_url(settings.DATABASE_URL)
++    if url.drivername != "sqlite" or not url.database or url.database == ":memory:":
++        raise RuntimeError("This release requires a file-backed SQLite database")
++    return Path(url.database).resolve()
++
++
++@contextmanager
++def data_lock(name):
++    root = database_path().parent
++    root.mkdir(parents=True, exist_ok=True, mode=0o700)
++    with (root / (name + ".lock")).open("a") as stream:
++        os.chmod(stream.name, 0o600)
++        fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
++        try:
++            yield
++        finally:
++            fcntl.flock(stream, fcntl.LOCK_UN)
++
++
++def schema_ready():
++    from app.database import engine
++    if not database_path().is_file():
++        return False
++    try:
++        with engine.connect() as connection:
++            return (connection.execute(text("SELECT version_num FROM alembic_version")).scalars().all() == [HEAD]
++                    and connection.exec_driver_sql("PRAGMA user_version").scalar() == SCHEMA
++                    and connection.exec_driver_sql("SELECT 1").scalar() == 1)
++    except Exception:
++        return False
+diff --git a/app/routers/admin.py b/app/routers/admin.py
+index 0d06994..3421255 100644
+--- a/app/routers/admin.py
++++ b/app/routers/admin.py
+@@ -13,6 +13,7 @@ from sqlalchemy import func, select
+ from sqlalchemy.orm import Session, selectinload
+ 
+ from app.database import get_db
++from app.export_limit import pdf_slot
+ from app.dependencies import require_admin, require_csrf
+ from app.flash import ERROR, INFO, SUCCESS, WARNING, flash
+ from app.jobs import confirmation_progress, send_confirmations
+@@ -66,7 +67,7 @@ async def login_post(
+     request: Request,
+     username: Annotated[str, Form()] = "",
+     password: Annotated[str, Form()] = "",
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+ ):
+     ip = request.client.host if request.client else "unknown"
+     if not _check_login_rate(ip):
+@@ -99,7 +100,7 @@ async def logout(request: Request, _csrf: None = CSRF):
+ @router.get("", response_class=HTMLResponse)
+ async def event_list(
+     request: Request,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+ ):
+     events = db.execute(select(Event).order_by(Event.event_date.desc())).scalars().all()
+@@ -158,7 +159,7 @@ def _validate_event(name: str, event_date: str, registration_deadline: str) -> d
+ @router.post("/events/new", response_class=HTMLResponse)
+ async def event_new_post(
+     request: Request,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+     name: Annotated[str, Form()] = "",
+@@ -200,7 +201,7 @@ async def event_new_post(
+ async def event_detail(
+     request: Request,
+     event_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+ ):
+     event = db.execute(
+@@ -240,7 +241,7 @@ async def event_detail(
+ async def event_edit_get(
+     request: Request,
+     event_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+ ):
+     event = _get_event(event_id, db)
+@@ -255,7 +256,7 @@ async def event_edit_get(
+ async def event_edit_post(
+     request: Request,
+     event_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+     name: Annotated[str, Form()] = "",
+@@ -295,7 +296,7 @@ async def event_edit_post(
+ async def event_delete(
+     request: Request,
+     event_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+ ):
+@@ -329,7 +330,7 @@ async def event_status(
+     event_id: int,
+     background: BackgroundTasks,
+     new_status: Annotated[str, Form()] = "",
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+ ):
+@@ -371,7 +372,7 @@ async def event_status(
+ async def station_new(
+     request: Request,
+     event_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+     station_type: Annotated[str, Form()] = "helper",
+@@ -411,7 +412,7 @@ async def station_new(
+ async def station_edit(
+     request: Request,
+     station_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+     name: Annotated[str, Form()] = "",
+@@ -441,7 +442,7 @@ async def station_edit(
+ async def station_delete(
+     request: Request,
+     station_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+ ):
+@@ -470,7 +471,7 @@ async def station_delete(
+ async def stations_copy(
+     request: Request,
+     event_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+     source_event_id: Annotated[int, Form()] = 0,
+@@ -541,7 +542,7 @@ async def stations_copy(
+ async def shift_new(
+     request: Request,
+     station_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+     start_time: Annotated[str, Form()] = "",
+@@ -577,7 +578,7 @@ async def shift_new(
+ async def shift_series(
+     request: Request,
+     station_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+     series_date: Annotated[str, Form()] = "",
+@@ -652,7 +653,7 @@ async def shift_series(
+ async def shift_edit(
+     request: Request,
+     shift_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+     start_time: Annotated[str, Form()] = "",
+@@ -696,7 +697,7 @@ async def shift_edit(
+ async def shift_delete(
+     request: Request,
+     shift_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+ ):
+@@ -729,7 +730,7 @@ async def shift_delete(
+ async def dashboard(
+     request: Request,
+     event_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+ ):
+     event = db.execute(
+@@ -785,7 +786,7 @@ async def dashboard(
+ async def booking_add_manual(
+     request: Request,
+     event_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+     participant_id: Annotated[int, Form()] = 0,
+@@ -836,7 +837,7 @@ async def booking_delete_manual(
+     request: Request,
+     booking_id: int,
+     event_id: Annotated[int, Form()],
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+ ):
+@@ -860,7 +861,7 @@ async def booking_delete_manual(
+ async def event_close(
+     request: Request,
+     event_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+ ):
+@@ -879,7 +880,7 @@ async def event_publish(
+     request: Request,
+     event_id: int,
+     background: BackgroundTasks,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+ ):
+@@ -907,7 +908,7 @@ async def event_resend(
+     request: Request,
+     event_id: int,
+     background: BackgroundTasks,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+ ):
+@@ -927,7 +928,7 @@ async def event_resend(
+ @router.get("/events/{event_id}/export.csv")
+ async def export_csv(
+     event_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+ ):
+     event = _get_event(event_id, db)
+@@ -975,9 +976,10 @@ async def export_csv(
+ 
+ 
+ @router.get("/events/{event_id}/export.pdf")
+-async def export_pdf(
++def export_pdf(
+     event_id: int,
+-    db: Session = Depends(get_db),
++    _slot: None = Depends(pdf_slot),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+ ):
+     from reportlab.lib import colors
+@@ -1073,7 +1075,7 @@ async def export_pdf(
+ @router.get("/classes", response_class=HTMLResponse)
+ async def classes_list(
+     request: Request,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+ ):
+     klassen = db.execute(select(Klasse).order_by(Klasse.school_year, Klasse.label)).scalars().all()
+@@ -1093,7 +1095,7 @@ async def classes_list(
+ @router.post("/classes/new")
+ async def klasse_new(
+     request: Request,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+     label: Annotated[str, Form()] = "",
+@@ -1123,7 +1125,7 @@ async def klasse_new(
+ async def klasse_edit(
+     request: Request,
+     klasse_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+     label: Annotated[str, Form()] = "",
+@@ -1156,7 +1158,7 @@ async def klasse_edit(
+ async def klasse_delete(
+     request: Request,
+     klasse_id: int,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+ ):
+@@ -1191,7 +1193,7 @@ async def klasse_delete(
+ @router.post("/classes/import")
+ async def klasse_import(
+     request: Request,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     admin: AdminUser = Depends(require_admin),
+     _csrf: None = CSRF,
+     file: UploadFile = File(...),
+diff --git a/app/routers/public.py b/app/routers/public.py
+index be352cd..e3e209a 100644
+--- a/app/routers/public.py
++++ b/app/routers/public.py
+@@ -179,7 +179,7 @@ def _event_page(
+ # ─── Öffentliche Startseite ───────────────────────────────────────────────────
+ 
+ @router.get("/", response_class=HTMLResponse)
+-async def index(request: Request, db: Session = Depends(get_db)):
++async def index(request: Request, db: Session = Depends(get_db, scope="function")):
+     """Einstieg für Eltern – nicht der Admin-Login.
+ 
+     Wer einen abgelaufenen Zugangslink anklickt, landet über die Fehlerseite
+@@ -203,7 +203,7 @@ async def index(request: Request, db: Session = Depends(get_db)):
+ # ─── Veranstaltungsseite ──────────────────────────────────────────────────────
+ 
+ @router.get("/e/{event_id}", response_class=HTMLResponse)
+-async def event_view(request: Request, event_id: int, db: Session = Depends(get_db)):
++async def event_view(request: Request, event_id: int, db: Session = Depends(get_db, scope="function")):
+     event = _get_event(event_id, db)
+     if event.status not in ("open", "closed", "published"):
+         raise HTTPException(status_code=404, detail="Veranstaltung nicht gefunden")
+@@ -220,7 +220,7 @@ async def event_code(
+     request: Request,
+     event_id: int,
+     code: Annotated[str, Form()] = "",
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+ ):
+     event = _get_event(event_id, db)
+     if not event.access_code:
+@@ -243,7 +243,7 @@ async def event_book(
+     request: Request,
+     event_id: int,
+     background: BackgroundTasks,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     name: Annotated[str, Form()] = "",
+     email: Annotated[str, Form()] = "",
+     klasse_id: Annotated[int | None, Form()] = None,
+@@ -417,7 +417,7 @@ async def recover_global_post(
+     request: Request,
+     background: BackgroundTasks,
+     email: Annotated[str, Form()] = "",
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+ ):
+     ip = request.client.host if request.client else "unknown"
+     if _check_rate(ip):
+@@ -431,7 +431,7 @@ async def recover_global_post(
+ 
+ 
+ @router.get("/e/{event_id}/recover", response_class=HTMLResponse)
+-async def recover_get(request: Request, event_id: int, db: Session = Depends(get_db)):
++async def recover_get(request: Request, event_id: int, db: Session = Depends(get_db, scope="function")):
+     event = _get_event(event_id, db)
+     return templates.TemplateResponse(request, "event/recover.html", {"event": event})
+ 
+@@ -442,7 +442,7 @@ async def recover_post(
+     event_id: int,
+     background: BackgroundTasks,
+     email: Annotated[str, Form()] = "",
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+ ):
+     event = _get_event(event_id, db)
+     ip = request.client.host if request.client else "unknown"
+@@ -488,7 +488,7 @@ def _invalid_token(request: Request):
+ 
+ 
+ @router.get("/s/{token}", response_class=HTMLResponse)
+-async def status_view(request: Request, token: str, db: Session = Depends(get_db)):
++async def status_view(request: Request, token: str, db: Session = Depends(get_db, scope="function")):
+     participant = _load_participant(token, db)
+     if not participant:
+         return _invalid_token(request)
+@@ -513,7 +513,7 @@ async def status_add(
+     request: Request,
+     token: str,
+     background: BackgroundTasks,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+     shift_ids: Annotated[list[int], Form()] = [],
+     donation_station_ids: Annotated[list[int], Form()] = [],
+     donation_items: Annotated[list[str], Form()] = [],
+@@ -594,7 +594,7 @@ async def status_cancel(
+     background: BackgroundTasks,
+     booking_id: Annotated[int | None, Form()] = None,
+     donation_id: Annotated[int | None, Form()] = None,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+ ):
+     participant = _load_participant(token, db)
+     if not participant:
+@@ -638,7 +638,7 @@ async def status_donation_edit(
+     background: BackgroundTasks,
+     item_text: Annotated[str, Form()] = "",
+     quantity: Annotated[int, Form()] = 1,
+-    db: Session = Depends(get_db),
++    db: Session = Depends(get_db, scope="function"),
+ ):
+     """Zusage korrigieren, statt sie löschen und neu anlegen zu müssen."""
+     participant = _load_participant(token, db)
+@@ -670,7 +670,7 @@ async def status_donation_edit(
+ # ─── Live-Belegung ────────────────────────────────────────────────────────────
+ 
+ @router.get("/e/{event_id}/availability")
+-async def availability(event_id: int, db: Session = Depends(get_db)):
++async def availability(event_id: int, db: Session = Depends(get_db, scope="function")):
+     """Aktuelle Belegung als JSON.
+ 
+     Die Seite aktualisiert damit Zählerstände, Fortschrittsbalken und volle
+diff --git a/app/run.py b/app/run.py
+new file mode 100644
+index 0000000..5e62aa0
+--- /dev/null
++++ b/app/run.py
+@@ -0,0 +1,15 @@
++"""Fixed one-worker runtime. No reload, arbitrary worker count or access log."""
++import ipaddress
++import uvicorn
++from app.config import settings
++
++def main():
++    addresses = settings.PROXY_IPS.split(",") if settings.PROXY_IPS else []
++    for address in addresses:
++        ipaddress.ip_address(address)
++    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, workers=1,
++                proxy_headers=bool(addresses), forwarded_allow_ips=addresses,
++                access_log=False, timeout_graceful_shutdown=120)
++
++if __name__ == "__main__":
++    main()
+diff --git a/app/scheduler.py b/app/scheduler.py
+index 420e1fa..10baf05 100644
+--- a/app/scheduler.py
++++ b/app/scheduler.py
+@@ -4,16 +4,20 @@ from datetime import datetime, timedelta
+ from apscheduler.schedulers.background import BackgroundScheduler
+ from sqlalchemy import delete, select
+ 
+-from app.database import SessionLocal
++from app.database import session_factory
++from app.platform import data_lock, schema_ready
+ from app.models import Booking, Donation, Event, Participant
+ from app.timeutil import now_local
+ 
+ log = logging.getLogger(__name__)
+ _scheduler: BackgroundScheduler | None = None
++_scheduler_lock = None
+ 
+ 
+ def _run_retention_cleanup():
+-    db = SessionLocal()
++    if not schema_ready():
++        return
++    db = session_factory()
+     try:
+         now = now_local()
+         events = db.execute(select(Event)).scalars().all()
+@@ -34,20 +38,29 @@ def _run_retention_cleanup():
+                     db.commit()
+                     log.info("Teilnehmerdaten für Event %d gelöscht (Frist abgelaufen)", event.id)
+     except Exception:
+-        log.exception("Fehler beim Retention-Cleanup")
++        log.error("Retention-Cleanup fehlgeschlagen; private Datenbank prüfen")
+         db.rollback()
+     finally:
+         db.close()
+ 
+ 
+ def start_scheduler():
+-    global _scheduler
++    global _scheduler, _scheduler_lock
++    if _scheduler is not None:
++        return
++    _scheduler_lock = data_lock("scheduler")
++    _scheduler_lock.__enter__()
+     _scheduler = BackgroundScheduler()
+-    _scheduler.add_job(_run_retention_cleanup, "interval", hours=24, id="retention_cleanup")
++    _scheduler.add_job(_run_retention_cleanup, "interval", hours=24, id="retention_cleanup", max_instances=1, coalesce=True)
+     _scheduler.start()
+     log.info("Scheduler gestartet")
+ 
+ 
+ def stop_scheduler():
++    global _scheduler, _scheduler_lock
+     if _scheduler:
+-        _scheduler.shutdown()
++        _scheduler.shutdown(wait=True)
++        _scheduler = None
++    if _scheduler_lock:
++        _scheduler_lock.__exit__(None, None, None)
++        _scheduler_lock = None
+diff --git a/app/setup_admin.py b/app/setup_admin.py
+new file mode 100644
+index 0000000..a59d103
+--- /dev/null
++++ b/app/setup_admin.py
+@@ -0,0 +1,41 @@
++"""Personal first administrator, local controlling terminal only; no defaults."""
++import getpass
++from sqlalchemy import select
++from app.database import SessionLocal
++from app.models import AdminUser
++from app.platform import data_lock, schema_ready
++from app.security import hash_password
++
++
++def setup(username, password):
++    if not username.strip() or len(username) > 80 or not 12 <= len(password) <= 1024:
++        raise ValueError("Invalid local account fields")
++    if not schema_ready():
++        raise ValueError("Migrate first")
++    with data_lock("admin-setup"):
++        with SessionLocal() as db:
++            db.connection().exec_driver_sql("BEGIN IMMEDIATE")
++            if db.execute(select(AdminUser.id)).first():
++                raise ValueError("Initial setup already completed")
++            db.add(AdminUser(username=username.strip(), password_hash=hash_password(password)))
++            db.commit()
++
++
++def main():
++    with open("/dev/tty", "r+") as terminal:
++        terminal.write("Persönlicher Adminname: ")
++        terminal.flush()
++        username = terminal.readline().strip()
++        password = getpass.getpass("Passwort (mindestens 12 Zeichen): ", stream=terminal)
++        confirmation = getpass.getpass("Passwort wiederholen: ", stream=terminal)
++        if password != confirmation:
++            raise ValueError("Password confirmation differs")
++        setup(username, password)
++        terminal.write("Persönlicher Erstzugang eingerichtet.\n")
++
++
++if __name__ == "__main__":
++    try:
++        main()
++    except Exception:
++        raise SystemExit("Lokale Einrichtung fehlgeschlagen; Terminal, Schema und vorhandene Konten prüfen.")
+diff --git a/contract_tests/test_contract.py b/contract_tests/test_contract.py
+new file mode 100644
+index 0000000..904655d
+--- /dev/null
++++ b/contract_tests/test_contract.py
+@@ -0,0 +1,126 @@
++"""Runtime contract checks; all databases and credentials are synthetic."""
++import os
++from pathlib import Path
++import sqlite3
++import subprocess
++import sys
++import threading
++
++import pytest
++
++ROOT = Path("/app")
++
++def call(source, database, **kwargs):
++    env = os.environ | {"DATABASE_URL": "sqlite:///" + str(database),
++                       "SECRET_KEY": "synthetic-session-fixture-key-0123456789", "SECRET_KEY_FILE": ""}
++    return subprocess.run([sys.executable, "-c", source], env=env, text=True,
++                          capture_output=True, timeout=30, **kwargs)
++
++
++def test_missing_secret_refuses_import_without_exposing_value():
++    env = os.environ | {"SECRET_KEY": "", "SECRET_KEY_FILE": ""}
++    result = subprocess.run([sys.executable, "-c", "import app.main"], env=env, capture_output=True, timeout=15)
++    assert result.returncode != 0
++    assert b"changeme" not in result.stdout
++
++
++def test_explicit_migration_idempotence_and_no_schema_on_import(tmp_path):
++    path = tmp_path / "app.db"
++    result = call("import app.main;from app.platform import schema_ready;assert not schema_ready()", path)
++    assert result.returncode == 0, result.stderr
++    assert not path.exists()
++    result = call("from app.migrate import migrate;migrate();migrate();from app.platform import schema_ready;assert schema_ready()", path)
++    assert result.returncode == 0, result.stderr
++    with sqlite3.connect(path) as db:
++        assert db.execute("SELECT COUNT(*) FROM admin_user").fetchone() == (0,)
++        assert db.execute("PRAGMA user_version").fetchone() == (1,)
++        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("b7c2e9a41d38",)
++        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
++    assert path.stat().st_mode & 0o777 == 0o600
++
++
++def test_unversioned_existing_and_future_schema_fail_closed(tmp_path):
++    for name, version in (("legacy", 0), ("future", 99)):
++        path = tmp_path / (name + ".db")
++        with sqlite3.connect(path) as db:
++            db.execute("CREATE TABLE existing(id INTEGER PRIMARY KEY)")
++            db.execute("INSERT INTO existing VALUES(7)")
++            db.execute("PRAGMA user_version=" + str(version))
++        result = call("from app.migrate import migrate;migrate()", path)
++        assert result.returncode != 0
++        with sqlite3.connect(path) as db:
++            assert db.execute("SELECT id FROM existing").fetchall() == [(7,)]
++            assert db.execute("SELECT name FROM sqlite_master WHERE name='admin_user'").fetchall() == []
++
++
++def test_local_setup_and_one_time_guard(tmp_path):
++    path = tmp_path / "app.db"
++    source = """from app.migrate import migrate
++migrate()
++from app.setup_admin import setup
++setup('synthetic-admin','synthetic-private-password')
++from app.database import SessionLocal
++from app.models import AdminUser
++from sqlalchemy import select
++with SessionLocal() as db:
++    assert db.execute(select(AdminUser.id)).scalars().all()==[1]
++try:
++    setup('another-admin','synthetic-private-password')
++except ValueError:
++    pass
++else:
++    raise AssertionError('Setup was replayed')
++"""
++    result = call(source, path)
++    assert result.returncode == 0, result.stderr
++    # A missing controlling terminal must not issue an account.
++    result = call("from app.setup_admin import main;main()", tmp_path / "no-tty.db")
++    assert result.returncode != 0 and not (tmp_path / "no-tty.db").exists()
++
++
++@pytest.mark.parametrize("lock", ["migration", "scheduler"])
++def test_lock_prevents_a_second_process(tmp_path, lock):
++    path = tmp_path / "app.db"
++    env = os.environ | {"DATABASE_URL": "sqlite:///" + str(path),
++                       "SECRET_KEY": "synthetic-session-fixture-key-0123456789", "SECRET_KEY_FILE": ""}
++    source = ("from app.platform import data_lock;import sys;guard=data_lock('" + lock +
++              "');guard.__enter__();print('held',flush=True);sys.stdin.readline()")
++    first = subprocess.Popen([sys.executable, "-c", source], env=env, stdin=subprocess.PIPE,
++                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
++    try:
++        assert first.stdout.readline().strip() == "held"
++        result = call("from app.platform import data_lock;guard=data_lock('" + lock + "');guard.__enter__()", path)
++        assert result.returncode != 0
++    finally:
++        first.communicate("\n", timeout=10)
++    assert call("from app.platform import data_lock;guard=data_lock('" + lock + "');guard.__enter__()", path).returncode == 0
++
++
++def test_pdf_slot_refuses_parallel_export_and_recovers():
++    from app.export_limit import pdf_slot
++    from fastapi import HTTPException
++    first = pdf_slot()
++    next(first)
++    try:
++        second = pdf_slot()
++        with pytest.raises(HTTPException) as problem:
++            next(second)
++        assert problem.value.status_code == 503
++    finally:
++        first.close()
++    resumed = pdf_slot()
++    next(resumed)
++    resumed.close()
++
++
++def test_smtp_timeout_bounds_the_entire_send(monkeypatch):
++    import asyncio
++    import time
++    from app import email_service
++    async def hanging_send(*args, **kwargs):
++        await asyncio.sleep(30)
++    monkeypatch.setattr(email_service.aiosmtplib, "send", hanging_send)
++    monkeypatch.setattr(email_service.settings, "SMTP_TIMEOUT_S", 1)
++    started = time.monotonic()
++    assert asyncio.run(email_service._send("synthetic@example.invalid", "Synthetic", "Synthetic", "<p>Synthetic</p>")) is False
++    assert time.monotonic() - started < 3
+diff --git a/docker-compose.yml b/docker-compose.yml
+new file mode 100644
+index 0000000..0fd1b60
+--- /dev/null
++++ b/docker-compose.yml
+@@ -0,0 +1,45 @@
++services:
++  app:
++    build: {context: ., target: final}
++    image: schulhelfer:0.1.0-dev
++    user: "10001:10001"
++    init: true
++    stop_grace_period: 130s
++    read_only: true
++    cap_drop: [ALL]
++    security_opt: [no-new-privileges:true]
++    tmpfs: ["/tmp:size=64m,mode=1777"]
++    mem_limit: 384m
++    cpus: 1.0
++    pids_limit: 128
++    environment:
++      SECRET_KEY_FILE: /run/secrets/session-key
++      BASE_URL: ${BASE_URL:-http://localhost:8000}
++      DATABASE_URL: sqlite:////app/data/app.db
++      PROXY_IPS: ${PROXY_IPS:-}
++      SMTP_HOST: ${SMTP_HOST:-mailpit}
++      SMTP_PORT: ${SMTP_PORT:-1025}
++      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
++      SMTP_USE_TLS: ${SMTP_USE_TLS:-false}
++      SMTP_FROM: ${SMTP_FROM:-Helfer <noreply@example.invalid>}
++      SMTP_USER: ${SMTP_USER:-}
++      SMTP_PASS_FILE: ${SMTP_PASS_FILE:-}
++      SMTP_TIMEOUT_S: ${SMTP_TIMEOUT_S:-5}
++      SMTP_SEND_DELAY_MS: ${SMTP_SEND_DELAY_MS:-400}
++      TIMEZONE: ${TIMEZONE:-Europe/Berlin}
++      ORGANISATION: ${ORGANISATION:-Das Organisationsteam}
++      PRIVACY_NOTICE_URL: ${PRIVACY_NOTICE_URL:-/datenschutz}
++    volumes:
++      - data:/app/data
++      - ${SCHULHELFER_SECRET_FILE:?private session key file required}:/run/secrets/session-key:ro
++    ports: ["127.0.0.1:${SCHULHELFER_PORT:-8007}:8000"]
++    healthcheck:
++      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"]
++      interval: 5s
++      timeout: 3s
++      retries: 6
++    logging:
++      driver: json-file
++      options: {max-size: 10m, max-file: "3"}
++volumes:
++  data:
+diff --git a/migrations/env.py b/migrations/env.py
+index 11f73d3..38f1256 100644
+--- a/migrations/env.py
++++ b/migrations/env.py
+@@ -32,6 +32,12 @@ def run_migrations_offline():
+ 
+ 
+ def run_migrations_online():
++    existing = config.attributes.get("connection")
++    if existing is not None:
++        context.configure(connection=existing, target_metadata=target_metadata, transactional_ddl=True)
++        with context.begin_transaction():
++            context.run_migrations()
++        return
+     cfg = config.get_section(config.config_ini_section, {})
+     cfg["sqlalchemy.url"] = settings.DATABASE_URL
+ 
+diff --git a/prepare_secret.py b/prepare_secret.py
+new file mode 100644
+index 0000000..8310b88
+--- /dev/null
++++ b/prepare_secret.py
+@@ -0,0 +1,33 @@
++"""Create a standalone secret projection without printing it or replacing a key."""
++import argparse
++import os
++from pathlib import Path
++import secrets
++import stat
++
++def prepare(directory):
++    directory = Path(directory)
++    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
++    info = directory.lstat()
++    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o777 != 0o700:
++        raise ValueError("Secret directory must be private (0700) and owned by this user")
++    path = directory / "session-key"
++    try:
++        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o444)
++    except FileExistsError:
++        if path.is_symlink() or not path.is_file() or len(path.read_text().strip()) < 32:
++            raise ValueError("Invalid existing key; refusing replacement")
++    else:
++        os.fchmod(descriptor, 0o444)
++        with os.fdopen(descriptor, "w") as stream:
++            stream.write(secrets.token_urlsafe(48))
++            stream.flush()
++            os.fsync(stream.fileno())
++    return path
++
++if __name__ == "__main__":
++    parser = argparse.ArgumentParser()
++    parser.add_argument("directory")
++    args = parser.parse_args()
++    prepare(args.directory)
++    print("Private Session-Schlüsseldatei bereit; kein Schlüsselwert ausgegeben.")
+diff --git a/requirements-test.lock b/requirements-test.lock
+new file mode 100644
+index 0000000..05612ad
+--- /dev/null
++++ b/requirements-test.lock
+@@ -0,0 +1,49 @@
++# Resolved under Python 3.12.12, linux/amd64; wheel hashes.
++aiosmtplib==5.1.3 --hash=sha256:f7d76ce3d4995a65a178c1f11e1bd1607706b921d00cb768e7a2c7f7ef5517a8
++alembic==1.20.1 --hash=sha256:9970712cfb81ea26c8658d378aaa5b8f6ff9146e5bb111d70497c164016cf598
++annotated-doc==0.0.5 --hash=sha256:117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101
++annotated-types==0.8.0 --hash=sha256:f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0
++anyio==4.16.0 --hash=sha256:c66ae634e0b8228396b801741beb3294326d4b6102f7bba4041c0dfb58c29026
++APScheduler==3.11.3 --hash=sha256:bbeb2ec02d23d3c06a6c07ed7f0f3939ada6680eb121fae809a69bb42c537a30
++argon2-cffi==25.1.0 --hash=sha256:fdc8b074db390fccb6eb4a3604ae7231f219aa669a2652e0f20e16ba513d5741
++argon2-cffi-bindings==26.1.0 --hash=sha256:27f1821903e2ceadcb88ec2b45ef190897b7682449c772f4d9b53e42c520cf29
++certifi==2026.10.23 --hash=sha256:e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1
++cffi==2.1.1 --hash=sha256:c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf
++charset-normalizer==3.5.2 --hash=sha256:3d31298449090ab8d47b7b1b2a555ff73cac7ed438a08b7ac160980c7ebed649
++click==8.5.0 --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
++dnspython==2.9.1 --hash=sha256:7c81caf8de1ed57b8cfc7e0ad4f528a0b8ceace473c7eb946df195dc9def751f
++email-validator==2.3.0 --hash=sha256:80f13f623413e6b197ae73bb10bf4eb0908faf509ad8362c5edeb0be7fd450b4
++fastapi==0.162.0 --hash=sha256:3785963de305dd09912426cb81f2d230fce98ab3521cdfe97265c8d14983128c
++h11==0.16.0 --hash=sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86
++httpcore==1.0.9 --hash=sha256:2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55
++httptools==0.9.0 --hash=sha256:3e3201fe4d46e0d15d7ff9fafc94a605da9eb82d2c5b9837f0368acb325481f1
++httpx==0.28.1 --hash=sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad
++idna==3.20 --hash=sha256:ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c
++iniconfig==2.3.1 --hash=sha256:9121e2c1fdb355232495be3194c8dfe87ccc2d5dee45947b78e68f499790d7a7
++itsdangerous==2.2.0 --hash=sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef
++Jinja2==3.1.6 --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
++Mako==1.4.3 --hash=sha256:723296007c870bfd6b3f0c3230dba7198096e5269297ebf5e4eff9e7ffa39d4f
++MarkupSafe==3.0.4 --hash=sha256:8e124f974786f831d6043728e38296969d3579db8896fe004682f5758e613581
++opentelemetry-api==1.45.2 --hash=sha256:2cbd737377e710ee740d261c94e93fa0f08e6d037c18f17513cc0a2d94479a34
++packaging==26.3 --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
++pillow==13.0.0 --hash=sha256:42d63be3af4f9b951b199b0a9d23365d37ab14687e6d77b74940432c8515c4ca
++pluggy==1.7.0 --hash=sha256:7dd7b0d8832ba3cb632c306926ded123429211b83641b35dc5c41ad2d34f9bec
++pycparser==3.12 --hash=sha256:a076f3f489b39b43ed13563a1dafe42447445bec2e294154ec5c57fcdda4c85e
++pydantic==2.14.2 --hash=sha256:7efbf7507b937931cd32a5755acb00ea1cf5ccb1d4e8067a5850d5069e382118
++pydantic-settings==2.16.2 --hash=sha256:8d523e5c129b097686bde019bd6109bff53f4c8c3f63f1ddf9933ffa42e5ab4f
++pydantic_core==2.50.2 --hash=sha256:9667637665acba166a7dbbc786f14c50512d3a01f7199e0e1a13b929e92d7c7a
++Pygments==2.21.0 --hash=sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
++pytest==8.4.2 --hash=sha256:872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79
++python-dotenv==1.2.4 --hash=sha256:42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc
++python-multipart==0.0.33 --hash=sha256:8f16c07b36add9da6b2ee87d3efcaf0a45a6de9c3d0a5dd94e9ccf7675a7bc45
++PyYAML==6.0.3 --hash=sha256:ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc
++reportlab==5.1.0 --hash=sha256:59fdbaec5efe437095ad1d7292ec9a271c8ca2d3ec75e889c6e61400929b90df
++SQLAlchemy==2.1.6 --hash=sha256:d5e4b4dcf85d7f289def0e3167f15aaad101b7744a065fb2019476edf306712c
++starlette==1.10.0 --hash=sha256:478c0ab3b4ced6e82719849c118fa406f0278a3499c1a898cd15cd31bdc38ce4
++typing-inspection==0.4.4 --hash=sha256:65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147
++typing_extensions==4.16.0 --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
++tzlocal==5.4.5 --hash=sha256:ecab534f6d65d9deb4c4ea52c121ab6dd5958e9b878e71dcb102578269752454
++uvicorn==0.54.0 --hash=sha256:505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf
++uvloop==0.23.0 --hash=sha256:090865d8ce7a03986755a3ce711b7dd0d4b44eb14ab74368b717f3fad1180208
++watchfiles==1.3.0 --hash=sha256:b5768b49e426fd5b550b012c866db347cdf15c398ef98dc557b6e6b72fa74cd1
++websockets==17.4 --hash=sha256:9ae1429ee9e52b139167ed0169757806a27ed7307e942e8c62037a9184e9843b
+diff --git a/requirements.lock b/requirements.lock
+new file mode 100644
+index 0000000..3f8fcf6
+--- /dev/null
++++ b/requirements.lock
+@@ -0,0 +1,41 @@
++# Resolved under Python 3.12.12, linux/amd64; wheel hashes.
++aiosmtplib==5.1.3 --hash=sha256:f7d76ce3d4995a65a178c1f11e1bd1607706b921d00cb768e7a2c7f7ef5517a8
++alembic==1.20.1 --hash=sha256:9970712cfb81ea26c8658d378aaa5b8f6ff9146e5bb111d70497c164016cf598
++annotated-doc==0.0.5 --hash=sha256:117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101
++annotated-types==0.8.0 --hash=sha256:f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0
++anyio==4.16.0 --hash=sha256:c66ae634e0b8228396b801741beb3294326d4b6102f7bba4041c0dfb58c29026
++APScheduler==3.11.3 --hash=sha256:bbeb2ec02d23d3c06a6c07ed7f0f3939ada6680eb121fae809a69bb42c537a30
++argon2-cffi==25.1.0 --hash=sha256:fdc8b074db390fccb6eb4a3604ae7231f219aa669a2652e0f20e16ba513d5741
++argon2-cffi-bindings==26.1.0 --hash=sha256:27f1821903e2ceadcb88ec2b45ef190897b7682449c772f4d9b53e42c520cf29
++cffi==2.1.1 --hash=sha256:c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf
++charset-normalizer==3.5.2 --hash=sha256:3d31298449090ab8d47b7b1b2a555ff73cac7ed438a08b7ac160980c7ebed649
++click==8.5.0 --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
++dnspython==2.9.1 --hash=sha256:7c81caf8de1ed57b8cfc7e0ad4f528a0b8ceace473c7eb946df195dc9def751f
++email-validator==2.3.0 --hash=sha256:80f13f623413e6b197ae73bb10bf4eb0908faf509ad8362c5edeb0be7fd450b4
++fastapi==0.162.0 --hash=sha256:3785963de305dd09912426cb81f2d230fce98ab3521cdfe97265c8d14983128c
++h11==0.16.0 --hash=sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86
++httptools==0.9.0 --hash=sha256:3e3201fe4d46e0d15d7ff9fafc94a605da9eb82d2c5b9837f0368acb325481f1
++idna==3.20 --hash=sha256:ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c
++itsdangerous==2.2.0 --hash=sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef
++Jinja2==3.1.6 --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
++Mako==1.4.3 --hash=sha256:723296007c870bfd6b3f0c3230dba7198096e5269297ebf5e4eff9e7ffa39d4f
++MarkupSafe==3.0.4 --hash=sha256:8e124f974786f831d6043728e38296969d3579db8896fe004682f5758e613581
++opentelemetry-api==1.45.2 --hash=sha256:2cbd737377e710ee740d261c94e93fa0f08e6d037c18f17513cc0a2d94479a34
++pillow==13.0.0 --hash=sha256:42d63be3af4f9b951b199b0a9d23365d37ab14687e6d77b74940432c8515c4ca
++pycparser==3.12 --hash=sha256:a076f3f489b39b43ed13563a1dafe42447445bec2e294154ec5c57fcdda4c85e
++pydantic==2.14.2 --hash=sha256:7efbf7507b937931cd32a5755acb00ea1cf5ccb1d4e8067a5850d5069e382118
++pydantic-settings==2.16.2 --hash=sha256:8d523e5c129b097686bde019bd6109bff53f4c8c3f63f1ddf9933ffa42e5ab4f
++pydantic_core==2.50.2 --hash=sha256:9667637665acba166a7dbbc786f14c50512d3a01f7199e0e1a13b929e92d7c7a
++python-dotenv==1.2.4 --hash=sha256:42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc
++python-multipart==0.0.33 --hash=sha256:8f16c07b36add9da6b2ee87d3efcaf0a45a6de9c3d0a5dd94e9ccf7675a7bc45
++PyYAML==6.0.3 --hash=sha256:ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc
++reportlab==5.1.0 --hash=sha256:59fdbaec5efe437095ad1d7292ec9a271c8ca2d3ec75e889c6e61400929b90df
++SQLAlchemy==2.1.6 --hash=sha256:d5e4b4dcf85d7f289def0e3167f15aaad101b7744a065fb2019476edf306712c
++starlette==1.10.0 --hash=sha256:478c0ab3b4ced6e82719849c118fa406f0278a3499c1a898cd15cd31bdc38ce4
++typing-inspection==0.4.4 --hash=sha256:65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147
++typing_extensions==4.16.0 --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
++tzlocal==5.4.5 --hash=sha256:ecab534f6d65d9deb4c4ea52c121ab6dd5958e9b878e71dcb102578269752454
++uvicorn==0.54.0 --hash=sha256:505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf
++uvloop==0.23.0 --hash=sha256:090865d8ce7a03986755a3ce711b7dd0d4b44eb14ab74368b717f3fad1180208
++watchfiles==1.3.0 --hash=sha256:b5768b49e426fd5b550b012c866db347cdf15c398ef98dc557b6e6b72fa74cd1
++websockets==17.4 --hash=sha256:9ae1429ee9e52b139167ed0169757806a27ed7307e942e8c62037a9184e9843b
+diff --git a/requirements.txt b/requirements.txt
+index b71c079..e9bbbba 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -2,10 +2,10 @@ fastapi>=0.110.0
+ uvicorn[standard]>=0.27.0
+ jinja2>=3.1.3
+ python-multipart>=0.0.9
+-sqlalchemy>=2.0.28
++sqlalchemy>=2.0.28,<3
+ alembic>=1.13.1
+ argon2-cffi>=23.1.0
+-apscheduler>=3.10.4
++apscheduler>=3.10.4,<4
+ aiosmtplib>=3.0.1
+ python-dotenv>=1.0.1
+ pydantic-settings>=2.2.1
+diff --git a/schulfest-helfer.service b/schulfest-helfer.service
+index ea8572d..94ef6c4 100644
+--- a/schulfest-helfer.service
++++ b/schulfest-helfer.service
+@@ -7,7 +7,7 @@ Type=simple
+ User=schulfest
+ WorkingDirectory=/opt/schulfest
+ EnvironmentFile=/opt/schulfest/.env
+-ExecStart=/opt/schulfest/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8007 --proxy-headers --forwarded-allow-ips=127.0.0.1
++ExecStart=/opt/schulfest/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8007 --workers 1 --no-access-log --proxy-headers --forwarded-allow-ips=127.0.0.1
+ Restart=on-failure
+ RestartSec=5
+ 
+diff --git a/seed.py b/seed.py
+index bac62b1..4520b6a 100644
+--- a/seed.py
++++ b/seed.py
+@@ -1,5 +1,6 @@
+ """Seed-Skript: Demo-Daten anlegen (Admin, Klassen, Demo-Event)."""
+ import argparse
++import getpass
+ import sys
+ from datetime import datetime, timedelta, date
+ 
+@@ -92,15 +93,18 @@ def seed_demo(db):
+ 
+ def main():
+     parser = argparse.ArgumentParser(description="Schulfest-Helfer Seed-Skript")
+-    parser.add_argument("--admin-user", default="admin", help="Admin-Benutzername")
+-    parser.add_argument("--admin-pass", default="admin123", help="Admin-Passwort")
++    parser.add_argument("--admin-user", required=True, help="Persönlicher Admin-Benutzername")
+     parser.add_argument("--demo", action="store_true", help="Demo-Daten anlegen")
+     args = parser.parse_args()
+ 
++    with open("/dev/tty", "r+") as terminal:
++        password = getpass.getpass("Persönliches Passwort (mindestens 12 Zeichen): ", stream=terminal)
++    if len(password) < 12:
++        raise SystemExit("Passwort zu kurz")
+     init_db()
+     db = SessionLocal()
+     try:
+-        create_admin(db, args.admin_user, args.admin_pass)
++        create_admin(db, args.admin_user, password)
+         if args.demo:
+             seed_demo(db)
+     finally:
+diff --git a/tests/conftest.py b/tests/conftest.py
+index 9079df5..3e854bb 100644
+--- a/tests/conftest.py
++++ b/tests/conftest.py
+@@ -11,7 +11,9 @@ from app.main import app
+ from app.models import AdminUser, Event, Klasse, Shift, Station
+ from app.security import hash_password, generate_token, hash_token
+ 
+-TEST_DB_URL = "sqlite:///./data/test.db"
++import os
++TEST_DB_URL = os.environ.get("TEST_DATABASE_URL", "sqlite:///./data/test.db")
++os.makedirs(os.path.dirname(TEST_DB_URL.removeprefix("sqlite:///")) or ".", exist_ok=True)
+ 
+ engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
+ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+@@ -31,6 +33,9 @@ app.dependency_overrides[get_db] = override_get_db
+ # app.database – die muss ebenfalls auf die Test-Datenbank zeigen.
+ import app.database as _database
+ _database.SessionLocal = TestingSessionLocal
++_database.engine = engine
++_settings_config = __import__("app.config", fromlist=["settings"]).settings
++_settings_config.DATABASE_URL = TEST_DB_URL
+ 
+ # Kein echter Mailversand in Tests: Zustellung schlägt sofort fehl und wird
+ # – wie im Betrieb – als Fehlschlag im email_log protokolliert.
+@@ -45,6 +50,12 @@ _settings.SMTP_SEND_DELAY_MS = 0
+ def setup_db():
+     Base.metadata.drop_all(bind=engine)
+     Base.metadata.create_all(bind=engine)
++    from app.platform import HEAD, SCHEMA
++    with engine.begin() as connection:
++        connection.exec_driver_sql("CREATE TABLE IF NOT EXISTS alembic_version(version_num VARCHAR(32) PRIMARY KEY)")
++        connection.exec_driver_sql("DELETE FROM alembic_version")
++        connection.exec_driver_sql("INSERT INTO alembic_version VALUES (?)", (HEAD,))
++        connection.exec_driver_sql("PRAGMA user_version=" + str(SCHEMA))
+     db = TestingSessionLocal()
+ 
+     # Admin
+-- 
+2.43.0
+
+
+From 721563454b9362f15ddca1e1ae4a810d865161a4 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Mon, 2 Nov 2026 21:23:19 +0100
+Subject: [PATCH 2/2] Add isolated standalone runtime, explicit migrations and
+ private local setup
+
+---
+ PLATFORM.md                     |  6 +++++-
+ app/scheduler.py                |  3 ++-
+ contract_tests/test_contract.py | 32 ++++++++++++++++++++++++++++++++
+ 3 files changed, 39 insertions(+), 2 deletions(-)
+
+diff --git a/PLATFORM.md b/PLATFORM.md
+index 98e02b7..6096204 100644
+--- a/PLATFORM.md
++++ b/PLATFORM.md
+@@ -97,7 +97,7 @@ Starlette-Cookiesitzung: keine zentrale Sperrung, keine zentrale Logout-Revokati
+ 
+ ## Lokal geprüfte Abnahme
+ 
+-52 bestehende Fachtests und acht Vertragsprüfungen im gepinnten Runtimeumfeld.
++52 bestehende Fachtests und neun Vertragsprüfungen im gepinnten Runtimeumfeld.
+ Standalone-HTTP, öffentliche Elternlinks, lokale Adminanmeldung, CSRF-Negativzugriff,
+ PDF, Mail-Sink, SMTP-Ausfall, acht gleichzeitige Buchungen auf genau einen Platz,
+ Neustart und Restore in ein leeres Volume wurden mit synthetischen Daten geprüft.
+@@ -107,3 +107,7 @@ automatischer Domainrückfall, zwei No-op-Läufe und Stop/Start ohne Migration.
+ Keine öffentliche DNS-/ACME-Prüfung, kein ARM64-Nachweis, keine globale
+ Last-/Dauermessung, keine vollständige Retention-/Massenversandabnahme.
+ Lizenzfreigabe, SBOM und veröffentlichter Registrydigest stehen aus.
++
++Der Retentionjob entfernt abhängige Mailprotokolle vor den Teilnehmern. Ein
++Regressionstest prüft Fremdschlüssel und wiederholte Bereinigung; ein echter
++24-Stunden-Zeitversuch wurde nicht ausgeführt.
+diff --git a/app/scheduler.py b/app/scheduler.py
+index 10baf05..ebbb29b 100644
+--- a/app/scheduler.py
++++ b/app/scheduler.py
+@@ -6,7 +6,7 @@ from sqlalchemy import delete, select
+ 
+ from app.database import session_factory
+ from app.platform import data_lock, schema_ready
+-from app.models import Booking, Donation, Event, Participant
++from app.models import Booking, Donation, EmailLog, Event, Participant
+ from app.timeutil import now_local
+ 
+ log = logging.getLogger(__name__)
+@@ -32,6 +32,7 @@ def _run_retention_cleanup():
+                     select(Participant.id).where(Participant.event_id == event.id)
+                 ).scalars().all()
+                 if participant_ids:
++                    db.execute(delete(EmailLog).where(EmailLog.participant_id.in_(participant_ids)))
+                     db.execute(delete(Booking).where(Booking.participant_id.in_(participant_ids)))
+                     db.execute(delete(Donation).where(Donation.participant_id.in_(participant_ids)))
+                     db.execute(delete(Participant).where(Participant.event_id == event.id))
+diff --git a/contract_tests/test_contract.py b/contract_tests/test_contract.py
+index 904655d..a848d6a 100644
+--- a/contract_tests/test_contract.py
++++ b/contract_tests/test_contract.py
+@@ -124,3 +124,35 @@ def test_smtp_timeout_bounds_the_entire_send(monkeypatch):
+     started = time.monotonic()
+     assert asyncio.run(email_service._send("synthetic@example.invalid", "Synthetic", "Synthetic", "<p>Synthetic</p>")) is False
+     assert time.monotonic() - started < 3
++
++
++def test_retention_removes_dependent_mail_logs_before_participants(tmp_path):
++    path = tmp_path / "retention.db"
++    source = """from datetime import date,datetime
++from app.migrate import migrate
++migrate()
++from app.database import SessionLocal
++from app.models import Klasse,Event,Station,Shift,Participant,Booking,Donation,EmailLog
++from app.scheduler import _run_retention_cleanup
++from sqlalchemy import select,func
++with SessionLocal() as db:
++    klasse=Klasse(label='Synthetic',school_year='2000/01',active=True)
++    event=Event(name='Synthetic expired event',event_date=date(2000,1,1),status='archived',retention_weeks=1)
++    db.add_all([klasse,event]);db.flush()
++    station=Station(event_id=event.id,type='helper',name='Synthetic',sort_order=0)
++    db.add(station);db.flush()
++    shift=Shift(station_id=station.id,start_time=datetime(2000,1,1,10),duration_min=60,required_count=1,sort_order=0)
++    participant=Participant(event_id=event.id,klasse_id=klasse.id,name='Synthetic',email='synthetic@example.invalid',token_hash='synthetic-hash',token='synthetic-capability')
++    db.add_all([shift,participant]);db.flush()
++    db.add_all([Booking(participant_id=participant.id,shift_id=shift.id),Donation(participant_id=participant.id,station_id=station.id,item_text='Synthetic',quantity=1),EmailLog(participant_id=participant.id,kind='access_link',success=True)])
++    db.commit()
++_run_retention_cleanup()
++_run_retention_cleanup()
++with SessionLocal() as db:
++    for model in [Participant,Booking,Donation,EmailLog]:
++        assert db.execute(select(func.count()).select_from(model)).scalar_one()==0
++    assert db.execute(select(func.count()).select_from(Event)).scalar_one()==1
++    assert db.execute(select(func.count()).select_from(Klasse)).scalar_one()==1
++"""
++    result = call(source, path)
++    assert result.returncode == 0, result.stderr
+-- 
+2.43.0
+

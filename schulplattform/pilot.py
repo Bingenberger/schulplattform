@@ -28,12 +28,14 @@ INFRASTRUCTURE = {
 }
 
 
-APP_PORTS = {"gswb": 8000, "schulwissen": 8000, "zackboing": 3000}
-DEFAULT_DOMAINS = {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost", "zackboing": "quiz.localhost"}
+APP_PORTS = {"gswb": 8000, "schulwissen": 8000, "zackboing": 3000, "schulhelfer": 8000}
+DEFAULT_DOMAINS = {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost", "zackboing": "quiz.localhost", "schulhelfer": "helfer.localhost"}
+APP_SELECTIONS = (("gswb", "schulwissen"), ("gswb", "schulwissen", "zackboing"),
+                  ("gswb", "schulwissen", "zackboing", "schulhelfer"))
 
 class Pilot:
     def __init__(self, directory, apps=None):
-        if apps is not None and tuple(apps) not in (("gswb", "schulwissen"), ("gswb", "schulwissen", "zackboing")):
+        if apps is not None and tuple(apps) not in APP_SELECTIONS:
             raise ValueError("Unsupported app selection")
         self.directory = Path(directory).resolve()
         work = (ROOT / ".work").resolve()
@@ -64,7 +66,7 @@ class Pilot:
                 type(self.config["port"]) is not int or not 1024 <= self.config["port"] <= 65535):
             raise ValueError("Invalid pilot configuration")
         self.apps = tuple(self.config.get("apps", ("gswb", "schulwissen")))
-        if self.apps not in (("gswb", "schulwissen"), ("gswb", "schulwissen", "zackboing")):
+        if self.apps not in APP_SELECTIONS:
             raise ValueError("Unsupported app selection")
         if apps is not None and tuple(apps) != self.apps:
             raise StateError("App selection changed; use a new pilot directory or an explicit upgrade")
@@ -73,6 +75,7 @@ class Pilot:
             "POSTGRES_PASSWORD": "unused-overridden-by-secret-file",
             "GSWB_SECRET_FILE": str(self.directory / "runtime/gswb-key"),
             "GSWB_EDITOR_HASH_FILE": str(self.directory / "runtime/gswb-editor"),
+            "SCHULHELFER_SECRET_FILE": str(self.directory / "runtime/helfer-key"),
         }
         self.log = self.directory / "operations.jsonl"
 
@@ -107,6 +110,8 @@ class Pilot:
         runtime.mkdir(mode=0o700, exist_ok=True)
         values = {name: store.get_or_create(name) for name in
                   ["gswb-key", "wissen-key", "postgres-admin", "postgres-app"]}
+        if "schulhelfer" in self.apps:
+            values["helfer-key"] = store.get_or_create("helfer-key")
         values["gswb-editor"] = ""  # editor remains closed until separately provisioned
         values["wissen-db"] = "postgresql://schulwissen:" + values["postgres-app"] + "@db:5432/schulwissen"
         for name, value in values.items():
@@ -149,6 +154,10 @@ class Pilot:
         if "zackboing" in self.apps:
             infrastructure["services"]["proxy"]["networks"].append("zack-proxy")
             infrastructure["networks"]["zack-proxy"] = {"internal": True}
+        if "schulhelfer" in self.apps:
+            infrastructure["services"]["proxy"]["networks"].append("helfer-proxy")
+            infrastructure["services"]["mailpit"]["networks"]["helfer-proxy"] = {"aliases": ["mailpit"]}
+            infrastructure["networks"]["helfer-proxy"] = {"internal": True}
         for service in infrastructure["services"].values():
             service["logging"] = {"driver": "json-file", "options": {"max-size": "10m", "max-file": "3"}}
         (self.directory / "infra.json").write_text(json.dumps(infrastructure, indent=2))
@@ -186,6 +195,28 @@ networks:
   proxy:
     external: true
     name: {net}_zack-proxy
+""")
+        if "schulhelfer" in self.apps:
+            (self.directory / "schulhelfer.yml").write_text(f"""
+services:
+  app:
+    image: schulhelfer:0.1.0-dev
+    ports: !reset []
+    environment:
+      BASE_URL: https://helfer.localhost:{port}
+      PROXY_IPS: 127.0.0.1
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_STARTTLS: "false"
+      SMTP_USE_TLS: "false"
+    networks:
+      default: {{}}
+      proxy:
+        aliases: [schulhelfer]
+networks:
+  proxy:
+    external: true
+    name: {net}_helfer-proxy
 """)
         # No administrative database credential is passed to the application.
         (self.directory / "init-postgres.sh").write_text("""#!/bin/sh
@@ -292,6 +323,14 @@ networks:
                      for line in path.read_text().splitlines()]
             path.write_text("\n".join(lines) + "\n")
 
+        if "schulhelfer" in self.apps:
+            address = proxy["NetworkSettings"]["Networks"][self.project + "-infra_helfer-proxy"]["IPAddress"]
+            ipaddress.ip_address(address)
+            path = self.directory / "schulhelfer.yml"
+            lines = [("      PROXY_IPS: " + address) if line.startswith("      PROXY_IPS:") else line
+                     for line in path.read_text().splitlines()]
+            path.write_text("\n".join(lines) + "\n")
+
     def bootstrap(self, identity):
         self.configure_proxy()
         # Schema jobs only. No administrative or real user account is created.
@@ -299,10 +338,15 @@ networks:
         self.compose_command("schulwissen", "run", "--rm", "--no-deps", "app", "python", "manage.py", "platform_migrate")
         if "zackboing" in self.apps:
             self.compose_command("zackboing", "run", "--rm", "--no-deps", "app", "node", "server/migrate.js")
+        if "schulhelfer" in self.apps:
+            self.compose_command("schulhelfer", "run", "--rm", "--no-deps", "app", "python", "-m", "app.migrate")
         self.compose_command("gswb", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
         self.compose_command("schulwissen", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
         if "zackboing" in self.apps:
             self.compose_command("zackboing", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
+
+        if "schulhelfer" in self.apps:
+            self.compose_command("schulhelfer", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
 
     def ready(self, identity):
         try:
@@ -394,6 +438,11 @@ networks:
                 raise StateError("Anonymous quiz administration accepted")
             if self.request(domains["zackboing"], "/_platform/prepare-stop", "POST")[0] != 403:
                 raise StateError("Quiz private control reachable through proxy")
+        if "schulhelfer" in self.apps:
+            if self.request(domains["schulhelfer"], "/admin")[0] != 303:
+                raise StateError("Anonymous helper administration accepted")
+            if self.request(domains["schulhelfer"], "/")[0] != 200:
+                raise StateError("Public helper index unavailable")
         results["negative-access"] = True
         atomic_json(self.directory / "verified.json", {"installation": identity, "checks": results})
 

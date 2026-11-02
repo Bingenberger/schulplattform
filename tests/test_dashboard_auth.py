@@ -56,3 +56,15 @@ def test_existing_database_never_gets_replacement_keys(tmp_path):
     with pytest.raises(ValueError, match="recovery"):
         AdminStore(tmp_path / "admin")
     assert not store.secrets.path("totp-wrapping-key").exists()
+
+
+def test_schulhelfer_access_is_explicit_and_operations_are_audited(tmp_path):
+    store = AdminStore(tmp_path / "admin", initialize=True)
+    identity = store.create_admin("synthetic.operator", "synthetic-password-123", SEED)
+    assert "schulhelfer" not in store.access(identity)
+    store.confirm_access(identity, "schulhelfer")
+    assert store.access(identity) == {"schulhelfer"}
+    store.audit(identity, "stop", "schulhelfer", "completed")
+    with store.connect() as db:
+        assert tuple(db.execute("SELECT actor,action,app_id,outcome FROM audit").fetchone()) == (
+            identity, "stop", "schulhelfer", "completed")
