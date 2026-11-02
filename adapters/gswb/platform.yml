@@ -1,0 +1,13 @@
+# Compose >= 2.24.4. Apply on top of the standalone app Compose file.
+services:
+  app:
+    image: ${GSWB_IMAGE:?version and digest required by release validator}
+    ports: !reset []
+    networks:
+      default: {}
+      proxy:
+        aliases: [gswb]
+networks:
+  proxy:
+    external: true
+    name: schulplattform-gswb-proxy
