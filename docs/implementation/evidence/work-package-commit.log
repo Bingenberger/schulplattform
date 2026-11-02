@@ -1,0 +1,28 @@
+$ git diff --cached --check
+
+exit_code=0
+
+$ git commit -m Run two-app TLS pilot with resumable state, domain rollback and PostgreSQL restore checks
+[main 3216962] Run two-app TLS pilot with resumable state, domain rollback and PostgreSQL restore checks
+ 24 files changed, 2046 insertions(+), 24 deletions(-)
+ create mode 100644 adapters/schulwissen/platform.yml
+ create mode 100644 patches/schulwissen/changes.patch
+ create mode 100644 schulplattform/bundle.py
+ create mode 100644 schulplattform/domains.py
+ create mode 100644 schulplattform/pilot.py
+ create mode 100644 schulplattform/postgres.py
+ create mode 100644 schulplattform/secrets.py
+ create mode 100644 schulplattform/state.py
+ create mode 100644 scripts/build_schulwissen.py
+ create mode 100644 scripts/check_schulwissen_runtime.py
+ create mode 100644 scripts/pull_pilot_infrastructure.py
+ create mode 100644 scripts/verify_domain_pilot.py
+ create mode 100644 scripts/verify_pilot.py
+ create mode 100644 scripts/verify_pilot_lifecycle.py
+ create mode 100644 scripts/verify_pilot_restore.py
+ create mode 100644 scripts/verify_schulwissen_standalone.py
+ create mode 100644 tests/test_bundle.py
+ create mode 100644 tests/test_domains.py
+ create mode 100644 tests/test_state.py
+
+exit_code=0

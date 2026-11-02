@@ -1,0 +1,14 @@
+[
+  {
+    "reference": "caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5",
+    "architecture": "amd64"
+  },
+  {
+    "reference": "axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231",
+    "architecture": "amd64"
+  },
+  {
+    "reference": "postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab",
+    "architecture": "amd64"
+  }
+]

@@ -1,0 +1,13 @@
+$ docker run --rm -i --network none --read-only --tmpfs /tmp:size=64m,mode=1777 --memory 512m schulwissen:0.1.0-dev python -
+test_database_outage_is_not_ready (__main__.ContractTests.test_database_outage_is_not_ready) ... ok
+test_liveness_does_not_use_database (__main__.ContractTests.test_liveness_does_not_use_database) ... ok
+test_only_explicit_proxy_can_set_forwarded_metadata (__main__.ContractTests.test_only_explicit_proxy_can_set_forwarded_metadata) ... ok
+test_pdf_slot_rejects_concurrent_export_and_releases (__main__.ContractTests.test_pdf_slot_rejects_concurrent_export_and_releases) ... ok
+test_pending_migrations_are_not_ready (__main__.ContractTests.test_pending_migrations_are_not_ready) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.003s
+
+OK
+
+exit_code=0

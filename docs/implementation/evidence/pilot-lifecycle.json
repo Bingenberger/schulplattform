@@ -1,0 +1,10 @@
+{
+  "stopAndStart": true,
+  "stoppedUpFailsClosed": true,
+  "noRepeatedMigrationOrBootstrap": true,
+  "sameInstallationState": true,
+  "sameSecrets": true,
+  "sameMigrationCount": true,
+  "readyAfterStart": true,
+  "stoppedAfterTest": true
+}

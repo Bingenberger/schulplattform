@@ -1,0 +1,23 @@
+{
+  "scope": "local two-app pilot, not production acceptance",
+  "installation": "b332c43c-0c88-44ac-a43c-5724b46d34e6",
+  "secondRunNoop": true,
+  "tlsAndAccess": {
+    "gswb-private-backend": true,
+    "gswb-tls-ready": 200,
+    "negative-access": true,
+    "schulwissen-private-backend": true,
+    "schulwissen-tls-ready": 200
+  },
+  "databasePrivileges": {
+    "role": "schulwissen",
+    "superuser": false,
+    "createdb": false,
+    "createrole": false,
+    "postgresConnect": false
+  },
+  "mailSink": {
+    "sent": 1,
+    "newSinkMessages": 1
+  }
+}

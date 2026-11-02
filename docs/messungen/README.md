@@ -1,14 +1,24 @@
 # Tatsächlich erfasste Messdaten
 
-**Keine neue Last- oder Kapazitätsmessung des Plattformstacks.** Die früheren
-Auditmessungen werden nicht auf die jetzige Umsetzung übertragen.
+**Keine neue Last- oder Kapazitätsmessung des Plattformstacks.** Frühere
+Auditmessungen werden nicht auf die aktuelle Umsetzung übertragen.
 
-Lokaler amd64-gswb-Build: Docker meldet **190.572.022 Byte** Imagegröße
-(rund 181,74 MiB). Das ist die Docker-Imagemetadaten-Größe, kein tatsächlich belegter
-zusätzlicher Plattenplatz und kein RAM-Verbrauch. Basisimage Python 3.12.12
-slim-bookworm mit fixiertem Digest, pip-Installation aus Hash-Lockfile, zwei
-Gunicorn-Worker. [Rohdaten](../implementation/evidence/gswb-image.json),
-[Buildprotokoll](../implementation/evidence/gswb-build.log).
+Docker meldet für die lokal gebauten amd64-Images:
+
+| App | Imagegröße laut Docker |
+| --- | ---: |
+| gswb | 190.572.022 Byte |
+| schulwissen | 424.460.181 Byte |
+
+[gswb-Rohdaten](../implementation/evidence/gswb-image.json),
+[schulwissen-Rohdaten](../implementation/evidence/schulwissen-image.json).
+Beide verwenden das fixierte Python-3.12.12-Basisimage. gswb installiert aus einem
+Hash-Lockfile, schulwissen aus uv.lock. schulwissen enthält zusätzlich Pango und
+Schriften sowie komprimierte Produktions-Static-Dateien.
+
+Die Werte sind Docker-Imagemetadaten, kein zusätzlicher physischer Plattenverbrauch
+und kein RAM-Verbrauch. Gemeinsame Layer dürfen nicht mehrfach als belegte SSD-
+Kapazität addiert werden.
 
 Keine Leerlauf-/Spitzen-RAM-, CPU-, p50/p95/p99-, I/O- oder Queue-Messung vorgenommen.
 Kein 60-Minuten-Dauerlauf. Playwright-Imagegröße von abgen nicht gemessen.

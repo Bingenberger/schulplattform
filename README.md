@@ -1,15 +1,12 @@
 # Schulplattform – Umsetzung in Arbeit
 
-Dieses Repository enthält den Beginn der Umsetzung des
-[Auftrags](Coding_Agent_Umsetzungsauftrag_Schulplattform.md), **keine fertige oder
-produktionsreife Plattform**. Maßgeblich bleibt der
-[Umfangsbeschluss](docs/platform-audit/scope-decision.md).
+Die Plattform bündelt eigenständige Apps für einen selbst gehosteten Schulserver.
+Maßgeblich sind der [Auftrag](Coding_Agent_Umsetzungsauftrag_Schulplattform.md) und
+der [Umfangsbeschluss](docs/platform-audit/scope-decision.md).
 
-Aktuell vorhanden: Sicherheitsänderungen in vier isolierten App-Repositories,
-gswb-Standalone-Container mit expliziter Migration, Manifest-Schema und Validierung,
-explizite Caddy-Konfigurationserzeugung, SQLite-Snapshot/Restore und ein lesender
-Installer-Preflight. Stand und offene Abnahmen stehen im
-[Umsetzungsbericht](docs/implementation/status.md).
+**Aktuell ist ein lokaler Pilot mit schulwissen und gswb geprüft.** Die vollständige
+Installation auf leerem Ubuntu 24.04 und der Zehn-App-Stack sind noch offen.
+[Umsetzungsstand und Testnachweise](docs/implementation/status.md).
 
 ## Lokale Entwicklung
 
@@ -19,34 +16,59 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
 ```
 
-Die Appquellen liegen ausschließlich in ignorierten, eigenständigen Git-Repositories
-unter `.work/apps/`. Änderungen werden als Commits und übertragbare Patches unter
-`patches/` geliefert. Keine Appquellen werden zu einem Monorepo zusammengeführt.
-Auf einem frischen Checkout die Patches auf die jeweils in `patches/index.json`
-genannten Basiscommits mit `git am` anwenden, bevor die App-Integrationstests laufen.
-Der Checkouthelfer erhält bereits vorhandene Arbeitsstände und verweigert
-abweichende Commits; nach Patchanwendung nicht erneut als Resetwerkzeug verwenden.
+Die Appquellen liegen in ignorierten eigenständigen Git-Repositories unter
+`.work/apps/`. Die [Patchübersicht](patches/index.json) nennt Basis- und Ergebnis-
+commits. Auf einem frischen Checkout die zugehörigen Patches mit `git am`
+anwenden. Der Checkouthelfer erhält bestehende Änderungen und setzt abweichende
+Commits nicht zurück.
 
 ```sh
 .venv/bin/python -m pytest -q tests
-sh install.sh preflight
+./install.sh preflight
 ```
 
-Der Preflight verändert keine Hostdienste. Vorhandenes Docker/nginx erfordert einen
-gesonderten Übernahmeplan. `plan --bundle VERZEICHNIS` prüft ausschließlich Manifeste
-und Nachweisdateien. **`apply` ist noch nicht implementiert und bricht ab.** Es gibt
-kein freigegebenes Releasebundle und kein Ein-Kommando-Deployment aller zehn Apps.
+Der Preflight erfasst den Host lesend. Vorhandenes Docker, Proxy- oder
+Datenbankdienste erfordern einen ausdrücklichen Übernahmeplan.
+
+## Zweierpilot
+
+Nach den [Vorbereitungsschritten](docs/implementation/pilot.md):
+
+```sh
+./install.sh pilot-up --state-dir .work/pilot-v2
+./install.sh pilot-status --state-dir .work/pilot-v2
+./install.sh pilot-stop --state-dir .work/pilot-v2
+./install.sh pilot-start --state-dir .work/pilot-v2
+```
+
+Der Pilot verwendet die eigenständigen Compose-Dateien mit ergänzenden Overrides,
+eigene Testvolumes, getrennte Appnetze, Caddy-TLS und Mailpit. Nur der Proxy ist am
+Host-Loopback erreichbar. Keine DNSänderung oder globale CA-Installation.
+Wiederholte Installation ist ohne Versionswechsel ein No-op; gestoppte Apps
+werden über den gesonderten Startbefehl aktiviert.
+
+## Releaseprüfung
+
+```sh
+./install.sh plan --bundle /pfad/zum/bundle --trusted-key /separat/provisionierter/release-key.pem
+```
+
+Der Schlüssel muss unabhängig vom Bundle bereitgestellt sein. Die CLI prüft
+Ed25519-Signatur, signiertes Dateiinventar, Hashes, Manifest-Schema, Image-Digests
+und Abnahmenachweise. Ohne gültige Signatur gibt es keinen gültigen Plan.
+Es existiert noch kein freigegebenes Releasebundle. `apply` bleibt bis zur
+vollständigen Host-Provisionierung gesperrt.
 
 ## Betriebsgrenzen
 
-Keine Produktivänderung, DNS-Änderung oder echten E-Mails. Kein externer SMTP-Upstream.
-Kein Keycloak. Keine zentrale Benutzersperrung oder zentraler Logout. Lokale Logins
-bleiben erhalten; gswb-Redaktion erhält vorerst eine lokale abgesicherte Anmeldung.
+Die lokalen Prüfungen belegen Standalone-Starts, privaten Backendzugang, TLS,
+Negativzugriffe, Mail in den Sink, Domainwechsel mit Rückfall und einen synthetischen
+PostgreSQL-Restore. Sie ersetzen keine vollständige Produktionsabnahme.
 
-SQLite-Snapshots sind nur ein getesteter Baustein. Verschlüsseltes Offsitebackup,
-PostgreSQL-/Datei-Konsistenz, Secret-/Schlüsselrestore und die vollständige leere
-Wiederherstellung sind noch nicht umgesetzt. Keine RPO-/RTO-Zusage.
+Verschlüsseltes Offsitebackup, konsistente gemeinsame DB-/Datei-/Schlüsselsicherung,
+Dashboard, die weiteren acht Appintegrationen und Zielservermessungen sind offen.
+RPO/RTO und die geschätzten 16 GB RAM/4 vCPU sind noch nicht bestätigt.
 
-Docker-Testvolumes bleiben erhalten. Zum Stoppen niemals `compose down -v` verwenden.
-App-Images werden noch nicht veröffentlicht. Der lokale gswb-Entwicklungstag ist
-kein freigegebenes Registry-Image mit Distribution-Digest.
+Kein Keycloak, keine zentrale Benutzersperrung und kein zentraler Logout.
+Lokale Appanmeldungen bleiben erhalten. Testvolumes werden bei Stop behalten.
+Kein externer SMTP-Upstream; keine Produktiv- oder DNSumstellung.

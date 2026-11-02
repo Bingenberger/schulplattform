@@ -1,0 +1,57 @@
+$ docker build --platform linux/amd64 -t schulwissen:0.1.0-dev .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  39.37MB
+Step 1/14 : FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c
+ ---> 9cb180cb36bd
+Step 2/14 : ENV PYTHONUNBUFFERED=1     PYTHONDONTWRITEBYTECODE=1     PIP_DISABLE_PIP_VERSION_CHECK=1     UV_PROJECT_ENVIRONMENT=/usr/local     UV_COMPILE_BYTECODE=1
+ ---> Using cache
+ ---> 7940d15b0407
+Step 3/14 : RUN apt-get update && apt-get install -y --no-install-recommends     libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core     && rm -rf /var/lib/apt/lists/*
+ ---> Using cache
+ ---> d9d80d4ead4e
+Step 4/14 : RUN pip install --no-cache-dir uv==0.9.7
+ ---> Using cache
+ ---> 19430362b7ac
+Step 5/14 : WORKDIR /app
+ ---> Using cache
+ ---> 57e782c02c0e
+Step 6/14 : COPY pyproject.toml uv.lock ./
+ ---> Using cache
+ ---> 25530e39cbf6
+Step 7/14 : ARG MIT_DEV=false
+ ---> Using cache
+ ---> eeecfeb4d163
+Step 8/14 : RUN if [ "$MIT_DEV" = "true" ]; then         uv sync --frozen --no-install-project;     else         uv sync --frozen --no-dev --no-install-project;     fi
+ ---> Using cache
+ ---> d38487da91ca
+Step 9/14 : COPY . .
+ ---> c13f3e382557
+Step 10/14 : RUN SW_DEBUG=false SW_ALLOWED_HOSTS=localhost SW_SECRET_KEY=bauen SW_DATABASE_URL=postgresql://x:x@127.0.0.1:5432/x     python manage.py collectstatic --noinput --clear
+ ---> Running in b7d31fd1729c
+
+147 static files copied to '/app/statisch', 735 post-processed.
+ ---> Removed intermediate container b7d31fd1729c
+ ---> 4457a8deeb9b
+Step 11/14 : RUN useradd --create-home --uid 10001 schulwissen     && mkdir -p /medien && chown schulwissen /medien
+ ---> Running in 47fa30c355f2
+ ---> Removed intermediate container 47fa30c355f2
+ ---> 168906f53bc1
+Step 12/14 : USER schulwissen
+ ---> Running in 863ec05b4232
+ ---> Removed intermediate container 863ec05b4232
+ ---> d0d85b8d9f59
+Step 13/14 : EXPOSE 8000
+ ---> Running in 4a873bff04bc
+ ---> Removed intermediate container 4a873bff04bc
+ ---> 7997b97421d9
+Step 14/14 : CMD ["/app/docker/start.sh"]
+ ---> Running in 74b94aab36d8
+ ---> Removed intermediate container 74b94aab36d8
+ ---> 007e089c2537
+Successfully built 007e089c2537
+Successfully tagged schulwissen:0.1.0-dev
+
+exit_code=0

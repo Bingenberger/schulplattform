@@ -1,2 +1,5 @@
 # Email patches contain intentional context-line spaces and signature separators.
 patches/**/*.patch -whitespace
+
+# Preserve exact terminal output in recorded evidence.
+docs/implementation/evidence/*.log -whitespace

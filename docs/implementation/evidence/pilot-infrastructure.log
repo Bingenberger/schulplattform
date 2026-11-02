@@ -1,0 +1,96 @@
+$ docker pull caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5
+docker.io/library/caddy@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5: Pulling from library/caddy
+5e9b4a97f639: Pulling fs layer
+7c06d09d8244: Pulling fs layer
+eae0290468fa: Pulling fs layer
+45f0829a46db: Pulling fs layer
+4f4fb700ef54: Pulling fs layer
+45f0829a46db: Waiting
+4f4fb700ef54: Waiting
+eae0290468fa: Verifying Checksum
+eae0290468fa: Download complete
+7c06d09d8244: Verifying Checksum
+7c06d09d8244: Download complete
+4f4fb700ef54: Download complete
+5e9b4a97f639: Verifying Checksum
+5e9b4a97f639: Download complete
+5e9b4a97f639: Pull complete
+7c06d09d8244: Pull complete
+eae0290468fa: Pull complete
+45f0829a46db: Verifying Checksum
+45f0829a46db: Download complete
+45f0829a46db: Pull complete
+4f4fb700ef54: Pull complete
+Digest: sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5
+Status: Downloaded newer image for caddy@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5
+docker.io/library/caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5
+exit_code=0
+$ docker pull axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
+docker.io/axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231: Pulling from axllent/mailpit
+7b229517ed22: Pulling fs layer
+5d9afc867194: Pulling fs layer
+e1656acc19fd: Pulling fs layer
+e1656acc19fd: Verifying Checksum
+e1656acc19fd: Download complete
+7b229517ed22: Verifying Checksum
+7b229517ed22: Download complete
+7b229517ed22: Pull complete
+5d9afc867194: Verifying Checksum
+5d9afc867194: Download complete
+5d9afc867194: Pull complete
+e1656acc19fd: Pull complete
+Digest: sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
+Status: Downloaded newer image for axllent/mailpit@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
+docker.io/axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
+exit_code=0
+$ docker pull postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
+docker.io/library/postgres@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab: Pulling from library/postgres
+7b229517ed22: Already exists
+768bbab50810: Pulling fs layer
+d982e6c592c4: Pulling fs layer
+a735dce41235: Pulling fs layer
+42065dcfea93: Pulling fs layer
+f121f7f3dec1: Pulling fs layer
+7ea8819886f9: Pulling fs layer
+d3f6cab92edc: Pulling fs layer
+911527e7800c: Pulling fs layer
+22df74fd5323: Pulling fs layer
+9f477227db48: Pulling fs layer
+7ea8819886f9: Waiting
+d3f6cab92edc: Waiting
+911527e7800c: Waiting
+22df74fd5323: Waiting
+9f477227db48: Waiting
+42065dcfea93: Waiting
+f121f7f3dec1: Waiting
+768bbab50810: Verifying Checksum
+768bbab50810: Download complete
+768bbab50810: Pull complete
+a735dce41235: Verifying Checksum
+a735dce41235: Download complete
+d982e6c592c4: Verifying Checksum
+d982e6c592c4: Download complete
+d982e6c592c4: Pull complete
+a735dce41235: Pull complete
+42065dcfea93: Download complete
+42065dcfea93: Pull complete
+7ea8819886f9: Verifying Checksum
+7ea8819886f9: Download complete
+d3f6cab92edc: Verifying Checksum
+d3f6cab92edc: Download complete
+911527e7800c: Download complete
+22df74fd5323: Download complete
+9f477227db48: Verifying Checksum
+9f477227db48: Download complete
+f121f7f3dec1: Verifying Checksum
+f121f7f3dec1: Download complete
+f121f7f3dec1: Pull complete
+7ea8819886f9: Pull complete
+d3f6cab92edc: Pull complete
+911527e7800c: Pull complete
+22df74fd5323: Pull complete
+9f477227db48: Pull complete
+Digest: sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
+Status: Downloaded newer image for postgres@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
+docker.io/library/postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
+exit_code=0
