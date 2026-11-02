@@ -1,0 +1,4 @@
+$ node test/bootstrap.js
+PASS: explicit migration, closed first access, expiry, hash-only storage, private settings, one-use race, normal teacher registration
+
+exit_code=0

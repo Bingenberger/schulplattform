@@ -1,0 +1,9 @@
+$ docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 384m --cpus 1 --pids-limit 128 --tmpfs /tmp:size=64m,mode=1777 zackboing-tests:0.1.0-dev node test/bootstrap.js
+PASS: explicit migration, closed first access, expiry, hash-only storage, private settings, one-use race, normal teacher registration
+
+exit_code=0
+
+$ docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 384m --cpus 1 --pids-limit 128 --tmpfs /tmp:size=64m,mode=1777 zackboing-tests:0.1.0-dev node test/session-expiry.js
+PASS: fresh session, expired/malformed/future session rejection, revocation
+
+exit_code=0

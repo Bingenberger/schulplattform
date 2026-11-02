@@ -57,3 +57,23 @@ sind keine produktive Admininitialisierung. gswbs Redaktion bleibt ohne gesonder
 Redaktionskonfiguration geschlossen.
 
 Ergebnisse und Grenzen: [Umsetzungsbericht](status.md).
+
+## Optionaler dritter Dienst: Zackboing
+
+Nach Anwendung der Zackboing-Patches das Image mit
+`scripts/build_zackboing.py` bauen und einen neuen Zustandsordner wählen:
+
+```sh
+./install.sh pilot-up --state-dir .work/pilot-v3 --apps gswb,schulwissen,zackboing
+```
+
+Die Auswahl wird dauerhaft gespeichert. Bestehende Konfigurationen ohne
+Appauswahlschlüssel behalten exakt den Zweierplan. Neue Auswahl bei bestehenden
+Installationen wird abgewiesen. Zackboing erhält ein eigenes internes Proxynetz,
+Laufzeit-Origin `https://quiz.localhost:<TLS-Port>` und ein eigenes Datenvolume.
+Der Controller führt nur beim Erstlauf die explizite Migration aus; es wird dabei
+kein Account angelegt.
+
+Stop, konsistente Sicherung und Domainwechsel verweigern den Eingriff bei aktiven
+Spielen. Die erweiterte Abnahme und die sieben noch nicht integrierten Apps sind
+in [Zackboing](zackboing.md) beziehungsweise im [Status](status.md) dokumentiert.

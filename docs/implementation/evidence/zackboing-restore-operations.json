@@ -1,0 +1,185 @@
+[
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--read-only",
+      "--network",
+      "none",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--user",
+      "10001:10001",
+      "--memory",
+      "512m",
+      "--cpus",
+      "1",
+      "--pids-limit",
+      "64",
+      "--tmpfs",
+      "/tmp:size=256m,mode=1777",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-e",
+      "PYTHONPATH=/helper",
+      "-v",
+      "/home/emrichschule/schulplattform/schulplattform:/helper/schulplattform:ro",
+      "-v",
+      "sp-pilot-cdb26be0360f-zackboing_data:/data:ro",
+      "python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c",
+      "python",
+      "-m",
+      "schulplattform.snapshot",
+      "create",
+      "/data",
+      "--database",
+      "zackboing.db",
+      "--directory",
+      "uploads"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "volume",
+      "create",
+      "sp-zack-restore-66ef0f7ffe-data"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--read-only",
+      "--network",
+      "none",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "-v",
+      "sp-zack-restore-66ef0f7ffe-data:/data",
+      "zackboing:0.1.0-dev",
+      "node",
+      "-e",
+      "require('fs').accessSync('/data',require('fs').constants.W_OK)"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--read-only",
+      "--network",
+      "none",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--user",
+      "10001:10001",
+      "--memory",
+      "512m",
+      "--cpus",
+      "1",
+      "--pids-limit",
+      "64",
+      "--tmpfs",
+      "/tmp:size=256m,mode=1777",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-e",
+      "PYTHONPATH=/helper",
+      "-v",
+      "/home/emrichschule/schulplattform/schulplattform:/helper/schulplattform:ro",
+      "-i",
+      "-v",
+      "sp-zack-restore-66ef0f7ffe-data:/data",
+      "python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c",
+      "python",
+      "-c",
+      "import shutil,sys\nfrom pathlib import Path\nfrom schulplattform.snapshot import restore\npath=Path('/tmp/snapshot.tar')\nwith path.open('wb') as stream:\n    shutil.copyfileobj(sys.stdin.buffer,stream)\nrestore(path,Path('/data'),sys.argv[1])\n",
+      "0adc66b8abe8607eaba14e2152af0800a8fa8bef87026c11d639a9ede26614bb"
+    ],
+    "exitCode": 0
+  },
+  {
+    "action": "repeat-restore-nonempty",
+    "exitCode": 1
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-zack-restore-66ef0f7ffe",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/zackboing/docker-compose.yml",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/pilot-v3/restore-8592d4ef9c/restored.json",
+      "up",
+      "-d",
+      "--no-build",
+      "--wait",
+      "--wait-timeout",
+      "90"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-zack-restore-66ef0f7ffe",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/zackboing/docker-compose.yml",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/pilot-v3/restore-8592d4ef9c/restored.json",
+      "exec",
+      "-T",
+      "app",
+      "node",
+      "-e",
+      "const db=require('./server/db');console.log(JSON.stringify({\nversion:db.pragma('user_version',{simple:true}),users:db.prepare('select id,role from users order by id').all(),\nquizzes:db.prepare('select id,user_id from quizzes order by id').all(),foreignKeys:db.pragma('foreign_key_check'),\nregistration:db.getSetting('registration_open')}));db.close();"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-zack-restore-66ef0f7ffe",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/zackboing/docker-compose.yml",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/pilot-v3/restore-8592d4ef9c/restored.json",
+      "exec",
+      "-T",
+      "app",
+      "node",
+      "-e",
+      "const fs=require('fs');const p=['/data','/data/zackboing.db','/data/uploads'];console.log(JSON.stringify(p.map(x=>{const s=fs.statSync(x);return {uid:s.uid,gid:s.gid,mode:s.mode&511};})));"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-zack-restore-66ef0f7ffe",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/zackboing/docker-compose.yml",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/pilot-v3/restore-8592d4ef9c/restored.json",
+      "down"
+    ],
+    "exitCode": 0
+  }
+]

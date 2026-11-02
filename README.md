@@ -4,7 +4,7 @@ Die Plattform bündelt eigenständige Apps für einen selbst gehosteten Schulser
 Maßgeblich sind der [Auftrag](Coding_Agent_Umsetzungsauftrag_Schulplattform.md) und
 der [Umfangsbeschluss](docs/platform-audit/scope-decision.md).
 
-**Aktuell ist ein lokaler Pilot mit schulwissen und gswb geprüft.** Die vollständige
+**Aktuell ist ein lokaler Pilot mit schulwissen, gswb und optional Zackboing geprüft.** Die vollständige
 Installation auf leerem Ubuntu 24.04 und der Zehn-App-Stack sind noch offen.
 [Umsetzungsstand und Testnachweise](docs/implementation/status.md).
 
@@ -47,6 +47,16 @@ Host-Loopback erreichbar. Keine DNSänderung oder globale CA-Installation.
 Wiederholte Installation ist ohne Versionswechsel ein No-op; gestoppte Apps
 werden über den gesonderten Startbefehl aktiviert.
 
+Zackboing lässt sich in einer neuen Pilotinstallation ergänzen:
+
+```sh
+.venv/bin/python scripts/build_zackboing.py
+./install.sh pilot-up --state-dir .work/pilot-v3 --apps gswb,schulwissen,zackboing
+```
+
+[Standalone, Bootstrap, Spieltest und Restore](docs/implementation/zackboing.md).
+Bestehende Zweierinstallationen behalten ihre Auswahl.
+
 ## Releaseprüfung
 
 ```sh
@@ -63,12 +73,12 @@ vollständigen Host-Provisionierung gesperrt.
 
 Die lokalen Prüfungen belegen Standalone-Starts, privaten Backendzugang, TLS,
 Negativzugriffe, Mail in den Sink, Domainwechsel mit Rückfall und einen synthetischen
-PostgreSQL-Restore. Sie ersetzen keine vollständige Produktionsabnahme.
+PostgreSQL-Restore sowie einen kombinierten Zackboing-DB-/Medienrestore. Sie ersetzen keine vollständige Produktionsabnahme.
 
 Das [Dashboard](docs/implementation/dashboard.md) mit TOTP und eingeschränktem
-Unix-Steuerdienst ist für den Zweierpilot implementiert und geprüft.
+Unix-Steuerdienst unterstützt die drei Pilot-Apps; aktive Zackboing-Spiele blockieren Stop.
 Verschlüsseltes Offsitebackup, konsistente gemeinsame DB-/Datei-/Schlüsselsicherung,
-weitere Dashboardfunktionen, acht Appintegrationen und Zielservermessungen sind offen.
+weitere Dashboardfunktionen, sieben weitere Appintegrationen und Zielservermessungen sind offen.
 RPO/RTO und die geschätzten 16 GB RAM/4 vCPU sind noch nicht bestätigt.
 
 Kein Keycloak, keine zentrale Benutzersperrung und kein zentraler Logout.

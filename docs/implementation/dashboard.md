@@ -54,7 +54,7 @@ und einer persistenten einmaligen Nonce. Antworten sind ebenfalls authentifizier
 und an die Anfragenonce gebunden.
 
 Erlaubte Aktionen sind derzeit `status`, `start` und `stop`; bekannte Ziele sind
-`gswb` und `schulwissen`. Unbekannte Felder, Apps, Aktionen, manipulierte MACs,
+`gswb`, `schulwissen` und optional `zackboing`. Unbekannte Felder, Apps, Aktionen, manipulierte MACs,
 abgelaufene Zeitstempel und Wiederholungen werden abgewiesen. Die Oberfläche
 kann weder Hostpfade noch argv, Compose-Fragmente oder Shellkommandos vorgeben.
 
@@ -65,6 +65,11 @@ kann weder Hostpfade noch argv, Compose-Fragmente oder Shellkommandos vorgeben.
   --socket .work/management/deploy.sock \
   --allowed-uid 10001
 ```
+
+Bei Zackboing verweigert der Controller Stop während eines aktiven Spiels. Die
+Oberfläche antwortet mit 409 und protokolliert den blockierten Vorgang. Der Dienst
+stoppt erst nach Spielende; Daten bleiben erhalten. Nicht installierte Apps
+werden als nicht installiert gemeldet.
 
 Das ist der lokale Pilot-Controller. Ein vollständig signierter Produktions-
 Releasecontroller mit Update, Migration, Restore und Lifecycle-Archivierung

@@ -1,0 +1,23 @@
+$ git diff --cached --check
+
+exit_code=0
+
+$ git commit -m Add optional Zackboing pilot and verified SQLite/media restore
+[main 980e8c5] Add optional Zackboing pilot and verified SQLite/media restore
+ 27 files changed, 2079 insertions(+), 27 deletions(-)
+ create mode 100644 adapters/zackboing/platform.yml
+ create mode 100644 schulplattform/snapshot.py
+ create mode 100644 scripts/build_zackboing.py
+ create mode 100644 scripts/check_zackboing_runtime.py
+ create mode 100644 scripts/check_zackboing_security.py
+ create mode 100644 scripts/prepare_zackboing_dockerfile.py
+ create mode 100644 scripts/resolve_zackboing_base.py
+ create mode 100644 scripts/verify_zackboing_domains.py
+ create mode 100644 scripts/verify_zackboing_lifecycle.py
+ create mode 100644 scripts/verify_zackboing_platform.py
+ create mode 100644 scripts/verify_zackboing_restore.py
+ create mode 100644 scripts/verify_zackboing_standalone.py
+ create mode 100644 tests/test_pilot_selection.py
+ create mode 100644 tests/test_snapshot.py
+
+exit_code=0

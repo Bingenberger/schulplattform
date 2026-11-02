@@ -1,0 +1,47 @@
+$ docker build --platform linux/amd64 --memory 1024m --target tests -t zackboing-tests:0.1.0-dev .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  406.5kB
+Step 1/13 : FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS dependencies
+ ---> c469fbffcbb0
+Step 2/13 : ENV npm_config_cache=/tmp/npm-cache npm_config_devdir=/tmp/node-gyp npm_config_nodedir=/usr/local MAKEFLAGS=-j2
+ ---> Using cache
+ ---> ed5188c3b2d1
+Step 3/13 : RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++     && rm -rf /var/lib/apt/lists/*
+ ---> Using cache
+ ---> 91703d5b5b71
+Step 4/13 : WORKDIR /build
+ ---> Using cache
+ ---> bbe0a1817fce
+Step 5/13 : COPY package.json package-lock.json ./
+ ---> Using cache
+ ---> 61afb1360fb4
+Step 6/13 : RUN npm ci --omit=dev --no-audit --no-fund     && node -e "const db=require('better-sqlite3')(':memory:');db.close();"
+ ---> Using cache
+ ---> 92bdb55effa7
+Step 7/13 : FROM dependencies AS tests
+ ---> 92bdb55effa7
+Step 8/13 : RUN npm ci --no-audit --no-fund
+ ---> Using cache
+ ---> 95830a6068f7
+Step 9/13 : COPY server ./server
+ ---> Using cache
+ ---> 9382fd4c511c
+Step 10/13 : COPY public ./public
+ ---> Using cache
+ ---> 2471371b7a35
+Step 11/13 : COPY docs ./docs
+ ---> Using cache
+ ---> cb004525fd80
+Step 12/13 : COPY test ./test
+ ---> Using cache
+ ---> dfec80f61f0a
+Step 13/13 : USER 10001:10001
+ ---> Using cache
+ ---> fc20c550c697
+Successfully built fc20c550c697
+Successfully tagged zackboing-tests:0.1.0-dev
+
+exit_code=0

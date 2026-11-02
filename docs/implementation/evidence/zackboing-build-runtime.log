@@ -1,0 +1,82 @@
+$ docker build --platform linux/amd64 --memory 1024m --target runtime -t zackboing:0.1.0-dev .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  406.5kB
+Step 1/25 : FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS dependencies
+ ---> c469fbffcbb0
+Step 2/25 : ENV npm_config_cache=/tmp/npm-cache npm_config_devdir=/tmp/node-gyp npm_config_nodedir=/usr/local MAKEFLAGS=-j2
+ ---> Using cache
+ ---> ed5188c3b2d1
+Step 3/25 : RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++     && rm -rf /var/lib/apt/lists/*
+ ---> Using cache
+ ---> 91703d5b5b71
+Step 4/25 : WORKDIR /build
+ ---> Using cache
+ ---> bbe0a1817fce
+Step 5/25 : COPY package.json package-lock.json ./
+ ---> Using cache
+ ---> 61afb1360fb4
+Step 6/25 : RUN npm ci --omit=dev --no-audit --no-fund     && node -e "const db=require('better-sqlite3')(':memory:');db.close();"
+ ---> Using cache
+ ---> 92bdb55effa7
+Step 7/25 : FROM dependencies AS tests
+ ---> 92bdb55effa7
+Step 8/25 : RUN npm ci --no-audit --no-fund
+ ---> Using cache
+ ---> 95830a6068f7
+Step 9/25 : COPY server ./server
+ ---> Using cache
+ ---> 9382fd4c511c
+Step 10/25 : COPY public ./public
+ ---> Using cache
+ ---> 2471371b7a35
+Step 11/25 : COPY docs ./docs
+ ---> Using cache
+ ---> cb004525fd80
+Step 12/25 : COPY test ./test
+ ---> dfec80f61f0a
+Step 13/25 : USER 10001:10001
+ ---> Running in c35bfa273a47
+ ---> Removed intermediate container c35bfa273a47
+ ---> fc20c550c697
+Step 14/25 : FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS runtime
+ ---> c469fbffcbb0
+Step 15/25 : ENV NODE_ENV=production PORT=3000 HOST=0.0.0.0 ZACKBOING_DATA=/data
+ ---> Using cache
+ ---> 217cba23b058
+Step 16/25 : WORKDIR /app
+ ---> Using cache
+ ---> 1dfe8c2a032a
+Step 17/25 : COPY --from=dependencies /build/node_modules ./node_modules
+ ---> Using cache
+ ---> ec0d09514c3a
+Step 18/25 : COPY package.json package-lock.json ./
+ ---> Using cache
+ ---> f0f34b5c6b0b
+Step 19/25 : COPY server ./server
+ ---> Using cache
+ ---> 1981eaa10f21
+Step 20/25 : COPY public ./public
+ ---> Using cache
+ ---> 770fcb055606
+Step 21/25 : COPY docs ./docs
+ ---> Using cache
+ ---> 7aec8d3f9173
+Step 22/25 : RUN groupadd --gid 10001 zackboing && useradd --uid 10001 --gid 10001 --no-create-home zackboing     && mkdir -p /data && chown 10001:10001 /data && chmod 700 /data
+ ---> Using cache
+ ---> 2e9db6045a00
+Step 23/25 : USER 10001:10001
+ ---> Using cache
+ ---> e9eeb41ececd
+Step 24/25 : EXPOSE 3000
+ ---> Using cache
+ ---> ae36fac24861
+Step 25/25 : CMD ["node", "server/index.js"]
+ ---> Using cache
+ ---> 0499ac5fd33b
+Successfully built 0499ac5fd33b
+Successfully tagged zackboing:0.1.0-dev
+
+exit_code=0

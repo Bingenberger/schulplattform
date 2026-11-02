@@ -1,0 +1,122 @@
+$ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 384m --cpus 1 --pids-limit 128 --tmpfs /tmp:size=64m,mode=1777 --network sp-zack-standalone-9c05a6373e_default --network-alias fixture -e BASE_URL=http://app:3000 -e ZACKBOING_TEST_BOOTSTRAP_FILE=/fixtures/bootstrap-token -v /home/emrichschule/schulplattform/.work/sp-zack-standalone-9c05a6373e/bootstrap-token:/fixtures/bootstrap-token:ro zackboing-tests:0.1.0-dev node test/run-fixtures.js
+✅ Erstes Konto registriert
+✅ Erstes Konto ist automatisch Admin
+✅ Admin: Einstellungen abrufbar
+✅ Admin: Galerie-URL voreingestellt
+✅ Admin: Registrierung deaktiviert
+✅ Registrierung bei geschlossener Anmeldung blockiert
+✅ Admin: Konto manuell angelegt
+✅ Manuell angelegtes Konto kann sich anmelden
+✅ Lehrkraft hat keinen Admin-Zugriff
+✅ Admin: Passwort zurückgesetzt
+✅ Login mit neuem Passwort klappt
+✅ Letzter Admin kann nicht herabgestuft werden
+✅ Medien-Upload angenommen (/media/f0a6d75b3046a899ab.png)
+✅ Hochgeladene Datei abrufbar
+✅ Unerlaubter Dateityp abgelehnt
+✅ Quiz mit allen Fragetypen gespeichert ({"id":1})
+✅ Export: Datei-Download mit Format-Kennung
+✅ Export: alle Fragen enthalten
+✅ Import: exportierte Datei wird angenommen ({"imported":[{"id":2,"title":"Alle Typen","mode":"quiz","questionCount":9}],"warnings":[]})
+✅ Import: Round-Trip ergibt identische Fragen
+✅ Import: Kopie ist nicht freigegeben
+✅ Import: tolerantes Chatbot-JSON wird angenommen ({"imported":[{"id":3,"title":"Vom Chatbot","mode":"quiz","questionCount":9}],"warnings":["Frage 3: Zeitlimit 17 s auf 20 s gerundet."]})
+✅ Import: Zeitlimit-Rundung wird gemeldet (["Frage 3: Zeitlimit 17 s auf 20 s gerundet."])
+✅ Import: Fach an Fächerliste angeglichen
+✅ Import: Antworttext → Index, Aliasse aufgelöst
+✅ Import: Standardwerte & Freitext-Liste aus String
+✅ Import: externe Medien-URL übernommen
+✅ Import: Sammeldatei mit mehreren Quizzen ({"imported":[{"id":4,"title":"A","mode":"quiz","questionCount":1},{"id":5,"title":"B","mode":"quiz","questionCount":1}],"warnings":[]})
+✅ Import: Fehler mit Quiz- und Fragenummer (Quiz 2: Frage 1: die richtige Antwort „Zebra“ steht nicht in der Antwortliste.)
+✅ Import: bei Fehler wird nichts angelegt (Transaktion)
+✅ Import: unbekannter Typ wird gemeldet (Frage 1: unbekannter Fragetyp „rätsel“.)
+✅ Import: leere Fragenliste wird gemeldet (Es sind keine Fragen ("questions") enthalten.)
+✅ Import: ohne Anmeldung abgelehnt
+✅ Export: Gesamtexport enthält alle eigenen Quizze
+✅ Formatdoku ist als Text abrufbar
+✅ Formatdoku: Beispiel-Quiz lässt sich importieren ({"imported":[{"id":6,"title":"Das Sonnensystem","mode":"quiz","questionCount":8}],"warnings":[]})
+✅ Fächerliste abrufbar
+✅ Admin: Fächerliste anpassbar
+✅ Neues Fach erscheint in der Liste
+✅ Bibliothek zeigt nur freigegebene Quizze
+✅ Bibliothek nennt Fach und Besitzer
+✅ Filter nach Fach findet Quiz
+✅ Filter nach anderem Fach leer
+✅ Titelsuche in der Bibliothek
+✅ Freigegebenes Quiz kopiert
+✅ Privates Quiz nicht kopierbar
+✅ Kopie liegt in eigener Sammlung
+✅ Kollege startet freigegebenes Quiz
+✅ Privates Quiz für Kollegen nicht startbar
+✅ Validierung: kaputter Zahlenbereich abgelehnt
+✅ Spiel eröffnet
+✅ Anna tritt bei
+✅ Ben tritt bei
+✅ Lobby: Avatar-Wechsel liefert anderen Avatar ({"ok":true,"avatar":"🐨"})
+✅ Lobby: Host sieht den neuen Avatar
+✅ Q1: Spieler sieht nur Anzahl, keine Lösung
+✅ Q1: Host sieht Antworten + Medien
+✅ Q1: Anna richtig, Ben falsch
+✅ Q1: Verteilung stimmt
+✅ Q2: Wahr/Falsch mit 2 Optionen
+✅ Q2: Anna richtig (Falsch) + Serienbonus
+✅ Q3: Groß-/Kleinschreibung egal
+✅ Q3: Freitext korrekt gewertet
+✅ Q3: Host sieht Antwortliste
+✅ Q4: Schätzung in Toleranz = richtig
+✅ Q4: Weit daneben = 0 Punkte
+✅ Q4: Host sieht Durchschnitt + Ziel
+✅ Q5: Teile kommen gemischt mit IDs an
+✅ Q5: perfekte Reihenfolge gewinnt
+✅ Q5: Host sieht Lösung + Trefferzahl
+✅ Q6: Umfrage ist unbewertet markiert
+✅ Q6: keine Punkte vergeben
+✅ Q6: Stimmen gezählt
+✅ Q7: Skala-Durchschnitt stimmt
+✅ Q8: Wortwolke bündelt gleiche Wörter
+✅ Q9: Idee erscheint live beim Host
+✅ Q9: Duplikate abgelehnt
+✅ Q9: alle Ideen gesammelt
+✅ Podium: Anna gewinnt
+✅ Podium: nur Wissensfragen gezählt
+✅ Host bekommt Wiedereinstiegs-Token
+✅ Beitritt liefert Wiedereinstiegs-Token
+✅ Lobby: Getrennte bleiben reserviert
+✅ Lobby: Wiedereinstieg klappt
+✅ Frage: Wiedereinstieg liefert laufende Frage
+✅ Falsches Token wird abgelehnt
+✅ Antwort nach Wiedereinstieg zählt
+✅ Host-Wiedereinstieg: Spiel lebt noch
+✅ Host-Wiedereinstieg: Ergebnis-Re-Sync
+✅ Kopfrechnen: Generator liefert nur gültige Aufgaben
+✅ Kopfrechnen: Runde gespeichert ({"id":9})
+✅ Kopfrechnen: ohne Rechenart abgelehnt (Bitte mindestens eine Rechenart auswählen.)
+✅ Kopfrechnen: ungültiger Zahlenraum abgelehnt (Zahlenraum muss 10, 20, 100, 1000 sein.)
+✅ Kopfrechnen: zu viele Aufgaben abgelehnt (Die Aufgabenzahl muss zwischen 3 und 50 liegen.)
+✅ Kopfrechnen: Einstellungen abrufbar
+✅ Kopfrechnen: Bearbeiten speichert (Rechenarten sortiert, doppelte entfernt)
+✅ Kopfrechnen: Liste zeigt Aufgabenzahl & Beschreibung ({"id":9,"title":"Einmaleins","subject":"Mathematik","shared":true,"mode":"mental","questionCount":10,"mentalInfo":"bis 20 · + ·","updatedAt":"2026-11-02 19:06:26"})
+✅ Kopfrechnen: erscheint in der Bibliothek
+✅ Kopfrechnen: Kopie aus Bibliothek behält Einstellungen
+✅ Kopfrechnen: Vorschau liefert Beispielaufgaben ({"examples":["2 − 1 = 1","9 − 5 = 4","4 − 3 = 1","9 − 3 = 6","6 − 3 = 3","5 − 4 = 1","4 − 1 = 3","6 − 2 = 4"]})
+✅ Kopfrechnen: Export enthält Modus & Einstellungen
+✅ Kopfrechnen: Export lässt sich importieren ({"imported":[{"id":11,"title":"Einmaleins","mode":"mental","questionCount":10}],"warnings":[]})
+✅ Kopfrechnen: Import tolerant (Aliasse, Standardwerte) ({"imported":[{"id":12,"title":"Geteilt","mode":"mental","questionCount":10}],"warnings":[]})
+✅ Kopfrechnen: Spiel eröffnet im Kopfrechenmodus ({"pin":"<redacted>","hostToken":"<redacted>","title":"Einmaleins","mode":"mental","questionCount":10,"mental":{"count":10,"range":20,"ops":["add","mul"],"time":5,"info":"bis 20 · + ·","minCount":3,"maxCount":50}})
+✅ Kopfrechnen: Kind tritt bei
+✅ Kopfrechnen: Aufgabe wird in der Vorbereitung nicht verraten ({"number":1,"total":3,"type":"arith","text":"","time":5,"points":"normal","scored":true,"prepareMs":3000})
+✅ Kopfrechnen: Aufgabe als Zahl beantwortet ({"ok":true})
+✅ Kopfrechnen: keine Mehrfachantwort
+✅ Kopfrechnen: richtige Antwort gibt Punkte + Lösung ({"type":"arith","scored":true,"answered":true,"correct":true,"gained":1000,"score":1000,"streak":1,"rank":1,"rankBefore":1,"totalPlayers":1,"behind":null,"solution":"2 + 9 = 11","isLast":false})
+✅ Kopfrechnen: Beamer zeigt Lösung & Trefferzahl ({"task":"2 + 9","correct":11,"rightCount":1,"given":[{"value":11,"count":1,"correct":true}]})
+✅ Kopfrechnen: geht ohne Klick automatisch weiter
+✅ Kopfrechnen: falsche Antwort gibt 0 Punkte
+✅ Kopfrechnen: Anhalten stoppt das automatische Weiter
+✅ Kopfrechnen: Podium nach eingestellter Aufgabenzahl ({"rank":1,"score":2000,"correctCount":2,"bestStreak":1,"totalQuestions":3,"totalPlayers":1})
+✅ Kopfrechnen: Rechenarten der Runde passen zur Einstellung (2 + 9 | 2 · 10 | 10 + 5)
+✅ Bildarchiv-Suche liefert lokale Fixture
+✅ Bildarchiv-Import speichert lokale Fixture
+
+Alle ausgeführten Tests bestanden. 🎉
+
+exit_code=0

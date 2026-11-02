@@ -1,0 +1,15 @@
+{
+  "apps": [
+    "gswb",
+    "schulwissen",
+    "zackboing"
+  ],
+  "installationId": "c7723b06-3727-4bdb-866a-13cfd2167716",
+  "twoNoopRuns": true,
+  "sameContainersAndKeys": true,
+  "initEnabled": true,
+  "stoppedRoute503": true,
+  "restartReady200": true,
+  "noRepeatedMigrationOrBootstrap": true,
+  "pilotStoppedDataRetained": true
+}

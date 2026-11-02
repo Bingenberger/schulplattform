@@ -1,0 +1,5 @@
+$ docker run --rm -i --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 384m --cpus 1 --pids-limit 128 --tmpfs /tmp:size=64m,mode=1777 --network sp-pilot-cdb26be0360f-infra_zack-proxy --add-host quiz.localhost:192.168.16.2 -e BASE_URL=https://quiz.localhost -e ZACKBOING_EXPECTED_ORIGIN=https://quiz.localhost:39751 -e ZACKBOING_TEST_EXISTING=1 -e NODE_EXTRA_CA_CERTS=/fixtures/root.crt -e ZACKBOING_TEST_BOOTSTRAP_FILE=/fixtures/bootstrap-token -v /home/emrichschule/schulplattform/.work/pilot-v3/contract-fixtures/root.crt:/fixtures/root.crt:ro -v /home/emrichschule/schulplattform/.work/pilot-v3/contract-fixtures/bootstrap-token:/fixtures/bootstrap-token:ro zackboing-tests:0.1.0-dev node test/platform-contract.js
+GAME_ACTIVE
+{"tls":true,"canonicalQr":true,"websocketOrigin":true,"publicPinJoin":true,"expiredSessionCannotCreateAnotherGame":true,"gameCompleted":true,"userId":1,"quizId":4,"mediaUrl":"/media/54ea3cdd4536f4873b.png"}
+
+exit_code=0

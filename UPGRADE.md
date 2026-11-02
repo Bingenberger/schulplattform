@@ -10,7 +10,7 @@ bestehende Hostinstallation automatisch.
 | Dashboard | Python 3.12.12, SQLite Schema 1, TOTP-Wrapping-Key | lokaler TLS-/Unix-Dienst-Test; keine produktive Serviceinstallation |
 | gswb | Python 3.12.12, SQLite user_version 1 | lokaler Standalone- und Plattformtest |
 | schulwissen | Python 3.12.12, eigener PG16, Django-Migrationen | lokaler Standalone-, TLS-, Domain- und DB-Teilstrestore |
-| Zackboing | unverändertes SQLite-Schema | Sessionablauf ergänzt |
+| Zackboing | Node 22.23.4, better-sqlite3 11.10.0, SQLite user_version 1 | Standalone, TLS-Spiel, Domainrückfall und leerer Apprestore lokal geprüft |
 | Grundschultafel | users.json mit optionalem Bootstrapablauf | atomare Dateien, keine vollständige Schreibtransaktion |
 | Losverkauf | unverändertes SQLite-Schema | persönlicher Adminname zusätzlich erforderlich |
 | Übrige Apps | unveränderte Auditcommits | noch keine Container-/Plattformabnahme |
@@ -37,6 +37,12 @@ gswb initialisiert Datenbanken nicht mehr beim Webprozessstart. Vor dem Start
 `python -m grundschul_woerterbuch.migrate` ausführen. schulwissen benötigt
 `python manage.py platform_migrate`; der Job sperrt konkurrierende Migrationen
 über PostgreSQL und richtet danach die vorhandenen Fachrollen ein.
+
+Zackboing benötigt `node server/migrate.js` als expliziten Job. Bestehende Tabellen
+und Nutzer-IDs bleiben erhalten; die geprüfte Legacy-Migration setzt user_version 1.
+Neue Erstregistrierungen erfordern den lokalen einmaligen Bootstrapcode; eine
+bereits explizit geöffnete Registrierung bleibt bestehen. Vor Stop müssen Spiele
+abgeschlossen sein. Ein neuer Pilotzustandsordner ist kein Datenupgrade.
 
 Vor Änderungen bestehender Deployments konsistent sichern und ein Wartungsfenster
 nutzen. Der vorliegende Auftrag umfasst weiterhin keine Produktivumstellung.

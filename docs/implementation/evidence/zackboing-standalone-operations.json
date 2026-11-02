@@ -1,0 +1,174 @@
+[
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-zack-standalone-9c05a6373e",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/zackboing/docker-compose.yml",
+      "up",
+      "-d",
+      "--no-build"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-zack-standalone-9c05a6373e",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/zackboing/docker-compose.yml",
+      "run",
+      "--rm",
+      "--no-deps",
+      "app",
+      "node",
+      "server/migrate.js"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-zack-standalone-9c05a6373e",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/zackboing/docker-compose.yml",
+      "run",
+      "--rm",
+      "--no-deps",
+      "-T",
+      "app",
+      "node",
+      "server/bootstrap.js"
+    ],
+    "exitCode": 1
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-zack-standalone-9c05a6373e",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/zackboing/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "node",
+      "-e",
+      "const db=require('./server/db');console.log(db.getSetting('_bootstrap_hash')===undefined);db.close();"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-zack-standalone-9c05a6373e",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/zackboing/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "node",
+      "-e",
+      "process.stdout.write(require('./server/bootstrap').issueBootstrap());"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--read-only",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--memory",
+      "384m",
+      "--cpus",
+      "1",
+      "--pids-limit",
+      "128",
+      "--tmpfs",
+      "/tmp:size=64m,mode=1777",
+      "--network",
+      "sp-zack-standalone-9c05a6373e_default",
+      "--network-alias",
+      "fixture",
+      "-e",
+      "BASE_URL=http://app:3000",
+      "-e",
+      "ZACKBOING_TEST_BOOTSTRAP_FILE=/fixtures/bootstrap-token",
+      "-v",
+      "/home/emrichschule/schulplattform/.work/sp-zack-standalone-9c05a6373e/bootstrap-token:/fixtures/bootstrap-token:ro",
+      "zackboing-tests:0.1.0-dev",
+      "node",
+      "test/run-fixtures.js"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-zack-standalone-9c05a6373e",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/zackboing/docker-compose.yml",
+      "ps",
+      "-q",
+      "app"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "inspect",
+      "71356a22c1f117882bf8c81690d9a12e337936d4dd1f1760b4a72ebdbd8cf240"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-zack-standalone-9c05a6373e",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/zackboing/docker-compose.yml",
+      "restart",
+      "app"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-zack-standalone-9c05a6373e",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/zackboing/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "node",
+      "-e",
+      "const db=require('./server/db');console.log(JSON.stringify({version:db.pragma('user_version',{simple:true}),users:db.prepare('select count(*) as n from users').get().n,registration:db.getSetting('registration_open')}));db.close();"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-zack-standalone-9c05a6373e",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/zackboing/docker-compose.yml",
+      "down"
+    ],
+    "exitCode": 0
+  }
+]

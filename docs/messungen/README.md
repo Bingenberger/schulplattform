@@ -9,14 +9,17 @@ Docker meldet für die lokal gebauten amd64-Images:
 | --- | ---: |
 | gswb | 190.572.022 Byte |
 | schulwissen | 424.460.181 Byte |
-| Dashboard | 148.103.491 Byte |
+| Dashboard | 148.117.877 Byte |
+| Zackboing | 249.196.589 Byte |
 
 [gswb-Rohdaten](../implementation/evidence/gswb-image.json),
 [schulwissen-Rohdaten](../implementation/evidence/schulwissen-image.json),
-[Dashboard-Rohdaten](../implementation/evidence/dashboard-image.json).
-Die drei Images verwenden das fixierte Python-3.12.12-Basisimage. gswb installiert aus einem
+[Dashboard-Rohdaten](../implementation/evidence/dashboard-image.json),
+[Zackboing-Rohdaten](../implementation/evidence/zackboing-image.json).
+Die drei Python-Images verwenden das fixierte Python-3.12.12-Basisimage. gswb installiert aus einem
 Hash-Lockfile, schulwissen aus uv.lock. schulwissen enthält zusätzlich Pango und
-Schriften sowie komprimierte Produktions-Static-Dateien.
+Schriften sowie komprimierte Produktions-Static-Dateien. Zackboing verwendet
+Node 22.23.4 und better-sqlite3 11.10.0; der Compiler ist nur in der Buildstufe.
 
 Die Werte sind Docker-Imagemetadaten, kein zusätzlicher physischer Plattenverbrauch
 und kein RAM-Verbrauch. Gemeinsame Layer dürfen nicht mehrfach als belegte SSD-
