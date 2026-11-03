@@ -51,7 +51,7 @@ App-Implementierung: `e14bbe6664087aaef8ecb027913297885b4f6c13`.
 | Prüfung | Beobachtung |
 | --- | --- |
 | [Builds / Images](evidence/abgen-images.json) | linux/amd64; API Node 22.23.4, PDF-Basis Node 26.13.0 |
-| [Native Tests](evidence/abgen-functional.log) | 623 Tests in sechs Workspaces bestanden, offline |
+| [Native Tests](evidence/abgen-functional.log) | 523 Tests in sechs Workspaces bestanden, offline |
 | [ESLint](evidence/abgen-eslint.log) | nativer vollständiger Lauf ohne Fehler/Warnungen |
 | [Standalone](evidence/abgen-standalone.json) | echter Start ohne Plattform, Migration zweimal, null Standardkonten, verdeckte Terminaleinrichtung, Wiederholung/headless verweigert |
 | [Fach-/Negativtests](evidence/abgen-contracts.log) | Eigentümerschaft, Lehrer/Admin, fremde Origins, Header, anonyme/fremde WebSockets, echte PDF-Konkurrenz, Kinderabgabe und Asset-Upload |
@@ -98,3 +98,6 @@ Reproduzierbare lokale Reihenfolge:
 `scripts/verify_abgen_browser.py`, `scripts/verify_abgen_patch.py`.
 Alle Fixturekonten und Daten sind synthetisch; private Zugangsdaten und
 Freigabefähigkeiten bleiben ausschließlich unter ignorierten 0700-Verzeichnissen.
+
+Plattformrepository-Änderungspaket: `678e01e20dfa4e80dac2ef3955a6192c17d381fc`.
+[Geprüfter Commitbeleg](evidence/abgen-work-package-commit.log).

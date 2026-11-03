@@ -207,7 +207,7 @@ PDF-Export und verweigerter Fremdklassenzugriff geprüft. PostgreSQL und reale
 Altbestände sind dabei nicht abgenommen. [Abnahme und Grenzen](kompetenz-manager.md).
 
 Abgen hat einen eigenständigen PostgreSQL-18-/Chromium-Stack mit verdeckter lokaler
-Erstadministration und dauerhaftem Yjs-Zustand. 623 native Tests, ESLint, echte
+Erstadministration und dauerhaftem Yjs-Zustand. 523 native Tests, ESLint, echte
 Chromium-/WebKit-Zusammenarbeit und Restore in leere Datenbank/Asset-Volumes sind
 bestanden. Die gemeinsame Zehn-App-Integration samt Domainrückfall und Dashboard
 ist weiterhin offen. [Abgen-Standalone und Grenzen](abgen.md).

@@ -1,0 +1,31 @@
+$ git diff --cached --check
+
+exit_code=0
+
+$ git commit -m Add abgen standalone PostgreSQL 18 and durable collaboration acceptance
+[main 678e01e] Add abgen standalone PostgreSQL 18 and durable collaboration acceptance
+ 26 files changed, 6078 insertions(+), 3 deletions(-)
+ create mode 100644 docs/implementation/abgen.md
+ create mode 100644 docs/implementation/evidence/abgen-browser.log
+ create mode 100644 docs/implementation/evidence/abgen-build-pdf.log
+ create mode 100644 docs/implementation/evidence/abgen-build-runtime.log
+ create mode 100644 docs/implementation/evidence/abgen-build-tests.log
+ create mode 100644 docs/implementation/evidence/abgen-contracts.log
+ create mode 100644 docs/implementation/evidence/abgen-eslint.log
+ create mode 100644 docs/implementation/evidence/abgen-functional.log
+ create mode 100644 docs/implementation/evidence/abgen-images.json
+ create mode 100644 docs/implementation/evidence/abgen-patch-replay.json
+ create mode 100644 docs/implementation/evidence/abgen-platform-regression.log
+ create mode 100644 docs/implementation/evidence/abgen-restart.log
+ create mode 100644 docs/implementation/evidence/abgen-restore.json
+ create mode 100644 docs/implementation/evidence/abgen-restored-http.log
+ create mode 100644 docs/implementation/evidence/abgen-standalone.json
+ create mode 100644 patches/abgen/changes.patch
+ create mode 100644 scripts/build_abgen.py
+ create mode 100644 scripts/check_abgen_runtime.py
+ create mode 100644 scripts/verify_abgen_browser.py
+ create mode 100644 scripts/verify_abgen_patch.py
+ create mode 100644 scripts/verify_abgen_restore.py
+ create mode 100644 scripts/verify_abgen_standalone.py
+
+exit_code=0
