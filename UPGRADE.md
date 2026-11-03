@@ -12,7 +12,7 @@ bestehende Hostinstallation automatisch.
 | schulwissen | Python 3.12.12, eigener PG16, Django-Migrationen | lokaler Standalone-, TLS-, Domain- und DB-Teilstrestore |
 | Zackboing | Node 22.23.4, better-sqlite3 11.10.0, SQLite user_version 1 | Standalone, TLS-Spiel, Domainrückfall und leerer Apprestore lokal geprüft |
 | Schulhelfer | Python 3.12.12, SQLite user_version 1 / Alembic b7c2e9a41d38 | Standalone, Parallelbuchung, SMTP-Ausfall, lokaler Domainrückfall und leerer Restore |
-| Grundschultafel | users.json mit optionalem Bootstrapablauf | atomare Dateien, keine vollständige Schreibtransaktion |
+| Grundschultafel | Node 22.23.4 / Next 16.1.6, Dateischema 1 | JSON-Transaktionen, Sitzungs-/Uploaddenials, Domainrückfall und Dateirestore |
 | Losverkauf | Python 3.12.12, SQLite user_version 1, dauerhafte Eingangs-Mailqueue | Standalone, Token-/ID-Erhalt, lokaler Domainrückfall und kombinierter Restore |
 | Übrige Apps | unveränderte Auditcommits | noch keine Container-/Plattformabnahme |
 
@@ -61,3 +61,11 @@ wurde automatisch übernommen.
 
 Vor Änderungen bestehender Deployments konsistent sichern und ein Wartungsfenster
 nutzen. Der vorliegende Auftrag umfasst weiterhin keine Produktivumstellung.
+
+Grundschultafel benötigt den expliziten Job node scripts/migrate.mjs vor dem ersten
+Webstart. Benutzer-UUIDs und Notizbücher bleiben erhalten. Eigene Legacy-Medien
+werden ausdrücklich importiert, ohne Konflikte zu überschreiben. Alte JWT-Sitzungen
+benötigen erneute Anmeldung. Nicht zugeordnete flache Alt-Uploads werden nicht
+automatisch freigegeben. Datei-/Assetbestand und Session-Schlüssel gemeinsam
+sichern; bei produktivem Restore Sitzungs-/Bootstrap-Widerruf planen.
+Details in [Grundschultafel](docs/implementation/grundschultafel.md).

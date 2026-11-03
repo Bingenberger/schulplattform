@@ -4,7 +4,7 @@ Die Plattform bündelt eigenständige Apps für einen selbst gehosteten Schulser
 Maßgeblich sind der [Auftrag](Coding_Agent_Umsetzungsauftrag_Schulplattform.md) und
 der [Umfangsbeschluss](docs/platform-audit/scope-decision.md).
 
-**Aktuell ist ein lokaler Pilot mit schulwissen, gswb und optional Zackboing, Schulhelfer sowie Losverkauf geprüft.** Die vollständige
+**Aktuell ist ein lokaler Pilot mit schulwissen, gswb und optional Zackboing, Schulhelfer, Losverkauf sowie Grundschultafel geprüft.** Die vollständige
 Installation auf leerem Ubuntu 24.04 und der Zehn-App-Stack sind noch offen.
 [Umsetzungsstand und Testnachweise](docs/implementation/status.md).
 
@@ -65,6 +65,11 @@ Losverkauf ergänzt einen neuen Fünferpilot nach dem Build mit
 `--apps gswb,schulwissen,zackboing,schulhelfer,losverkauf` in einem neuen
 Zustandsordner. [Abnahme, Mailqueue und Grenzen](docs/implementation/losverkauf.md).
 
+Grundschultafel ergänzt einen neuen Sechserpilot nach dem Build mit
+scripts/build_grundschultafel.py und der Auswahl
+gswb,schulwissen,zackboing,schulhelfer,losverkauf,grundschultafel über --apps.
+[Persönliche PINs, mobile Uploads, Domainwechsel und Dateirestore](docs/implementation/grundschultafel.md).
+
 ## Releaseprüfung
 
 ```sh
@@ -84,9 +89,9 @@ Negativzugriffe, Mail in den Sink, Domainwechsel mit Rückfall und einen synthet
 PostgreSQL-Restore sowie einen kombinierten Zackboing-DB-/Medienrestore. Sie ersetzen keine vollständige Produktionsabnahme.
 
 Das [Dashboard](docs/implementation/dashboard.md) mit TOTP und eingeschränktem
-Unix-Steuerdienst unterstützt die fünf Pilot-Apps; aktive Zackboing-Spiele blockieren Stop.
+Unix-Steuerdienst unterstützt die sechs Pilot-Apps; aktive Zackboing-Spiele blockieren Stop.
 Verschlüsseltes Offsitebackup, konsistente gemeinsame DB-/Datei-/Schlüsselsicherung,
-weitere Dashboardfunktionen, fünf weitere Appintegrationen und Zielservermessungen sind offen.
+weitere Dashboardfunktionen, vier weitere Appintegrationen und Zielservermessungen sind offen.
 RPO/RTO und die geschätzten 16 GB RAM/4 vCPU sind noch nicht bestätigt.
 
 Kein Keycloak, keine zentrale Benutzersperrung und kein zentraler Logout.

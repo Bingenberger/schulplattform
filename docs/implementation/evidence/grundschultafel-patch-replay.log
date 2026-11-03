@@ -1,0 +1,22 @@
+$ git clone --shared --no-checkout /home/emrichschule/schulplattform/.work/apps/grundschultafel /home/emrichschule/schulplattform/.work/patch-check-grundschultafel
+Cloning into '/home/emrichschule/schulplattform/.work/patch-check-grundschultafel'...
+exit_code=0
+$ git -C /home/emrichschule/schulplattform/.work/patch-check-grundschultafel checkout --detach 496466cac7cc2b3e48a6acd2940ebc91029c145f
+Warning: you are leaving 2 commits behind, not connected to
+any of your branches:
+
+  4307aee Add isolated Next runtime, transactional files and revocable personal sessions
+  79e4991 Replace default login with local single-use bootstrap
+
+If you want to keep them by creating a new branch, this may be a good time
+to do so with:
+
+ git branch <new-branch-name> 4307aee
+
+HEAD is now at 496466c Fix: Bilder als Data-URL speichern statt als externe URL
+exit_code=0
+$ git -C /home/emrichschule/schulplattform/.work/patch-check-grundschultafel am /home/emrichschule/schulplattform/patches/grundschultafel/changes.patch
+Applying: Replace default login with local single-use bootstrap
+Applying: Add isolated Next runtime, transactional files and revocable personal sessions
+exit_code=0
+PASS: audited checkout plus complete patch produces identical source tree a32a7cbd2d484839356c0271bc16597944f9c5bb

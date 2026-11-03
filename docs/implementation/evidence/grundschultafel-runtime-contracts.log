@@ -1,0 +1,12 @@
+$ docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 512m --cpus 1 --pids-limit 128 --tmpfs /tmp:size=64m,mode=1777 grundschultafel-tests:0.1.0-dev node scripts/test-runtime.cjs
+PASS read does not initialize accounts or schema
+PASS explicit migration preserves IDs and notebook bytes, is idempotent and rejects future schema
+PASS migration imports owned assets without overwrite and rejects links
+PASS separate processes serialize full read-modify-write without lost updates
+PASS session device binding, expiry, credential reset, deletion and explicit revocation
+PASS mobile tickets reject arbitrary, expired, foreign and repeated use
+PASS mobile outstanding ticket quota is finite
+PASS bootstrap refuses account overwrite and headless token disclosure
+PASS 8 file-runtime contracts
+
+exit_code=0

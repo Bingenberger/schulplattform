@@ -1,0 +1,149 @@
+[
+  {
+    "command": [
+      "docker",
+      "ps",
+      "-q",
+      "--filter",
+      "label=com.docker.compose.project=sp-tafel-standalone-5ab19d6f70"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--read-only",
+      "--network",
+      "none",
+      "--user",
+      "10001:10001",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--memory",
+      "512m",
+      "--cpus",
+      "1",
+      "--pids-limit",
+      "64",
+      "--tmpfs",
+      "/tmp:size=256m,mode=1777",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-e",
+      "PYTHONPATH=/helper",
+      "-v",
+      "/home/emrichschule/schulplattform/schulplattform:/helper/schulplattform:ro",
+      "-v",
+      "sp-tafel-standalone-5ab19d6f70_data:/data:ro",
+      "python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c",
+      "python",
+      "-c",
+      "import sys\nfrom pathlib import Path\nfrom schulplattform.snapshot import create\nroot=Path('/data');paths=list(root.iterdir())\nassert not any(p.name.startswith('.lock-') or p.name.endswith('.tmp') for p in paths)\ncreate(root,sys.stdout.buffer,files=[p.name for p in paths if p.is_file()],directories=[p.name for p in paths if p.is_dir()])\n"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "volume",
+      "create",
+      "sp-tafel-restore-669866e802-data"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--network",
+      "none",
+      "--read-only",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "-v",
+      "sp-tafel-restore-669866e802-data:/data",
+      "grundschultafel:0.1.0-dev",
+      "node",
+      "-e",
+      "const fs=require('node:fs');if(fs.readdirSync('/data').length||fs.statSync('/data').uid!==10001)process.exit(1)"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--read-only",
+      "--network",
+      "none",
+      "--user",
+      "10001:10001",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--memory",
+      "512m",
+      "--cpus",
+      "1",
+      "--pids-limit",
+      "64",
+      "--tmpfs",
+      "/tmp:size=256m,mode=1777",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-e",
+      "PYTHONPATH=/helper",
+      "-v",
+      "/home/emrichschule/schulplattform/schulplattform:/helper/schulplattform:ro",
+      "-i",
+      "-v",
+      "sp-tafel-restore-669866e802-data:/data",
+      "python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c",
+      "python",
+      "-c",
+      "import sys,shutil,json\nfrom pathlib import Path\nfrom schulplattform.snapshot import restore\narchive=Path('/tmp/snapshot.tar')\nwith archive.open('wb') as output:shutil.copyfileobj(sys.stdin.buffer,output)\nmanifest=restore(archive,Path('/data'),sys.argv[1])\nusers=json.loads(Path('/data/users.json').read_text())\nassert len(users)==4 and len({u['id'] for u in users})==4\nassert sorted(u['role'] for u in users)==['admin','teacher','teacher','teacher']\nassert json.loads(Path('/data/schema.json').read_text())['version']==1\nassert all(p.stat().st_uid==10001 and p.stat().st_gid==10001 for p in Path('/data').rglob('*'))\nassert all(p.stat().st_mode&511==(448 if p.is_dir() else 384) for p in Path('/data').rglob('*'))\nprint(json.dumps({'files':len(manifest['entries']),'userIdsPreserved':True,'ownershipAndPermissions':True,'schema':1}))\n",
+      "012c1e19ff145b4af9655e608098417a01a1e6197ba58675ff503c13490a34ef"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-tafel-restore-669866e802",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/grundschultafel/docker-compose.yml",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/sp-tafel-standalone-5ab19d6f70/restore-158ccd4620/restore.json",
+      "up",
+      "-d",
+      "--no-build",
+      "--wait",
+      "--wait-timeout",
+      "90"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-tafel-restore-669866e802",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/grundschultafel/docker-compose.yml",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/sp-tafel-standalone-5ab19d6f70/restore-158ccd4620/restore.json",
+      "stop"
+    ],
+    "exitCode": 0
+  }
+]

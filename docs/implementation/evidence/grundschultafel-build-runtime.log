@@ -1,0 +1,140 @@
+$ docker build --platform linux/amd64 --memory 2048m --target runtime -t grundschultafel:0.1.0-dev .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  757.2kB
+Step 1/26 : FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS dependencies
+ ---> c469fbffcbb0
+Step 2/26 : ENV npm_config_cache=/tmp/npm-cache npm_config_devdir=/tmp/node-gyp npm_config_nodedir=/usr/local NEXT_TELEMETRY_DISABLED=1
+ ---> Using cache
+ ---> 256909bba908
+Step 3/26 : WORKDIR /build
+ ---> Using cache
+ ---> ce102955a383
+Step 4/26 : COPY package.json package-lock.json ./
+ ---> Using cache
+ ---> 259981eee36b
+Step 5/26 : RUN npm ci --no-audit --no-fund
+ ---> Using cache
+ ---> d5124e1560b3
+Step 6/26 : FROM dependencies AS builder
+ ---> d5124e1560b3
+Step 7/26 : COPY next.config.ts tsconfig.json postcss.config.mjs ./
+ ---> Using cache
+ ---> 915936f5fd9a
+Step 8/26 : COPY src ./src
+ ---> Using cache
+ ---> b35c38685d01
+Step 9/26 : COPY public/timer/index.html ./public/timer/index.html
+ ---> Using cache
+ ---> 5254944729a8
+Step 10/26 : RUN npm run build -- --webpack
+ ---> Running in a5b15c4b0f8f
+
+> tafel-popafel@0.1.0 build
+> next build --webpack
+
+▲ Next.js 16.1.6 (webpack)
+- Experiments (use with caution):
+  · cpus: 1
+  · proxyClientMaxBodySize: "24mb"
+
+[91m⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+[0m  Creating an optimized production build ...
+✓ Compiled successfully in 4.4s
+  Running TypeScript ...
+  Collecting page data using 1 worker ...
+  Generating static pages using 1 worker (0/12) ...
+  Generating static pages using 1 worker (3/12) 
+  Generating static pages using 1 worker (6/12) 
+  Generating static pages using 1 worker (9/12) 
+✓ Generating static pages using 1 worker (12/12) in 157.7ms
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /admin
+├ ƒ /api/admin/users
+├ ƒ /api/auth/change-password
+├ ƒ /api/auth/login
+├ ƒ /api/auth/logout
+├ ƒ /api/auth/me
+├ ƒ /api/auth/users
+├ ƒ /api/backgrounds
+├ ƒ /api/gallery
+├ ƒ /api/gallery/folders
+├ ƒ /api/gallery/image
+├ ƒ /api/ip
+├ ƒ /api/journal
+├ ƒ /api/mobile-upload
+├ ƒ /api/mobile-upload/session
+├ ƒ /api/notebooks
+├ ƒ /api/notebooks/[id]
+├ ƒ /api/rs
+├ ƒ /api/youtube
+├ ƒ /assets/[...segments]
+├ ○ /change-password
+├ ƒ /health/live
+├ ƒ /health/ready
+├ ○ /login
+└ ○ /upload
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+ ---> Removed intermediate container a5b15c4b0f8f
+ ---> 0706c7f8210c
+Step 11/26 : FROM builder AS tests
+ ---> 0706c7f8210c
+Step 12/26 : COPY scripts ./scripts
+ ---> 39ec8977ad71
+Step 13/26 : USER 10001:10001
+ ---> Running in ebb190f16ab4
+ ---> Removed intermediate container ebb190f16ab4
+ ---> 61dc2389f5fd
+Step 14/26 : FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS runtime
+ ---> c469fbffcbb0
+Step 15/26 : ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0 TAFEL_DATA_DIR=/data TAFEL_ASSET_DIR=/data/assets
+ ---> Using cache
+ ---> 85b460801d66
+Step 16/26 : WORKDIR /app
+ ---> Using cache
+ ---> ac260da49d51
+Step 17/26 : COPY --from=builder /build/.next/standalone ./
+ ---> 704f8f8e81c0
+Step 18/26 : COPY --from=builder /build/.next/static ./.next/static
+ ---> 6b8dfbd21548
+Step 19/26 : COPY --from=builder /build/public ./public
+ ---> 6aafbe28238f
+Step 20/26 : COPY --from=dependencies /build/node_modules/bcryptjs ./node_modules/bcryptjs
+ ---> 345bdfbd881f
+Step 21/26 : COPY scripts/start.mjs scripts/migrate.mjs scripts/bootstrap.mjs ./scripts/
+ ---> 6c19ef2eda10
+Step 22/26 : COPY src/lib/file-store.cjs ./src/lib/file-store.cjs
+ ---> 146ae5bfa7f8
+Step 23/26 : RUN groupadd --gid 10001 tafel && useradd --uid 10001 --gid 10001 --no-create-home tafel     && mkdir -p /data && chown 10001:10001 /data && chmod 700 /data
+ ---> Running in f1c189cfe7c3
+ ---> Removed intermediate container f1c189cfe7c3
+ ---> e56552271336
+Step 24/26 : USER 10001:10001
+ ---> Running in e605285fc1de
+ ---> Removed intermediate container e605285fc1de
+ ---> 2efa8213affa
+Step 25/26 : EXPOSE 3000
+ ---> Running in 780720843acf
+ ---> Removed intermediate container 780720843acf
+ ---> b1bfd3dbc485
+Step 26/26 : CMD ["node", "scripts/start.mjs"]
+ ---> Running in 547d6a6a4f9d
+ ---> Removed intermediate container 547d6a6a4f9d
+ ---> 20f852b86a50
+Successfully built 20f852b86a50
+Successfully tagged grundschultafel:0.1.0-dev
+
+exit_code=0

@@ -115,3 +115,17 @@ Identität wird lokal konfiguriert. Bereits installierte Auswahlen bleiben erhal
 [Losverkauf-Abnahme](losverkauf.md) nennt Standalone, kombinierten Restore,
 individuelle Elternlinks nach Domainwechsel und die Grenzen von SMTP-Duplikaten,
 nativen Alt-Automationen und noch fehlender Browser-/Produktionsabnahme.
+
+## Optionaler sechster Dienst: Grundschultafel
+
+Nach scripts/build_grundschultafel.py in einem neuen Zustandsordner mit --apps
+gswb,schulwissen,zackboing,schulhelfer,losverkauf,grundschultafel installieren.
+Die geprüfte Umgebung ist .work/pilot-v12. Grundschultafel erhält einen eigenen
+Session-Schlüssel, ein privates JSON-/Asset-Volume und internes Proxynetz.
+Der Erstlauf führt ausschließlich node scripts/migrate.mjs aus. Persönlicher
+Erstzugang wird separat lokal am Terminal eingerichtet.
+
+[Grundschultafel-Abnahme](grundschultafel.md) enthält Standalone, parallele
+Nutzeränderungen, widerrufbare Sitzungen, mobile Uploadtickets, Login-/QR-
+Domainwechsel, Rückfall und Restore in ein leeres Volume. Unterrichtsmedien
+müssen nach Lizenzklärung ausdrücklich bereitgestellt werden.

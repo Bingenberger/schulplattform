@@ -1,0 +1,14 @@
+$ git diff --cached --check
+
+exit_code=0
+
+$ git commit -m Integrate sixth app with revocable sessions and complete file-store restore
+[main bb28c35] Integrate sixth app with revocable sessions and complete file-store restore
+ 16 files changed, 2912 insertions(+), 28 deletions(-)
+ create mode 100644 scripts/build_grundschultafel.py
+ create mode 100644 scripts/prove_grundschultafel_standalone.py
+ create mode 100644 scripts/tafel_fixture.py
+ create mode 100644 scripts/verify_grundschultafel_platform.py
+ create mode 100644 scripts/verify_grundschultafel_restore.py
+
+exit_code=0

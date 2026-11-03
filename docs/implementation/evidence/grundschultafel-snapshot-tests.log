@@ -1,0 +1,5 @@
+$ .venv/bin/python -m pytest -q tests/test_snapshot.py
+..........                                                               [100%]
+10 passed in 0.03s
+
+exit_code=0
