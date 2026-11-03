@@ -115,3 +115,5 @@ um Docker-Subnetze freizugeben. Schlüssel und Volumes bleiben erhalten.
 
 Die Testdienste sind nach den Abnahmen gestoppt. Keine Produktivumstellung,
 öffentlichen DNSänderungen, echten Schülerkonten oder externen E-Mails.
+
+Plattform-Quellpaket: 99905ed; [Commit-Rohbeleg](evidence/kompetenz-work-package-commit.log).

@@ -1,0 +1,36 @@
+$ git diff --cached --check
+
+exit_code=0
+
+$ git commit -m Integrate Kompetenz-Manager as ninth isolated app with explicit schema and bounded exports
+[main 99905ed] Integrate Kompetenz-Manager as ninth isolated app with explicit schema and bounded exports
+ 47 files changed, 3867 insertions(+), 67 deletions(-)
+ create mode 100644 docs/implementation/evidence/kompetenz-app-commit.log
+ create mode 100644 docs/implementation/evidence/kompetenz-browser.json
+ create mode 100644 docs/implementation/evidence/kompetenz-contracts.log
+ create mode 100644 docs/implementation/evidence/kompetenz-functional.log
+ create mode 100644 docs/implementation/evidence/kompetenz-manager-build-runtime.log
+ create mode 100644 docs/implementation/evidence/kompetenz-manager-build-tests.log
+ create mode 100644 docs/implementation/evidence/kompetenz-manager-image.json
+ create mode 100644 docs/implementation/evidence/kompetenz-manager-patch-replay.json
+ create mode 100644 docs/implementation/evidence/kompetenz-native-env-isolation.json
+ create mode 100644 docs/implementation/evidence/kompetenz-platform.json
+ create mode 100644 docs/implementation/evidence/kompetenz-private-output-check.log
+ create mode 100644 docs/implementation/evidence/kompetenz-restore-operations.json
+ create mode 100644 docs/implementation/evidence/kompetenz-restore.json
+ create mode 100644 docs/implementation/evidence/kompetenz-standalone-operations.json
+ create mode 100644 docs/implementation/evidence/kompetenz-standalone.json
+ create mode 100644 docs/implementation/evidence/pilot-v20-operations.jsonl
+ create mode 100644 docs/implementation/kompetenz-manager.md
+ create mode 100644 patches/kompetenz-manager/changes.patch
+ create mode 100644 scripts/build_kompetenz.py
+ create mode 100644 scripts/check_kompetenz_runtime.py
+ create mode 100644 scripts/kompetenz_fixture.py
+ create mode 100644 scripts/lock_kompetenz.py
+ create mode 100644 scripts/verify_kompetenz_browser.py
+ create mode 100644 scripts/verify_kompetenz_patch.py
+ create mode 100644 scripts/verify_kompetenz_platform.py
+ create mode 100644 scripts/verify_kompetenz_restore.py
+ create mode 100644 scripts/verify_kompetenz_standalone.py
+
+exit_code=0
