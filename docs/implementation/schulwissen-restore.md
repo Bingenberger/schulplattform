@@ -67,3 +67,5 @@ und kein Offsite-Transport. RPO/RTO sind weiterhin nicht bestätigt.
 Auch ein Image-Rollback ersetzt keinen Datenbank-Rollback: Der Versuch spielt
 einen gemeinsam gesicherten Daten-/Medienstand in eine zur unveränderten Runtime
 passende Umgebung zurück und führt keine Schema-Downgrades aus.
+
+Änderungspaket: `13498abd4c7684d4200afa7cd09ccc2037f95c2e`. [Geprüfter Commitbeleg](evidence/restore-metrics-work-package-commit.log).

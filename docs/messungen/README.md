@@ -42,3 +42,5 @@ separater Lastgenerator, keine CRUD-Latenz-/Fehlerratenmessung, kein 60-Minuten-
 Dauerlauf und keine Konkurrenz von PDF, Import, Mailqueue und konsistentem Backup.
 Queuealter und Plattenlatenz fehlen ebenfalls. Ein belastbares Mindestprofil
 oder eine geänderte Kaufempfehlung lässt sich aus dieser Stichprobe nicht ableiten.
+
+Änderungspaket: `13498abd4c7684d4200afa7cd09ccc2037f95c2e`. [Geprüfter Commitbeleg](../implementation/evidence/restore-metrics-work-package-commit.log).

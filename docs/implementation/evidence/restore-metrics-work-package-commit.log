@@ -1,0 +1,26 @@
+$ git diff --cached --check
+
+exit_code=0
+
+$ git commit -m Prove schulwissen HTTP restore and record scoped ten-app idle measurements
+[main 13498ab] Prove schulwissen HTTP restore and record scoped ten-app idle measurements
+ 21 files changed, 1931 insertions(+), 38 deletions(-)
+ create mode 100644 docs/implementation/evidence/restore-metrics-private-output-check.log
+ create mode 100644 docs/implementation/evidence/restore-metrics-tests.log
+ create mode 100644 docs/implementation/evidence/schulwissen-http-restore-operations.json
+ create mode 100644 docs/implementation/evidence/schulwissen-http-restore.json
+ create mode 100644 docs/implementation/schulwissen-restore.md
+ create mode 100644 docs/messungen/local-idle-2026-11-03T202543Z-ebc545/README.md
+ create mode 100644 docs/messungen/local-idle-2026-11-03T202543Z-ebc545/artifacts.sha256
+ create mode 100644 docs/messungen/local-idle-2026-11-03T202543Z-ebc545/images.json
+ create mode 100644 docs/messungen/local-idle-2026-11-03T202543Z-ebc545/metadata.json
+ create mode 100644 docs/messungen/local-idle-2026-11-03T202543Z-ebc545/samples.jsonl
+ create mode 100644 docs/messungen/local-idle-2026-11-03T202543Z-ebc545/services.csv
+ create mode 100644 docs/messungen/local-idle-2026-11-03T202543Z-ebc545/summary.json
+ create mode 100644 scripts/measure_pilot_idle.py
+ create mode 100644 scripts/pilot_metrics.py
+ create mode 100644 scripts/schulwissen_fixture.py
+ create mode 100644 scripts/verify_schulwissen_restore_http.py
+ create mode 100644 tests/test_pilot_metrics.py
+
+exit_code=0
