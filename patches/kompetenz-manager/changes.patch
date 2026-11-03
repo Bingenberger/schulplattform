@@ -1,0 +1,1491 @@
+From 8e846b87a208b32efab7bf718dfd5977d597aa85 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Tue, 3 Nov 2026 12:43:13 +0100
+Subject: [PATCH 1/4] Add isolated Flask runtime, explicit schema baseline and
+ shared export limits
+
+---
+ .dockerignore                  |  18 ++++++
+ .env.local.example             |  10 +--
+ .gitignore                     |   2 +
+ Dockerfile                     |  27 ++++++++
+ PLATFORM.md                    | 114 +++++++++++++++++++++++++++++++++
+ README.md                      |  46 ++-----------
+ app.py                         |  32 ++++-----
+ contract_tests/test_runtime.py |  92 ++++++++++++++++++++++++++
+ docker-compose.yml             |  63 ++++++++++++++++++
+ gunicorn.conf.py               |  15 +++++
+ km_export.py                   |  21 ++++++
+ km_migrate.py                  |  81 +++++++++++++++++++++++
+ km_runtime.py                  | 100 +++++++++++++++++++++++++++++
+ km_setup.py                    |  31 +++++++++
+ km_worker.py                   |  37 +++++++++++
+ mail_versand.py                |   7 +-
+ odt_export.py                  |  41 +++++-------
+ prepare_secret.py              |   9 +++
+ repair.py                      |  31 +--------
+ requirements-test.lock         |  25 ++++++++
+ requirements.lock              |  20 ++++++
+ routes/auth_routes.py          |   4 ++
+ routes/system_routes.py        |  42 +-----------
+ routes/workplan_routes.py      |   8 +++
+ start.sh                       |   2 +-
+ update_db.py                   |  71 ++------------------
+ 26 files changed, 719 insertions(+), 230 deletions(-)
+ create mode 100644 .dockerignore
+ create mode 100644 Dockerfile
+ create mode 100644 PLATFORM.md
+ create mode 100644 contract_tests/test_runtime.py
+ create mode 100644 docker-compose.yml
+ create mode 100644 gunicorn.conf.py
+ create mode 100644 km_export.py
+ create mode 100644 km_migrate.py
+ create mode 100644 km_runtime.py
+ create mode 100644 km_setup.py
+ create mode 100644 km_worker.py
+ create mode 100644 prepare_secret.py
+ create mode 100644 requirements-test.lock
+ create mode 100644 requirements.lock
+
+diff --git a/.dockerignore b/.dockerignore
+new file mode 100644
+index 0000000..f113a0d
+--- /dev/null
++++ b/.dockerignore
+@@ -0,0 +1,18 @@
++*
++!*.py
++!requirements.lock
++!requirements-test.lock
++!routes/
++!routes/**
++!templates/
++!templates/**
++!static/
++!static/**
++static/uploads
++!tests/
++!tests/**
++!contract_tests/
++!contract_tests/**
++!odt_templates/
++!odt_templates/**
++**/__pycache__
+diff --git a/.env.local.example b/.env.local.example
+index 0bae6e6..f7d787c 100644
+--- a/.env.local.example
++++ b/.env.local.example
+@@ -16,8 +16,8 @@ export SECRET_KEY='hier-einen-langen-zufaelligen-wert-eintragen'
+ export SESSION_COOKIE_NAME='kompetenz_manager_session'
+ export REMEMBER_COOKIE_NAME='kompetenz_manager_remember'
+ 
+-# Nur zur Erstinitialisierung setzen, danach beide Zeilen wieder entfernen.
+-# Die Setup-Route verlangt zusaetzlich SETUP_ROUTE_TOKEN und laeuft nur lokal.
+-#export ALLOW_SETUP_ROUTE=1
+-#export SETUP_ROUTE_TOKEN='ein-zufaelliger-token'
+-#export SETUP_ADMIN_PASSWORD='StartPasswort123!'
++# Migration explizit: python -m km_migrate
++# Persönlicher Erstzugang ausschließlich am lokalen Terminal: python km_setup.py eigener.name
++# Kein HTTP-Setup und keine Passwortausgabe.
++# Proxyadressen ausdrücklich festlegen:
++#export TRUSTED_PROXY_IPS='127.0.0.1'
+diff --git a/.gitignore b/.gitignore
+index 76dc8f8..389a4bc 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -64,3 +64,5 @@ demo/screenshots/
+ *.kate-swp
+ *.swp
+ *~
++
++.private/
+diff --git a/Dockerfile b/Dockerfile
+new file mode 100644
+index 0000000..f25c322
+--- /dev/null
++++ b/Dockerfile
+@@ -0,0 +1,27 @@
++FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c AS base
++ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
++WORKDIR /app
++RUN apt-get update && apt-get install -y --no-install-recommends libreoffice-writer poppler-utils fonts-liberation fonts-dejavu-core \
++ && rm -rf /var/lib/apt/lists/* \
++ && groupadd --gid 10001 kompetenz && useradd --uid 10001 --gid 10001 --no-create-home kompetenz
++COPY requirements.lock ./
++RUN pip install --no-cache-dir --require-hashes -r requirements.lock
++COPY *.py ./
++COPY routes ./routes
++COPY templates ./templates
++COPY static ./static
++COPY gunicorn.conf.py ./
++RUN mkdir -p /app/instance /app/static/uploads /app/odt_templates \
++ && chown -R 10001:10001 /app/instance /app/odt_templates
++FROM base AS tests
++COPY requirements-test.lock ./
++RUN pip install --no-cache-dir --require-hashes -r requirements-test.lock
++COPY tests ./tests
++COPY contract_tests ./contract_tests
++COPY odt_templates ./odt_templates
++USER 10001:10001
++FROM base AS runtime
++USER 10001:10001
++EXPOSE 8000
++HEALTHCHECK --interval=5s --timeout=3s --retries=12 CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health/ready',timeout=2)"
++CMD ["gunicorn","--config","gunicorn.conf.py","app:app"]
+diff --git a/PLATFORM.md b/PLATFORM.md
+new file mode 100644
+index 0000000..053f889
+--- /dev/null
++++ b/PLATFORM.md
+@@ -0,0 +1,114 @@
++# Kompetenz-Manager: isolierter Standalone-Betrieb
++
++Dieser Stand betreibt die bestehende Flask-App mit zwei Gunicorn-Webworkern,
++SQLite und einem separaten Benachrichtigungsworker. Die fachlichen Rollen und
++UserKlassenzuordnung bleiben maßgeblich. Interne Beobachtungen sind nach dem
++bisherigen Fachmodell schulweit sichtbar; insbesondere Diagnostik und weitere
++klassengebundene Bereiche behalten ihre feineren Zugriffsregeln.
++
++## Neue lokale Installation
++
++Voraussetzungen: Docker Engine und Compose v2, amd64. Aus dem Repositorywurzel:
++
++```sh
++python3 prepare_secret.py
++export KM_SECRET_FILE="$PWD/.private/session-key"
++export APP_BASE_URL=http://localhost:8008
++export SESSION_COOKIE_SECURE=0
++docker compose build app
++docker compose run --rm --no-deps app python -m km_migrate
++docker compose run --rm --no-deps app python km_setup.py persoenlicher.name
++docker compose up -d --wait
++```
++
++Der Erstzugang fragt das Passwort am echten lokalen Terminal zweimal verdeckt
++ab (mindestens zwölf Zeichen) und verweigert sich bei vorhandenen Benutzern.
++Kein Standardname/-passwort, kein HTTP-Bootstrap und keine Demo-Konten.
++Die bisherigen /setup- und repair.py-Wege geben keine Credentials mehr aus.
++Migration und Erstadministration werden bei normalem Start nicht wiederholt.
++
++prepare_secret.py erzeugt nur ein neues privates Verzeichnis .private (0700).
++Die einzelne projizierte Datei ist darin 0444; private Masterdateien separat
++schützen und sichern. SECRET_KEY bleibt unterstützt, alternativ SECRET_KEY_FILE;
++ebenso DATABASE_URL/DATABASE_URL_FILE, jeweils nur eine Quelle.
++Compose übernimmt DATABASE_URL, standardmäßig SQLite im eigenen Volume.
++Der optionale PostgreSQL-Codepfad ist nicht in dieser Containerabnahme geprüft.
++
++Nur 127.0.0.1:8008 wird veröffentlicht. Bei anderem KM_PORT auch APP_BASE_URL
++anpassen. Für TLS APP_BASE_URL auf die externe Origin setzen und
++SESSION_COOKIE_SECURE=1 verwenden. TRUSTED_PROXY_IPS enthält ausschließlich die
++tatsächlichen Proxyadressen. Der alte Schalter TRUST_REVERSE_PROXY=1 allein
++genügt nicht mehr. App- und Mail-Konfiguration verwenden weiter die bestehenden
++Namen MAIL_SERVER/PORT/SECURITY/USERNAME/PASSWORD/FROM und APP_BASE_URL.
++Compose konfiguriert keinen externen SMTP-Upstream.
++
++## Schema und Bestand
++
++Revision 0001 prüft Release-Prüfsumme und Tabellen-/Spalteninventar.
++Liveness ist unabhängig von Schema und SMTP, Readiness prüft die eigene DB.
++Es gibt keine Schemaänderungen in Web-/Worker-Startpfaden oder HTTP-Routen.
++Ein privates Intent-Journal macht einen tatsächlich unterbrochenen Erstlauf
++fortsetzbar. Eine beschädigte oder abweichende Revision wird nicht überschrieben.
++
++Ein vollständiges Schema des geprüften Ausgangsstands kann ohne Änderung von
++Fachzeilen, IDs, Rollen, Klassennamen oder Zuordnungen übernommen werden.
++Die zusätzliche Sitzungstabelle enthält keine Fachbenutzerkopien.
++Unbekannte/ältere unvollständige Schemata werden vor Änderungen abgewiesen.
++Die früheren automatischen Backfills aus update_db.py laufen nicht implizit;
++ihre historische Hilfslogik ist für einen separat geprüften Migrationsplan
++erhalten. Echte Altinstallationen wurden nicht übernommen. Vor Adoption
++konsistent sichern und mit einer Kopie testen.
++
++## Sitzungen und Dokumente
++
++Lokale Anmeldung bleibt erhalten. Das signierte HttpOnly-/SameSite-Lax-Cookie
++enthält eine zufällige Sitzungskennung; die DB speichert nur deren Hash mit
++Acht-Stunden-Ablauf und Credential-Fingerabdruck. Logout, Passwort-/Rollenwechsel
++und Kontolöschung entziehen damit bestehende Sitzungen. Alte Cookies ohne neue
++Kennung erfordern erneute Anmeldung. Keine zentrale Sperrung oder SSO.
++
++Bestehendes CSRF bleibt aktiv; vorhandene Origin-Header müssen zusätzlich zur
++konfigurierten APP_BASE_URL passen. Direkte statische Uploadpfade sind gesperrt.
++Auslieferung erfolgt über vorhandene authentifizierte Medienrouten mit den
++jeweiligen Fachrechten.
++
++Ein nicht wartender Dateilock begrenzt PDF-Konvertierungen über beide Worker
++und lokale Jobs. Bei Belegung erhält der Client 429. Bei Sammel-PDFs hält der
++HTTP-Pfad den Slot über die gesamte Anfrage; Konvertierungshelfer verwenden
++denselben Lock. LibreOffice-Prozessgruppen werden nach höchstens 20 Sekunden
++beendet, ODT-Eingaben sind auf 16 MiB und einzelne PDF-Ausgaben auf 64 MiB
++begrenzt. pdfunite hat ebenfalls ein Zeitlimit. Große Sammellisten/Importe und
++ODT-Erzeugung benötigen noch eine vollständige Mengen-/Lastabnahme.
++
++Das Produktionsimage verteilt keine schuleigenen ODT-Vorlagen. Das Volume
++/app/odt_templates startet leer; benötigte eigene Vorlagen ausdrücklich
++bereitstellen und sichern. Dynamisch erzeugte ODTs und Gesamtakten-PDFs bleiben
++auch ohne diese Vorlagen nutzbar. Die vorhandene Fachsuite verwendet die
++Repositoryvorlagen nur im privaten Testimage. Rechteprüfung bleibt offen.
++
++## Benachrichtigungen und Sicherung
++
++Der separate Worker verwendet die vorhandene dauerhafte Notification-/mailed_at-
++Logik. Ein Instanzlock verhindert parallele Worker auf demselben Volume.
++Sofortzyklen laufen alle fünf Minuten, tägliche Erinnerungen separat mit
++persistiertem Tagesmarker. Versandläufe begrenzen Nutzer-/Nachrichtenmengen.
++Fehlgeschlagene Zustellungen bleiben offen. Versand ist mindestens einmal:
++ein Absturz nach SMTP-Annahme vor DB-Commit kann Duplikate erzeugen.
++Native Cronjobs nicht parallel zum Containerworker betreiben; für manuelle
++Versandjobs den Worker zuerst anhalten. Keine vollständige Queue-/Alarmoberfläche
++oder Zustellgarantie. Mailausfall blockiert keine normalen Webanfragen.
++
++UID 10001 besitzt /app/instance (DB, private Uploads, Schullogo, Workerzustand)
++und /app/odt_templates. Rootdateisystem schreibgeschützt, begrenztes tmpfs und
++Ressourcenlimits. Vor einer gemeinsamen DB-/Dateisicherung beide Schreibdienste
++stoppen. SQLite über die Backup-API sichern, keine Kopie einer laufenden DB.
++Uploads, Logo, Vorlagen und Secret separat berücksichtigen. Restore nur in
++leere isolierte Volumes; danach weder Seed noch Migration erneut ausführen.
++Produktiv alte Sitzungen nach einem Restore ausdrücklich widerrufen.
++
++Die App wurde mit Fach-/Negativtests, echter Terminaleinrichtung, PDF,
++Mail-Sink-Ausfall, Restore, lokalem Domainrückfall und Lebenszyklus geprüft.
++Keine Ubuntu-/öffentliche DNS-/ACME-, ARM64-, Offsite- oder Kapazitätsabnahme.
++Basisimage und Python-Wheels sind festgelegt; Debian-Paketquellen sind noch
++kein dauerhaft eingefrorener Distributionssnapshot. Keine Imageveröffentlichung
++oder projektweite Lizenzdeklaration.
+diff --git a/README.md b/README.md
+index 4fafcde..7003891 100644
+--- a/README.md
++++ b/README.md
+@@ -124,47 +124,13 @@ Bereits umgesetzt:
+ - Service-Deployment mit `gunicorn`, Logging und Backups
+ - Oberflaeche ohne externe Ressourcen: Bootstrap und Schriften werden lokal ausgeliefert, es gehen keine Daten an Dritte und die Anwendung funktioniert ohne Internetverbindung
+ 
+-## Schnellstart fuer Entwicklung
++## Installation und Betrieb
+ 
+-```bash
+-python3 -m venv .venv
+-source .venv/bin/activate
+-pip install -r requirements.txt
+-SECRET_KEY="bitte-setzen" FLASK_DEBUG=1 python app.py
+-```
+-
+-Alternativ:
+-
+-```bash
+-./start.sh
+-```
+-
+-Wenn `DATABASE_URL` nicht gesetzt ist, verwendet die App automatisch SQLite.
+-
+-## Installation
+-
+-Die ausfuehrliche Installationsanleitung steht in:
+-
+-- [INSTALL.md](INSTALL.md)
+-
+-Dort enthalten:
+-
+-- Entwicklungsbetrieb
+-- SQLite und PostgreSQL
+-- Setup und Erstinitialisierung
+-- Serverbetrieb als Service
+-- Reverse Proxy und Sicherheitsvariablen
+-- Migration bestehender Uploads
+-
+-## Produktion als Service
+-
+-Fuer Linux-Server liegt ein Installationsskript bei:
+-
+-- [deploy/install_service.sh](deploy/install_service.sh)
+-
+-Die zugehoerige Betriebsdokumentation steht in:
+-
+-- [deploy/README_SERVICE.md](deploy/README_SERVICE.md)
++Der isolierte Standalone-Stack, die explizite Migration, persönliche lokale
++Erstadministration und Sicherung sind in [PLATFORM.md](PLATFORM.md) beschrieben.
++Der HTTP-Setup und alte Passwort-Reparaturweg sind geschlossen. Es gibt keine
++Standardkonten. Bestehende Service-/Updatewerkzeuge sind historische Ausgangspunkte;
++ein produktiver Wechsel benötigt den dort beschriebenen Adoptionstest.
+ 
+ ## Migration bestehender Uploads
+ 
+diff --git a/app.py b/app.py
+index 4b798bc..ca3ad9d 100644
+--- a/app.py
++++ b/app.py
+@@ -5,7 +5,7 @@ from flask import Flask, render_template
+ from flask_login import current_user
+ from sqlalchemy import event
+ from sqlalchemy.engine import Engine
+-from werkzeug.middleware.proxy_fix import ProxyFix
++from km_runtime import private_value,install,valid
+ 
+ from csrf_protection import register_csrf
+ from db_health_checks import (
+@@ -74,14 +74,14 @@ def _default_sqlite_uri():
+ 
+ 
+ def create_app(config_overrides=None):
+-    app = Flask(__name__)
++    app = Flask(__name__,instance_path=os.environ.get('KM_INSTANCE_PATH') or str(BASE_DIR/'instance'))
+     # Falls kein SECRET_KEY gesetzt ist, wird ein temporärer Key erzeugt (Sessions werden nach Neustart ungültig)
+-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or os.urandom(32).hex()
++    app.config['SECRET_KEY'] = private_value('SECRET_KEY')
+     # Cookies sind domainbasiert (nicht portbasiert). Eigene Namen vermeiden Kollisionen mit anderen Flask-Apps auf localhost.
+     app.config['SESSION_COOKIE_NAME'] = os.environ.get('SESSION_COOKIE_NAME', 'kompetenz_manager_session')
+     app.config['REMEMBER_COOKIE_NAME'] = os.environ.get('REMEMBER_COOKIE_NAME', 'kompetenz_manager_remember')
+-    app.config['SQLALCHEMY_DATABASE_URI'] = _normalized_database_url(os.environ.get('DATABASE_URL')) or _default_sqlite_uri()
+-    app.config['UPLOAD_FOLDER'] = 'static/uploads'
++    app.config['SQLALCHEMY_DATABASE_URI'] = _normalized_database_url(private_value('DATABASE_URL')) or _default_sqlite_uri()
++    app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER') or str(Path(app.instance_path)/'legacy_uploads')
+     # Obergrenze je Anfrage. Die einzelnen Uploads pruefen ihre eigenen, kleineren
+     # Grenzen; dies faengt ab, was gar nicht erst gelesen werden soll.
+     app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_CONTENT_LENGTH') or 32 * 1024 * 1024)
+@@ -102,15 +102,9 @@ def create_app(config_overrides=None):
+     if config_overrides:
+         app.config.update(config_overrides)
+ 
+-    if os.environ.get('TRUST_REVERSE_PROXY', '0') == '1':
+-        app.wsgi_app = ProxyFix(
+-            app.wsgi_app,
+-            x_for=int(os.environ.get('PROXY_FIX_X_FOR', '1')),
+-            x_proto=int(os.environ.get('PROXY_FIX_X_PROTO', '1')),
+-            x_host=int(os.environ.get('PROXY_FIX_X_HOST', '1')),
+-            x_port=int(os.environ.get('PROXY_FIX_X_PORT', '1')),
+-            x_prefix=int(os.environ.get('PROXY_FIX_X_PREFIX', '0')),
+-        )
++    if not app.config.get('TESTING') and len(app.config.get('SECRET_KEY') or '')<32:
++        raise RuntimeError('Persistent SECRET_KEY or SECRET_KEY_FILE (32+ characters) required')
++    install(app)
+ 
+     engine_options = {'pool_pre_ping': True}
+     if str(app.config.get('SQLALCHEMY_DATABASE_URI', '')).startswith('sqlite:'):
+@@ -129,7 +123,9 @@ def create_app(config_overrides=None):
+ 
+     @login_manager.user_loader
+     def load_user(user_id):
+-        return db.session.get(User, int(user_id))
++        try:user=db.session.get(User,int(user_id))
++        except (ValueError,TypeError):return None
++        return user if user and valid(user) else None
+ 
+     @app.context_processor
+     def inject_navigation():
+@@ -200,12 +196,6 @@ def create_app(config_overrides=None):
+ app = create_app()
+ 
+ if __name__ == '__main__':
+-    with app.app_context():
+-        db.create_all()
+-        warn_if_elternkontakt_migration_needed()
+-        warn_if_user_name_columns_missing()
+-        warn_if_foerderplan_creator_column_missing()
+-        warn_if_workplan_setting_column_missing()
+     app.run(
+         debug=os.environ.get('FLASK_DEBUG') == '1',
+         host=os.environ.get('FLASK_HOST', '127.0.0.1'),
+diff --git a/contract_tests/test_runtime.py b/contract_tests/test_runtime.py
+new file mode 100644
+index 0000000..60c51c9
+--- /dev/null
++++ b/contract_tests/test_runtime.py
+@@ -0,0 +1,92 @@
++"""Runtime contracts using fresh processes and isolated SQLite stores."""
++import json,os,subprocess,sys
++from pathlib import Path
++import pytest
++from werkzeug.exceptions import TooManyRequests
++
++def environment(tmp_path):
++    directory=tmp_path/'instance';directory.mkdir()
++    return os.environ|{'DATABASE_URL':'sqlite:///'+str(directory/'schule.db'),'KM_INSTANCE_PATH':str(directory)}
++def execute(env,program):
++    return subprocess.run([sys.executable,'-c',program],env=env,capture_output=True,text=True,timeout=45)
++def test_migration_resumes_after_actual_process_exit_and_preserves_ids(tmp_path):
++    env=environment(tmp_path)
++    program="""from app import app
++from extensions import db
++from km_migrate import migrate
++import os
++original=db.create_all
++def interrupted():
++    original()
++    os._exit(17)
++db.create_all=interrupted
++with app.app_context():migrate()
++"""
++    assert execute(env,program).returncode==17
++    result=execute(env,"from app import app\nfrom km_migrate import migrate,ready\nwith app.app_context():migrate();assert ready()")
++    assert result.returncode==0,result.stderr
++    program="""from app import app
++from extensions import db
++from models import User,Schueler,UserKlassenzuordnung
++from km_migrate import migrate
++from sqlalchemy import text
++with app.app_context():
++ db.session.add(User(id=42,username='existing-personal',password_hash='preserved-hash',role='teacher'))
++ db.session.add(Schueler(id=57,vorname='Synthetic',nachname='Child',klasse='3a'))
++ db.session.add(UserKlassenzuordnung(id=29,user_id=42,klasse='3a',rolle='fach'))
++ db.session.commit()
++ migrate()
++ assert db.session.get(User,42).password_hash=='preserved-hash'
++ assert db.session.get(Schueler,57).klasse=='3a'
++ assert db.session.get(UserKlassenzuordnung,29).user_id==42
++"""
++    result=execute(env,program);assert result.returncode==0,result.stderr
++
++def test_complete_legacy_schema_adoption_does_not_rewrite_business_data(tmp_path):
++    env=environment(tmp_path)
++    program="""from app import app
++from extensions import db
++from models import User,Schueler
++from km_migrate import migrate,ready
++from sqlalchemy import text
++with app.app_context():
++ db.create_all()
++ db.session.execute(text('DROP TABLE runtime_session'))
++ db.session.add(User(id=84,username='legacy-personal',password_hash='unchanged',role='schulleitung'))
++ db.session.add(Schueler(id=85,vorname='Synthetic',nachname='Legacy',klasse=' 3a '))
++ db.session.commit()
++ migrate()
++ assert ready()
++ assert db.session.get(User,84).role=='schulleitung'
++ assert db.session.get(Schueler,85).klasse==' 3a '
++"""
++    result=execute(env,program);assert result.returncode==0,result.stderr
++
++def test_unknown_legacy_schema_refused_without_rewriting(tmp_path):
++    env=environment(tmp_path)
++    program="""import sqlite3,os
++p=os.environ['DATABASE_URL'].replace('sqlite:///','')
++with sqlite3.connect(p) as c:c.execute('CREATE TABLE unfamiliar (id INTEGER PRIMARY KEY)');c.execute('INSERT INTO unfamiliar VALUES (73)')
++from app import app
++from km_migrate import migrate
++with app.app_context():
++ try:migrate()
++ except RuntimeError:pass
++ else:raise AssertionError('Unknown schema accepted')
++with sqlite3.connect(p) as c:
++ assert c.execute('SELECT * FROM unfamiliar').fetchall()==[(73,)]
++ assert c.execute("SELECT count(*) FROM sqlite_master WHERE type='table'").fetchone()[0]==1
++"""
++    result=execute(env,program);assert result.returncode==0,result.stderr
++
++def test_slot_is_shared_across_separate_processes():
++    from km_export import export_slot
++    with export_slot():
++        result=subprocess.run([sys.executable,'-c',"""from km_export import export_slot
++from werkzeug.exceptions import TooManyRequests
++try:
++ with export_slot():raise AssertionError('Second export accepted')
++except TooManyRequests:pass
++"""],capture_output=True,text=True,timeout=10)
++        assert result.returncode==0,result.stderr
++    with export_slot():pass
+diff --git a/docker-compose.yml b/docker-compose.yml
+new file mode 100644
+index 0000000..9392db5
+--- /dev/null
++++ b/docker-compose.yml
+@@ -0,0 +1,63 @@
++services:
++  app:
++    image: kompetenz-manager:0.1.0-dev
++    build:
++      context: .
++      target: runtime
++    user: "10001:10001"
++    read_only: true
++    init: true
++    cap_drop: [ALL]
++    security_opt: [no-new-privileges:true]
++    tmpfs: ["/tmp:size=256m,mode=1777"]
++    mem_limit: 1536m
++    cpus: 2
++    pids_limit: 192
++    stop_grace_period: 35s
++    ports: ["127.0.0.1:${KM_PORT:-8008}:8000"]
++    environment: &runtime
++      SECRET_KEY_FILE: /run/secrets/session_key
++      DATABASE_URL: "${DATABASE_URL:-sqlite:////app/instance/schule.db}"
++      SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-0}"
++      REMEMBER_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-0}"
++      APP_BASE_URL: "${APP_BASE_URL:-http://localhost:8008}"
++      TRUSTED_PROXY_IPS: "${TRUSTED_PROXY_IPS:-}"
++      MAIL_SERVER: "${MAIL_SERVER:-}"
++      MAIL_PORT: "${MAIL_PORT:-1025}"
++      MAIL_SECURITY: "${MAIL_SECURITY:-none}"
++      MAIL_FROM: "${MAIL_FROM:-kompetenz@example.invalid}"
++    secrets: [session_key]
++    volumes:
++      - instance:/app/instance
++      - templates:/app/odt_templates
++    logging: &logging
++      driver: json-file
++      options: {max-size: "10m", max-file: "3"}
++  worker:
++    image: kompetenz-manager:0.1.0-dev
++    command: [python, km_worker.py]
++    user: "10001:10001"
++    read_only: true
++    init: true
++    cap_drop: [ALL]
++    security_opt: [no-new-privileges:true]
++    tmpfs: ["/tmp:size=32m,mode=1777"]
++    mem_limit: 384m
++    cpus: 0.5
++    pids_limit: 64
++    stop_grace_period: 45s
++    environment: *runtime
++    secrets: [session_key]
++    volumes: [instance:/app/instance]
++    logging: *logging
++    healthcheck:
++      test: [CMD, python, -c, "from app import app;from km_migrate import ready;app.app_context().push();raise SystemExit(0 if ready() else 1)"]
++      interval: 30s
++      timeout: 5s
++      retries: 3
++volumes:
++  instance:
++  templates:
++secrets:
++  session_key:
++    file: ${KM_SECRET_FILE:?Run prepare_secret.py and set KM_SECRET_FILE}
+diff --git a/gunicorn.conf.py b/gunicorn.conf.py
+new file mode 100644
+index 0000000..9a1936e
+--- /dev/null
++++ b/gunicorn.conf.py
+@@ -0,0 +1,15 @@
++bind='0.0.0.0:8000'
++workers=2
++worker_class='sync'
++timeout=35
++graceful_timeout=30
++keepalive=2
++max_requests=1000
++max_requests_jitter=100
++accesslog=None
++errorlog='-'
++capture_output=False
++forwarded_allow_ips=''
++def post_fork(server,worker):
++    import os
++    os.umask(0o077)
+diff --git a/km_export.py b/km_export.py
+new file mode 100644
+index 0000000..11b9123
+--- /dev/null
++++ b/km_export.py
+@@ -0,0 +1,21 @@
++"""One nonblocking export slot shared by web workers and local jobs."""
++import contextvars,fcntl,functools,os
++from contextlib import contextmanager
++from werkzeug.exceptions import TooManyRequests
++_held=contextvars.ContextVar('km_export_held',default=False)
++@contextmanager
++def export_slot():
++    if _held.get():yield;return
++    fd=os.open('/tmp/km-export.lock',os.O_CREAT|os.O_RDWR,0o600)
++    try:
++        try:fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
++        except BlockingIOError:raise TooManyRequests('Dokumentexport belegt; später erneut versuchen.')
++        token=_held.set(True)
++        try:yield
++        finally:_held.reset(token)
++    finally:os.close(fd)
++def bounded_export(function):
++    @functools.wraps(function)
++    def call(*args,**kwargs):
++        with export_slot():return function(*args,**kwargs)
++    return call
+diff --git a/km_migrate.py b/km_migrate.py
+new file mode 100644
+index 0000000..4a89083
+--- /dev/null
++++ b/km_migrate.py
+@@ -0,0 +1,81 @@
++"""Explicit, locked schema baseline. No legacy data rewrite, seed or account creation."""
++import fcntl,hashlib,json,os
++from pathlib import Path
++from sqlalchemy import inspect,text
++from flask import current_app
++from extensions import db
++REVISION='0001'
++def checksum():
++    root=Path(__file__).resolve().parent
++    return hashlib.sha256(b'km-baseline-0001\0'+(root/'models.py').read_bytes()+(root/'km_runtime.py').read_bytes()).hexdigest()
++def schema_matches():
++    inspector=inspect(db.engine)
++    names=set(inspector.get_table_names())
++    expected=set(db.metadata.tables)
++    if not {'km_schema','km_runtime_state'}<=names:return False
++    if names-{'km_schema','km_runtime_state'}!=expected:return False
++    for table in db.metadata.sorted_tables:
++        if {row['name'] for row in inspector.get_columns(table.name)}!={c.name for c in table.columns}:return False
++    return True
++def ready():
++    try:
++        with db.engine.connect() as connection:
++            rows=connection.execute(text('SELECT revision,checksum FROM km_schema')).all()
++        return rows==[(REVISION,checksum())] and schema_matches()
++    except Exception:
++        db.session.rollback()
++        return False
++def migrate():
++    if db.engine.dialect.name not in ('sqlite','postgresql'):raise RuntimeError('Unsupported database')
++    directory=Path(current_app.instance_path)
++    directory.mkdir(mode=0o700,parents=True,exist_ok=True)
++    with (directory/'.schema.lock').open('a+') as lock:
++        os.chmod(lock.name,0o600);fcntl.flock(lock,fcntl.LOCK_EX)
++        if db.engine.dialect.name=='postgresql':
++            with db.engine.connect() as connection:
++                connection.execute(text('SELECT pg_advisory_lock(76401983)'))
++                try:baseline()
++                finally:connection.execute(text('SELECT pg_advisory_unlock(76401983)'))
++        else:baseline()
++def baseline():
++    names=set(inspect(db.engine).get_table_names())
++    intent=Path(current_app.instance_path)/'.schema-intent.json'
++    marker={'revision':REVISION,'checksum':checksum()}
++    recovering=intent.is_file() and json.loads(intent.read_text())==marker
++    if 'km_schema' in names and ready():
++        if intent.exists():intent.unlink()
++        return
++    if 'km_schema' in names and not recovering:
++        raise RuntimeError('Schema revision or inventory mismatch')
++    expected=set(db.metadata.tables)
++    business=expected-{'runtime_session'}
++    allowed=expected|{'km_schema','km_runtime_state'} if recovering else business
++    if names and (not names<=allowed or (not recovering and names!=business)):
++        raise RuntimeError('Legacy schema requires reviewed migration')
++    inspector=inspect(db.engine)
++    for table in db.metadata.sorted_tables:
++        if table.name not in names:continue
++        if {x['name'] for x in inspector.get_columns(table.name)}!={c.name for c in table.columns}:
++            raise RuntimeError('Legacy columns require reviewed migration')
++    if not recovering:
++        temporary=intent.with_suffix('.tmp')
++        with temporary.open('w') as stream:
++            os.chmod(temporary,0o600);json.dump(marker,stream);stream.flush();os.fsync(stream.fileno())
++        os.replace(temporary,intent)
++        fd=os.open(intent.parent,os.O_DIRECTORY);os.fsync(fd);os.close(fd)
++    db.create_all()
++    with db.engine.begin() as connection:
++        connection.execute(text('CREATE TABLE IF NOT EXISTS km_runtime_state (name VARCHAR(100) PRIMARY KEY, value VARCHAR(100) NOT NULL)'))
++        connection.execute(text('CREATE TABLE IF NOT EXISTS km_schema (revision VARCHAR(20) PRIMARY KEY, checksum VARCHAR(64) NOT NULL)'))
++        rows=connection.execute(text('SELECT revision,checksum FROM km_schema')).all()
++        if rows and rows!=[(REVISION,checksum())]:raise RuntimeError('Existing revision mismatch')
++        if not rows:connection.execute(text('INSERT INTO km_schema (revision,checksum) VALUES (:r,:c)'),{'r':REVISION,'c':checksum()})
++    if not ready():raise RuntimeError('Schema verification failed')
++    intent.unlink()
++def main():
++    from app import app
++    with app.app_context():migrate()
++    print('Schema 0001 verified; accounts and business data preserved.')
++if __name__=='__main__':
++    try:main()
++    except Exception:raise SystemExit('Migration failed; schema/adoption must be reviewed.')
+diff --git a/km_runtime.py b/km_runtime.py
+new file mode 100644
+index 0000000..097706d
+--- /dev/null
++++ b/km_runtime.py
+@@ -0,0 +1,100 @@
++"""Private runtime configuration, readiness and revocable local sessions."""
++import hashlib,ipaddress,os,secrets,time
++from datetime import timedelta
++from pathlib import Path
++from flask import abort,current_app,request,session,g
++from sqlalchemy import text
++from werkzeug.middleware.proxy_fix import ProxyFix
++from extensions import db
++from models import User
++from time_utils import utc_now
++
++class RuntimeSession(db.Model):
++    id_hash=db.Column(db.String(64),primary_key=True)
++    user_id=db.Column(db.Integer,db.ForeignKey('user.id',ondelete='CASCADE'),nullable=False,index=True)
++    version=db.Column(db.String(64),nullable=False)
++    expires_at=db.Column(db.DateTime,nullable=False,index=True)
++
++def private_value(name):
++    value=os.environ.get(name)
++    path=os.environ.get(name+'_FILE')
++    if value is not None and path:raise RuntimeError('Credential has two sources: '+name)
++    return Path(path).read_text().strip() if path else value
++
++def version(user):
++    return hashlib.sha256((str(user.id)+'\0'+str(user.role)+'\0'+str(user.password_hash)).encode()).hexdigest()
++
++def issue(user):
++    if current_app.testing:return
++    if db.engine.dialect.name=='sqlite':db.session.execute(text('BEGIN IMMEDIATE'))
++    else:db.session.execute(db.select(User).where(User.id==user.id).with_for_update()).scalar_one()
++    RuntimeSession.query.filter(RuntimeSession.expires_at<=utc_now()).delete()
++    if RuntimeSession.query.filter_by(user_id=user.id).count()>=20:abort(429)
++    token=secrets.token_urlsafe(32)
++    db.session.add(RuntimeSession(id_hash=hashlib.sha256(token.encode()).hexdigest(),user_id=user.id,
++        version=version(user),expires_at=utc_now()+timedelta(hours=8)))
++    db.session.commit()
++    session['_km_sid']=token;session.permanent=True
++
++def valid(user):
++    if current_app.testing:return True
++    token=session.get('_km_sid')
++    if not isinstance(token,str) or len(token)>100:return False
++    row=db.session.get(RuntimeSession,hashlib.sha256(token.encode()).hexdigest())
++    return bool(row and row.user_id==user.id and row.version==version(user) and row.expires_at>utc_now())
++
++def revoke():
++    token=session.pop('_km_sid',None)
++    if isinstance(token,str):
++        RuntimeSession.query.filter_by(id_hash=hashlib.sha256(token.encode()).hexdigest()).delete()
++        db.session.commit()
++
++class TrustedProxy:
++    def __init__(self,app,addresses):
++        self.app=app;self.addresses={str(ipaddress.ip_address(value)) for value in addresses}
++        self.forwarded=ProxyFix(app,x_for=1,x_proto=1,x_host=1,x_port=0,x_prefix=0)
++    def __call__(self,environ,start_response):
++        if environ.get('REMOTE_ADDR') in self.addresses:return self.forwarded(environ,start_response)
++        clean=dict(environ)
++        for key in tuple(clean):
++            if key.startswith('HTTP_X_FORWARDED_') or key in ('HTTP_FORWARDED','HTTP_X_REMOTE_USER','HTTP_REMOTE_USER'):
++                clean.pop(key,None)
++        return self.app(clean,start_response)
++
++def install(app):
++    app.config['PERMANENT_SESSION_LIFETIME']=timedelta(hours=8)
++    if os.environ.get('TRUST_REVERSE_PROXY')=='1' and not os.environ.get('TRUSTED_PROXY_IPS'):
++        raise RuntimeError('Explicit TRUSTED_PROXY_IPS required')
++    addresses=[x.strip() for x in os.environ.get('TRUSTED_PROXY_IPS','').split(',') if x.strip()]
++    app.wsgi_app=TrustedProxy(app.wsgi_app,addresses)
++    @app.before_request
++    def gate():
++        if app.testing:return
++        if request.path.startswith('/static/uploads/') or request.path=='/setup':abort(403)
++        if request.path in ('/health/live','/health/ready'):return
++        from km_migrate import ready
++        if not ready():abort(503)
++        if request.method not in ('GET','HEAD','OPTIONS') and request.headers.get('Origin'):
++            if request.headers['Origin']!=app.config.get('APP_BASE_URL','').rstrip('/'):abort(403)
++        if 'pdf' in request.path.lower() or request.args.get('format')=='pdf':
++            from km_export import export_slot
++            manager=export_slot();manager.__enter__();g.km_export=manager
++    @app.teardown_request
++    def release(_error):
++        manager=g.pop('km_export',None)
++        if manager:manager.__exit__(None,None,None)
++    @app.get('/health/live')
++    def live():return {'status':'ok'}
++    @app.get('/health/ready')
++    def health():
++        from km_migrate import ready
++        healthy=ready()
++        return {'status':'ok' if healthy else 'not-ready'},200 if healthy else 503
++    @app.errorhandler(Exception)
++    def failed(error):
++        from werkzeug.exceptions import HTTPException
++        if isinstance(error,HTTPException):return error
++        db.session.rollback()
++        return 'Dienst derzeit nicht verfügbar.',503
++    @app.errorhandler(503)
++    def unavailable(_error):return 'Dienst derzeit nicht bereit.',503
+diff --git a/km_setup.py b/km_setup.py
+new file mode 100644
+index 0000000..b2c0faa
+--- /dev/null
++++ b/km_setup.py
+@@ -0,0 +1,31 @@
++"""Local personal first administrator, no default identity or printed password."""
++import fcntl,getpass,os,sys
++from pathlib import Path
++def main():
++    # Refuse headless invocations before touching the database.
++    with open('/dev/tty','w',buffering=1) as terminal:
++        if not terminal.isatty():raise RuntimeError()
++        username=sys.argv[1] if len(sys.argv)>1 else ''
++        if not username.strip() or len(username)>100:raise RuntimeError()
++        password=getpass.getpass('Persönliches Passwort (mindestens 12 Zeichen): ',stream=terminal)
++        again=getpass.getpass('Wiederholen: ',stream=terminal)
++        if len(password)<12 or len(password)>128 or password!=again:raise RuntimeError()
++        from app import app
++        from extensions import db
++        from models import User
++        from km_migrate import ready
++        from werkzeug.security import generate_password_hash
++        from sqlalchemy import text
++        with app.app_context():
++            directory=Path(app.instance_path)
++            with (directory/'.setup.lock').open('a+') as lock:
++                os.chmod(lock.name,0o600);fcntl.flock(lock,fcntl.LOCK_EX)
++                if not ready():raise RuntimeError()
++                db.session.execute(text('BEGIN IMMEDIATE'))
++                if User.query.count():raise RuntimeError()
++                db.session.add(User(username=username,role='admin',password_hash=generate_password_hash(password)))
++                db.session.commit()
++        terminal.write('Persönlicher Erstadmin angelegt.\n')
++if __name__=='__main__':
++    try:main()
++    except Exception:raise SystemExit('Lokale Einrichtung fehlgeschlagen; Terminal, Migration und vorhandene Konten prüfen.')
+diff --git a/km_worker.py b/km_worker.py
+new file mode 100644
+index 0000000..d6eebf2
+--- /dev/null
++++ b/km_worker.py
+@@ -0,0 +1,37 @@
++"""Bounded, single-process notifications runner; persistent app queue remains authoritative."""
++import fcntl,logging,os,signal,time
++from pathlib import Path
++from datetime import datetime,timezone
++from app import app
++from km_migrate import ready
++from benachrichtigungen_senden import main as send
++from extensions import db
++logging.getLogger('mail_versand').disabled=True
++stopping=False
++def stop(*_):
++    global stopping
++    stopping=True
++for signum in (signal.SIGINT,signal.SIGTERM):signal.signal(signum,stop)
++def main():
++    with app.app_context():
++        with (Path(app.instance_path)/'.mail.lock').open('a+') as lock:
++            os.chmod(lock.name,0o600)
++            try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
++            except BlockingIOError:raise SystemExit('Notification worker already running')
++            while not stopping:
++                try:
++                    if ready():
++                        send(['sofort'])
++                        today=datetime.now(timezone.utc).date().isoformat()
++                        row=db.session.execute(db.text("SELECT value FROM km_runtime_state WHERE name='daily'")).scalar()
++                        if row!=today:
++                            if send(['taeglich'])==0:
++                                db.session.execute(db.text("INSERT INTO km_runtime_state(name,value) VALUES('daily',:v) ON CONFLICT(name) DO UPDATE SET value=:v"),{'v':today})
++                                db.session.commit()
++                except Exception:
++                    db.session.rollback()
++                    print('Notification cycle deferred; no private data logged.',flush=True)
++                for _ in range(300):
++                    if stopping:break
++                    time.sleep(1)
++if __name__=='__main__':main()
+diff --git a/mail_versand.py b/mail_versand.py
+index ced59f5..b05a32a 100644
+--- a/mail_versand.py
++++ b/mail_versand.py
+@@ -184,8 +184,10 @@ def versende(takt, jetzt=None):
+ 
+     lehrkraefte = (
+         User.query
+-        .filter(User.mail_takt == takt, User.email.isnot(None), User.email != '')
++        .filter(User.mail_takt == takt, User.email.isnot(None), User.email != '',
++                User.id.in_(db.session.query(Notification.user_id).filter(Notification.mailed_at.is_(None))))
+         .order_by(User.id)
++        .limit(20)
+         .all()
+     )
+     for user in lehrkraefte:
+@@ -193,6 +195,7 @@ def versende(takt, jetzt=None):
+             Notification.query
+             .filter(Notification.user_id == user.id, Notification.mailed_at.is_(None))
+             .order_by(Notification.created_at.asc(), Notification.id.asc())
++            .limit(500)
+             .all()
+         )
+         if not offen:
+@@ -201,7 +204,7 @@ def versende(takt, jetzt=None):
+         try:
+             sende_mail(user.email, betreff, text, konfiguration)
+         except Exception:  # noqa: BLE001 - jeder Fehler: spaeter erneut versuchen
+-            log.exception('Benachrichtigungsmail an Benutzer %s fehlgeschlagen', user.id)
++            log.error('Benachrichtigungsmail fehlgeschlagen; erneuter Versuch bleibt offen.')
+             db.session.rollback()
+             ergebnis['fehler'] += 1
+             continue
+diff --git a/odt_export.py b/odt_export.py
+index 97ec7ea..166e8dc 100644
+--- a/odt_export.py
++++ b/odt_export.py
+@@ -6,6 +6,8 @@ from pathlib import Path
+ import re
+ import shutil
+ import subprocess
++import signal
++from km_export import bounded_export
+ import tempfile
+ import xml.etree.ElementTree as ET
+ from xml.sax.saxutils import escape as xml_escape
+@@ -232,6 +234,7 @@ def merge_odt_documents(primary_odt_bytes, secondary_odt_bytes):
+     return output
+ 
+ 
++@bounded_export
+ def convert_odt_bytes_to_pdf(odt_bytes, soffice_cmd="soffice", timeout_seconds=20):
+     """Convert ODT bytes to PDF bytes using LibreOffice headless."""
+     if isinstance(odt_bytes, BytesIO):
+@@ -239,6 +242,7 @@ def convert_odt_bytes_to_pdf(odt_bytes, soffice_cmd="soffice", timeout_seconds=2
+     else:
+         odt_payload = bytes(odt_bytes)
+ 
++    if len(odt_payload)>16*1024*1024:raise ValueError('Dokument zu groß')
+     if not shutil.which(soffice_cmd):
+         raise RuntimeError("LibreOffice (soffice) ist nicht installiert.")
+ 
+@@ -256,34 +260,21 @@ def convert_odt_bytes_to_pdf(odt_bytes, soffice_cmd="soffice", timeout_seconds=2
+         env["HOME"] = str(tmp_path)
+         env["XDG_RUNTIME_DIR"] = str(runtime_dir)
+ 
+-        proc = subprocess.run(
+-            [
+-                soffice_cmd,
+-                "--headless",
+-                "--nologo",
+-                "--nodefault",
+-                "--nolockcheck",
+-                "--nofirststartwizard",
+-                f"-env:UserInstallation=file://{profile_dir}",
+-                "--convert-to",
+-                "pdf",
+-                "--outdir",
+-                str(tmp_path),
+-                str(odt_path),
+-            ],
+-            stdout=subprocess.PIPE,
+-            stderr=subprocess.PIPE,
+-            text=True,
+-            timeout=timeout_seconds,
+-            check=False,
+-            env=env,
+-        )
++        process=subprocess.Popen([
++            soffice_cmd,'--headless','--nologo','--nodefault','--nolockcheck',
++            '--nofirststartwizard',f'-env:UserInstallation=file://{profile_dir}',
++            '--convert-to','pdf','--outdir',str(tmp_path),str(odt_path)],
++            stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,env=env,start_new_session=True)
++        try:
++            process.wait(timeout=min(20,max(1,timeout_seconds)))
++        except subprocess.TimeoutExpired:
++            os.killpg(process.pid,signal.SIGKILL);process.wait()
++            raise RuntimeError('PDF-Konvertierung hat das Zeitlimit erreicht.')
++        if pdf_path.exists() and pdf_path.stat().st_size>64*1024*1024:
++            raise RuntimeError('PDF-Ausgabe zu groß.')
+         if pdf_path.exists():
+             return BytesIO(pdf_path.read_bytes())
+ 
+-        if proc.returncode != 0 or not pdf_path.exists():
+-            details = (proc.stderr or proc.stdout or "").strip()
+-            raise RuntimeError(f"PDF-Konvertierung fehlgeschlagen. {details}".strip())
+         raise RuntimeError("PDF-Konvertierung fehlgeschlagen.")
+ 
+ 
+diff --git a/prepare_secret.py b/prepare_secret.py
+new file mode 100644
+index 0000000..54166c4
+--- /dev/null
++++ b/prepare_secret.py
+@@ -0,0 +1,9 @@
++"""Create a new private session key without printing it."""
++import os,secrets
++from pathlib import Path
++os.umask(0o077)
++root=Path('.private');root.mkdir(mode=0o700)
++fd=os.open(root/'session-key',os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o444)
++with os.fdopen(fd,'w') as stream:
++    stream.write(secrets.token_urlsafe(48));stream.flush();os.fchmod(stream.fileno(),0o444)
++print('Private credential created; set KM_SECRET_FILE to absolute .private/session-key path.')
+diff --git a/repair.py b/repair.py
+index 2ef0e19..c7e14ff 100644
+--- a/repair.py
++++ b/repair.py
+@@ -1,29 +1,2 @@
+-import os
+-import secrets
+-
+-from app import app, db, User, Schueler, Bogen, Item
+-from werkzeug.security import generate_password_hash
+-
+-# App-Kontext herstellen
+-with app.app_context():
+-    print("--- Starte Datenbank-Reparatur ---")
+-    
+-    # 1. ADMIN USER PRÜFEN
+-    # Wir suchen den Admin
+-    admin = User.query.filter_by(username='admin').first()
+-    
+-    if not admin:
+-        print("Erstelle Admin-User...")
+-        neues_passwort = os.environ.get("REPAIR_ADMIN_PASSWORD") or secrets.token_urlsafe(12)
+-        pw_hash = generate_password_hash(neues_passwort)
+-        admin = User(username='admin', password_hash=pw_hash)
+-        db.session.add(admin)
+-    else:
+-        neues_passwort = os.environ.get("REPAIR_ADMIN_PASSWORD") or secrets.token_urlsafe(12)
+-        print("Admin existiert bereits. Setze Passwort zurück auf ein temporäres Passwort...")
+-        admin.password_hash = generate_password_hash(neues_passwort)
+-
+-    # ALLES SPEICHERN
+-    db.session.commit()
+-    print(f"Temporäres Admin-Passwort: {neues_passwort}")
+-    print("--- FERTIG! Alle Daten wurden gespeichert. ---")
++"""Legacy password-output repair disabled; use personal local setup."""
++raise SystemExit("Use km_setup.py at a local terminal; existing accounts are preserved.")
+diff --git a/requirements-test.lock b/requirements-test.lock
+new file mode 100644
+index 0000000..6995813
+--- /dev/null
++++ b/requirements-test.lock
+@@ -0,0 +1,25 @@
++# Resolved under Python 3.12.12, linux/amd64; wheel hashes.
++blinker==1.9.0 --hash=sha256:ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc
++click==8.5.0 --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
++defusedxml==0.7.1 --hash=sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61
++et_xmlfile==2.0.0 --hash=sha256:7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa
++Flask==3.1.3 --hash=sha256:f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c
++Flask-Login==0.6.3 --hash=sha256:849b25b82a436bf830a054e74214074af59097171562ab10bfa999e6b78aae5d
++Flask-SQLAlchemy==3.1.1 --hash=sha256:4ba4be7f419dc72f4efd8802d69974803c37259dd42f3913b0dcf75c9447e0a0
++gunicorn==26.2.0 --hash=sha256:bd249d0b3f7972f7432f0a6b6ff3b3ee2d129f70cd1ff6c09a9dd9e29a2b88e3
++iniconfig==2.3.1 --hash=sha256:9121e2c1fdb355232495be3194c8dfe87ccc2d5dee45947b78e68f499790d7a7
++itsdangerous==2.2.0 --hash=sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef
++Jinja2==3.1.6 --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
++MarkupSafe==3.0.4 --hash=sha256:8e124f974786f831d6043728e38296969d3579db8896fe004682f5758e613581
++openpyxl==3.1.5 --hash=sha256:5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2
++packaging==26.3 --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
++pillow==13.0.0 --hash=sha256:42d63be3af4f9b951b199b0a9d23365d37ab14687e6d77b74940432c8515c4ca
++pluggy==1.7.0 --hash=sha256:7dd7b0d8832ba3cb632c306926ded123429211b83641b35dc5c41ad2d34f9bec
++psycopg==3.3.7 --hash=sha256:d592e88a077e01ff57f22d59f16e828b92f2b2d9f439b6679d582b48d74cf306
++psycopg-binary==3.3.7 --hash=sha256:df30e4e2fe7b4f4ae401326f8f24fd572d1f08543b97c2daff9bcb623aebb41f
++psycopg2-binary==2.9.13 --hash=sha256:e3861eba31f8ea8663fd876166b032fd89179e42aa63764d6feb281f13f9eb60
++Pygments==2.21.0 --hash=sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
++pytest==8.4.2 --hash=sha256:872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79
++SQLAlchemy==2.1.6 --hash=sha256:d5e4b4dcf85d7f289def0e3167f15aaad101b7744a065fb2019476edf306712c
++typing_extensions==4.16.0 --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
++Werkzeug==3.1.9 --hash=sha256:6392e50c78460ba618e5b21f08a71f59c99ce99cdc6cf6e3dd7e6ccca8754fab
+diff --git a/requirements.lock b/requirements.lock
+new file mode 100644
+index 0000000..29c0023
+--- /dev/null
++++ b/requirements.lock
+@@ -0,0 +1,20 @@
++# Resolved under Python 3.12.12, linux/amd64; wheel hashes.
++blinker==1.9.0 --hash=sha256:ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc
++click==8.5.0 --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
++defusedxml==0.7.1 --hash=sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61
++et_xmlfile==2.0.0 --hash=sha256:7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa
++Flask==3.1.3 --hash=sha256:f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c
++Flask-Login==0.6.3 --hash=sha256:849b25b82a436bf830a054e74214074af59097171562ab10bfa999e6b78aae5d
++Flask-SQLAlchemy==3.1.1 --hash=sha256:4ba4be7f419dc72f4efd8802d69974803c37259dd42f3913b0dcf75c9447e0a0
++gunicorn==26.2.0 --hash=sha256:bd249d0b3f7972f7432f0a6b6ff3b3ee2d129f70cd1ff6c09a9dd9e29a2b88e3
++itsdangerous==2.2.0 --hash=sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef
++Jinja2==3.1.6 --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
++MarkupSafe==3.0.4 --hash=sha256:8e124f974786f831d6043728e38296969d3579db8896fe004682f5758e613581
++openpyxl==3.1.5 --hash=sha256:5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2
++pillow==13.0.0 --hash=sha256:42d63be3af4f9b951b199b0a9d23365d37ab14687e6d77b74940432c8515c4ca
++psycopg==3.3.7 --hash=sha256:d592e88a077e01ff57f22d59f16e828b92f2b2d9f439b6679d582b48d74cf306
++psycopg-binary==3.3.7 --hash=sha256:df30e4e2fe7b4f4ae401326f8f24fd572d1f08543b97c2daff9bcb623aebb41f
++psycopg2-binary==2.9.13 --hash=sha256:e3861eba31f8ea8663fd876166b032fd89179e42aa63764d6feb281f13f9eb60
++SQLAlchemy==2.1.6 --hash=sha256:d5e4b4dcf85d7f289def0e3167f15aaad101b7744a065fb2019476edf306712c
++typing_extensions==4.16.0 --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
++Werkzeug==3.1.9 --hash=sha256:6392e50c78460ba618e5b21f08a71f59c99ce99cdc6cf6e3dd7e6ccca8754fab
+diff --git a/routes/auth_routes.py b/routes/auth_routes.py
+index 29df11a..8e365e5 100644
+--- a/routes/auth_routes.py
++++ b/routes/auth_routes.py
+@@ -13,6 +13,7 @@ from mail_versand import mail_konfiguration
+ from models import AuthRateLimit, BenachrichtigungAbbestellt, User, UserKlassenzuordnung
+ from student_selection import vergiss_kind
+ from time_utils import utc_now
++from km_runtime import issue,revoke
+ 
+ auth_bp = Blueprint('auth', __name__)
+ 
+@@ -132,6 +133,7 @@ def login():
+     if request.method == 'POST':
+         username = (request.form.get('username') or '').strip()
+         password = request.form.get('password') or ''
++        if len(username)>100 or len(password)>128:return 'Ungültige Anmeldung',400
+ 
+         locked_until = _active_lock(username)
+         if locked_until:
+@@ -142,6 +144,7 @@ def login():
+ 
+         if user and check_password_hash(user.password_hash, password):
+             _clear_login_failures(username)
++            issue(user)
+             login_user(user)
+             rotate_csrf_token()
+             return redirect(url_for('system.index'))
+@@ -155,6 +158,7 @@ def login():
+ @auth_bp.route('/logout', methods=['POST'])
+ @login_required
+ def logout():
++    revoke()
+     logout_user()
+     clear_csrf_token()
+     vergiss_kind()
+diff --git a/routes/system_routes.py b/routes/system_routes.py
+index 44a56d3..46aaf43 100644
+--- a/routes/system_routes.py
++++ b/routes/system_routes.py
+@@ -1094,47 +1094,7 @@ def data_import(typ):
+ 
+ @system_bp.route('/setup')
+ def setup():
+-    if os.environ.get('ALLOW_SETUP_ROUTE') != '1':
+-        return "Setup-Route ist deaktiviert.", 403
+-
+-    setup_token = (os.environ.get('SETUP_ROUTE_TOKEN') or '').strip()
+-    if not setup_token:
+-        return "Setup-Token fehlt. Route bleibt deaktiviert.", 403
+-
+-    request_token = (request.args.get('token') or '').strip()
+-    if not request_token or not secrets.compare_digest(request_token, setup_token):
+-        return "Ungueltiger Setup-Token.", 403
+-
+-    if request.remote_addr not in {'127.0.0.1', '::1'}:
+-        return "Setup ist nur lokal auf dem Server erlaubt.", 403
+-
+-    db.create_all()
+-    if not User.query.filter_by(role='admin').first():
+-        setup_password = os.environ.get('SETUP_ADMIN_PASSWORD') or secrets.token_urlsafe(12)
+-        hashed_pw = generate_password_hash(setup_password)
+-        admin = User(username='admin', password_hash=hashed_pw, role='admin')
+-        db.session.add(admin)
+-        db.session.commit()
+-        return (
+-            "Datenbank & Admin-User angelegt! Temporäres Passwort: "
+-            f"<strong>{setup_password}</strong> "
+-            f"<a href='{url_for('auth.login')}'>Zum Login</a>"
+-        )
+-
+-    if not Schueler.query.first():
+-        db.session.add(Schueler(vorname="Max", nachname="Muster", klasse="4a"))
+-        db.session.add(Schueler(vorname="Lisa", nachname="Lustig", klasse="4a"))
+-
+-        b = Bogen(titel="Sozialverhalten")
+-        db.session.add(b)
+-        db.session.flush()
+-        db.session.add(Item(bogen_id=b.id, bereich="Konflikt", text="Löst Streit friedlich"))
+-        db.session.add(Item(bogen_id=b.id, bereich="Arbeit", text="Arbeitet konzentriert"))
+-
+-        db.session.commit()
+-        return f"Datenbank erstellt und Testdaten angelegt! <a href='{url_for('system.index')}'>Zum Start</a>"
+-
+-    return f"Datenbank existiert schon. <a href='{url_for('system.index')}'>Zum Start</a>"
++    return 'Persönlicher Erstzugang wird lokal am Terminal eingerichtet.',403
+ 
+ 
+ @system_bp.route('/media/beobachtung/<int:beobachtung_id>')
+diff --git a/routes/workplan_routes.py b/routes/workplan_routes.py
+index 0a6c492..ac349c5 100644
+--- a/routes/workplan_routes.py
++++ b/routes/workplan_routes.py
+@@ -3,6 +3,8 @@ from io import BytesIO
+ from pathlib import Path
+ import re
+ import subprocess
++from werkzeug.exceptions import HTTPException
++from km_export import bounded_export
+ import tempfile
+ import zipfile
+ from xml.sax.saxutils import escape as xml_escape
+@@ -255,6 +257,7 @@ def _build_workplan_odt(plan):
+     return buffer
+ 
+ 
++@bounded_export
+ def _merge_pdf_buffers(pdf_buffers):
+     normalized = []
+     for payload in (pdf_buffers or []):
+@@ -281,6 +284,7 @@ def _merge_pdf_buffers(pdf_buffers):
+         output_path = tmp_path / "merged.pdf"
+         proc = subprocess.run(
+             ["pdfunite", *[str(p) for p in input_paths], str(output_path)],
++            timeout=20,
+             stdout=subprocess.PIPE,
+             stderr=subprocess.PIPE,
+             text=True,
+@@ -1946,6 +1950,8 @@ def workplan_export_pdf(plan_id):
+     except RuntimeError as exc:
+         flash(f'PDF-Export nicht möglich: {exc}')
+         return redirect(request.referrer or url_for('workplan.workplan_edit_page', plan_id=plan.id))
++    except HTTPException:
++        raise
+     except Exception:
+         flash('PDF-Export fehlgeschlagen.')
+         return redirect(request.referrer or url_for('workplan.workplan_edit_page', plan_id=plan.id))
+@@ -2016,6 +2022,8 @@ def workplan_export_class_pdf():
+     except RuntimeError as exc:
+         flash(f'PDF-Export nicht möglich: {exc}')
+         return redirect(url_for('workplan.workplan_list_page', tab=tab_id or 'dropdown', klasse_von=from_raw or None, klasse_bis=to_raw or None))
++    except HTTPException:
++        raise
+     except Exception:
+         flash('PDF-Export fehlgeschlagen.')
+         return redirect(url_for('workplan.workplan_list_page', tab=tab_id or 'dropdown', klasse_von=from_raw or None, klasse_bis=to_raw or None))
+diff --git a/start.sh b/start.sh
+index 8a63202..a57ef9e 100755
+--- a/start.sh
++++ b/start.sh
+@@ -20,6 +20,6 @@ if [[ -z "${SECRET_KEY:-}" ]]; then
+ fi
+ 
+ # Vor App-Start fehlende Tabellen/Spalten nachziehen (SQLite + PostgreSQL).
+-python3 update_db.py
++python3 -c 'from app import app; from km_migrate import ready; app.app_context().push(); assert ready(), "Explicit migration required"'
+ 
+ exec python3 app.py
+diff --git a/update_db.py b/update_db.py
+index f5e203b..1066c21 100644
+--- a/update_db.py
++++ b/update_db.py
+@@ -572,69 +572,8 @@ def _add_new_columns():
+         conn.commit()
+ 
+ 
+-# Wir aktivieren den "App Context", damit wir Zugriff auf die DB-Konfiguration haben
+-with app.app_context():
+-    print("--- Starte Datenbank-Update ---")
+-    print("Prüfe auf neue Tabellen...")
+-    
+-    # Dieser Befehl ist sicher: Er erstellt nur Tabellen, die FEHLEN.
+-    # Bestehende Tabellen (User, Schueler, Beobachtungen) bleiben unberührt!
+-    db.create_all()
+-    _sqlite_add_missing_user_name_columns()
+-    _postgres_add_missing_user_role_column()
+-    _sqlite_add_missing_foerderplan_creator_column()
+-    _sqlite_add_missing_schueler_geburtsdatum_column()
+-    _sqlite_add_missing_workplan_weeks_column()
+-    _sqlite_add_missing_workplan_task_columns()
+-    _sqlite_add_missing_library_template_columns()
+-    _sqlite_add_missing_erziehung_event_columns()
+-    _postgres_add_missing_workplan_weeks_column()
+-    _postgres_add_missing_workplan_task_columns()
+-    _postgres_add_missing_library_template_columns()
+-    _postgres_add_missing_erziehung_event_columns()
+-    _sqlite_add_school_year_columns()
+-    _postgres_add_school_year_columns()
+-    _add_new_columns()
+-
+-    # Frueher hatte ein Foerderplan genau ein Fach; jetzt kann er mehrere haben.
+-    from foerderplan_fach import uebernimm_altbestand
+-    uebernommene = uebernimm_altbestand()
+-    if uebernommene:
+-        print(f"Fachzuordnung von {uebernommene} Förderplan/Förderplänen übernommen.")
+-
+-    # Jahrgaenge aus den Bestandsdaten ableiten. Idempotent: legt nur fehlende
+-    # Klassen an und fuellt nur leere Jahrgaenge, ueberschreibt nichts.
+-    from jahrgang import backfill_student_jahrgaenge, bereinige_klassennamen, sync_klassen
+-    bereinigt = bereinige_klassennamen()
+-    if bereinigt:
+-        print(f"Leerzeichen am Rand von Klassennamen entfernt ({bereinigt} Datensatz/Datensätze).")
+-    neue_klassen = sync_klassen()
+-    if neue_klassen:
+-        print(f"Klassen angelegt: {', '.join(neue_klassen)}")
+-    gesetzte_jahrgaenge = backfill_student_jahrgaenge()
+-    if gesetzte_jahrgaenge:
+-        print(f"Jahrgang bei {gesetzte_jahrgaenge} Kind(ern) aus der Klasse übernommen.")
+-    db.session.commit()
+-
+-    # Diagnostik-Katalog mit HSP, SLS 1-4 und ELFE II vorbelegen - nur, wenn
+-    # noch keiner existiert; danach pflegt ihn die Verwaltung.
+-    from diagnostik import lege_vorbelegung_an, schaerfe_vorbelegung_nach
+-    if lege_vorbelegung_an():
+-        print("Diagnostik-Katalog mit HSP, SLS 1-4 und ELFE II vorbelegt.")
+-    from diagnostik import ergaenze_klassen_der_ergebnisse
+-    ergaenzt = ergaenze_klassen_der_ergebnisse()
+-    if ergaenzt:
+-        print(f"Klasse zum Testzeitpunkt bei {ergaenzt} Diagnostik-Ergebnis(sen) ergänzt.")
+-    nachgeschaerft = schaerfe_vorbelegung_nach()
+-    if nachgeschaerft:
+-        print(f"HSP-Vorbelegung an die Auswertungsmappen angepasst ({nachgeschaerft} Testform(en)).")
+-    from diagnostik import ergaenze_sls_testplan, sls_ohne_prozentrang
+-    if ergaenze_sls_testplan():
+-        print("SLS-Testplan um die Mitte von Klasse 2 ergänzt.")
+-    ohne_pr = sls_ohne_prozentrang()
+-    if ohne_pr:
+-        print(f"SLS: Prozentrang aus {ohne_pr} Kennwert(en) entfernt - das SLS liefert nur Rohwert und LQ.")
+-    db.session.commit()
+-    
+-    print("--- FERTIG! Die Datenbank wurde erweitert. ---")
+-    print("Ihre alten Daten sind sicher.")
++# Historical helpers remain available for a separately reviewed legacy migration.
++# Normal operation never imports or runs the historical backfills automatically.
++if __name__ == '__main__':
++    from km_migrate import main
++    main()
+-- 
+2.43.0
+
+
+From 15d731833c375913932b3aa34dd222589ca8f564 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Tue, 3 Nov 2026 12:46:54 +0100
+Subject: [PATCH 2/4] Add isolated Flask runtime, explicit schema baseline and
+ shared export limits
+
+---
+ PLATFORM.md | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/PLATFORM.md b/PLATFORM.md
+index 053f889..2690aa7 100644
+--- a/PLATFORM.md
++++ b/PLATFORM.md
+@@ -96,7 +96,9 @@ Fehlgeschlagene Zustellungen bleiben offen. Versand ist mindestens einmal:
+ ein Absturz nach SMTP-Annahme vor DB-Commit kann Duplikate erzeugen.
+ Native Cronjobs nicht parallel zum Containerworker betreiben; für manuelle
+ Versandjobs den Worker zuerst anhalten. Keine vollständige Queue-/Alarmoberfläche
+-oder Zustellgarantie. Mailausfall blockiert keine normalen Webanfragen.
++oder Zustellgarantie. Mailausfall blockiert keine normalen Webanfragen. Der
++Healthstatus prüft derzeit DB/Schema; eine persistente SMTP-degraded-Projektion
++ist noch offen.
+ 
+ UID 10001 besitzt /app/instance (DB, private Uploads, Schullogo, Workerzustand)
+ und /app/odt_templates. Rootdateisystem schreibgeschützt, begrenztes tmpfs und
+-- 
+2.43.0
+
+
+From c18d9758dead58a361436990ee8b0765a689a23d Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Tue, 3 Nov 2026 12:50:42 +0100
+Subject: [PATCH 3/4] Add isolated Flask runtime, explicit schema baseline and
+ shared export limits
+
+---
+ PLATFORM.md                    |  4 +++-
+ contract_tests/test_runtime.py | 31 +++++++++++++++++++++++++++++++
+ km_runtime.py                  |  4 +++-
+ routes/auth_routes.py          |  5 +++--
+ 4 files changed, 40 insertions(+), 4 deletions(-)
+
+diff --git a/PLATFORM.md b/PLATFORM.md
+index 2690aa7..a928365 100644
+--- a/PLATFORM.md
++++ b/PLATFORM.md
+@@ -65,7 +65,9 @@ Lokale Anmeldung bleibt erhalten. Das signierte HttpOnly-/SameSite-Lax-Cookie
+ enthält eine zufällige Sitzungskennung; die DB speichert nur deren Hash mit
+ Acht-Stunden-Ablauf und Credential-Fingerabdruck. Logout, Passwort-/Rollenwechsel
+ und Kontolöschung entziehen damit bestehende Sitzungen. Alte Cookies ohne neue
+-Kennung erfordern erneute Anmeldung. Keine zentrale Sperrung oder SSO.
++Kennung erfordern erneute Anmeldung. Ein unter DB-Lock erneut geprüfter
++Credential-Fingerabdruck schließt Passwortwechsel zwischen Prüfung und
++Sitzungsanlage aus. Keine zentrale Sperrung oder SSO.
+ 
+ Bestehendes CSRF bleibt aktiv; vorhandene Origin-Header müssen zusätzlich zur
+ konfigurierten APP_BASE_URL passen. Direkte statische Uploadpfade sind gesperrt.
+diff --git a/contract_tests/test_runtime.py b/contract_tests/test_runtime.py
+index 60c51c9..5a5dd87 100644
+--- a/contract_tests/test_runtime.py
++++ b/contract_tests/test_runtime.py
+@@ -90,3 +90,34 @@ except TooManyRequests:pass
+ """],capture_output=True,text=True,timeout=10)
+         assert result.returncode==0,result.stderr
+     with export_slot():pass
++
++
++def test_password_reset_between_check_and_session_creation_denies_login(tmp_path):
++    env=environment(tmp_path)
++    program="""from app import app
++from extensions import db
++from models import User
++from km_migrate import migrate
++from km_runtime import RuntimeSession
++from werkzeug.security import generate_password_hash
++import re
++import routes.auth_routes as auth
++with app.app_context():
++ migrate()
++ db.session.add(User(username='race-personal',password_hash=generate_password_hash('old-password-123'),role='teacher'))
++ db.session.commit()
++original=auth._clear_login_failures
++def reset(username):
++ original(username)
++ user=User.query.filter_by(username=username).one()
++ user.password_hash=generate_password_hash('new-password-456')
++ db.session.commit()
++auth._clear_login_failures=reset
++client=app.test_client()
++html=client.get('/login').data.decode()
++token=re.search(r'name="_csrf_token"\s+value="([^"]+)"',html)[1]
++response=client.post('/login',data={'username':'race-personal','password':'old-password-123','_csrf_token':token})
++assert response.status_code==401
++with app.app_context():assert RuntimeSession.query.count()==0
++"""
++    result=execute(env,program);assert result.returncode==0,result.stderr
+diff --git a/km_runtime.py b/km_runtime.py
+index 097706d..50b19a0 100644
+--- a/km_runtime.py
++++ b/km_runtime.py
+@@ -24,10 +24,12 @@ def private_value(name):
+ def version(user):
+     return hashlib.sha256((str(user.id)+'\0'+str(user.role)+'\0'+str(user.password_hash)).encode()).hexdigest()
+ 
+-def issue(user):
++def issue(user,expected_version):
+     if current_app.testing:return
+     if db.engine.dialect.name=='sqlite':db.session.execute(text('BEGIN IMMEDIATE'))
+     else:db.session.execute(db.select(User).where(User.id==user.id).with_for_update()).scalar_one()
++    db.session.refresh(user)
++    if version(user)!=expected_version:abort(401)
+     RuntimeSession.query.filter(RuntimeSession.expires_at<=utc_now()).delete()
+     if RuntimeSession.query.filter_by(user_id=user.id).count()>=20:abort(429)
+     token=secrets.token_urlsafe(32)
+diff --git a/routes/auth_routes.py b/routes/auth_routes.py
+index 8e365e5..5d8dbb3 100644
+--- a/routes/auth_routes.py
++++ b/routes/auth_routes.py
+@@ -13,7 +13,7 @@ from mail_versand import mail_konfiguration
+ from models import AuthRateLimit, BenachrichtigungAbbestellt, User, UserKlassenzuordnung
+ from student_selection import vergiss_kind
+ from time_utils import utc_now
+-from km_runtime import issue,revoke
++from km_runtime import issue,revoke,version
+ 
+ auth_bp = Blueprint('auth', __name__)
+ 
+@@ -143,8 +143,9 @@ def login():
+         user = User.query.filter_by(username=username).first()
+ 
+         if user and check_password_hash(user.password_hash, password):
++            verified_version=version(user)
+             _clear_login_failures(username)
+-            issue(user)
++            issue(user,verified_version)
+             login_user(user)
+             rotate_csrf_token()
+             return redirect(url_for('system.index'))
+-- 
+2.43.0
+
+
+From 5ddeb21c7dbfecef987ca498e0bc0694be3a348d Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Tue, 3 Nov 2026 12:53:30 +0100
+Subject: [PATCH 4/4] Add isolated Flask runtime, explicit schema baseline and
+ shared export limits
+
+---
+ contract_tests/test_runtime.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/contract_tests/test_runtime.py b/contract_tests/test_runtime.py
+index 5a5dd87..ac77e3e 100644
+--- a/contract_tests/test_runtime.py
++++ b/contract_tests/test_runtime.py
+@@ -94,7 +94,7 @@ except TooManyRequests:pass
+ 
+ def test_password_reset_between_check_and_session_creation_denies_login(tmp_path):
+     env=environment(tmp_path)
+-    program="""from app import app
++    program=r"""from app import app
+ from extensions import db
+ from models import User
+ from km_migrate import migrate
+-- 
+2.43.0
+

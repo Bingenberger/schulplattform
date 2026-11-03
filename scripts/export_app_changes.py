@@ -23,6 +23,13 @@ packages = {
         'public/teacher.html', 'public/js/teacher.js',
         'test/session-expiry.js', 'test/bootstrap.js', 'test/e2e.js',
         'test/run-fixtures.js', 'test/platform-contract.js']),
+    'kompetenz-manager': ('Add isolated Flask runtime, explicit schema baseline and shared export limits', [
+        'Dockerfile', '.dockerignore', '.gitignore', '.env.local.example', 'docker-compose.yml',
+        'requirements.lock', 'requirements-test.lock', 'gunicorn.conf.py', 'prepare_secret.py',
+        'km_runtime.py', 'km_migrate.py', 'km_setup.py', 'km_export.py', 'km_worker.py',
+        'app.py', 'start.sh', 'repair.py', 'update_db.py', 'mail_versand.py', 'odt_export.py',
+        'routes/auth_routes.py', 'routes/system_routes.py', 'routes/workplan_routes.py',
+        'contract_tests', 'README.md', 'PLATFORM.md']),
     'leseflux': ('Add isolated Node runtime, explicit Prisma migration and revocable local sessions', [
         'Dockerfile', '.dockerignore', '.gitignore', 'docker-compose.yml', 'docker', 'prepare_secrets.py',
         'scripts', 'contract_tests', 'PLATFORM.md', 'README.md', 'CLAUDE.md',

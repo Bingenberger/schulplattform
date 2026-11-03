@@ -1,0 +1,336 @@
+[
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "up",
+      "-d",
+      "--no-build",
+      "app"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "run",
+      "--rm",
+      "--no-deps",
+      "app",
+      "python",
+      "-m",
+      "km_migrate"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "restart",
+      "app"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "ps",
+      "-q",
+      "app"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "sp-kompetenz-standalone-70b4c22af9-mail",
+      "--network",
+      "sp-kompetenz-standalone-70b4c22af9_default",
+      "--network-alias",
+      "mailpit",
+      "--read-only",
+      "--user",
+      "10001:10001",
+      "--tmpfs",
+      "/tmp:size=32m,mode=1777",
+      "-e",
+      "MP_DATABASE=/tmp/mail.db",
+      "axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "up",
+      "-d",
+      "--no-build",
+      "--wait",
+      "worker"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "stop",
+      "worker"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "stop",
+      "sp-kompetenz-standalone-70b4c22af9-mail"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "start",
+      "sp-kompetenz-standalone-70b4c22af9-mail"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "run",
+      "--rm",
+      "--no-deps",
+      "app",
+      "python",
+      "-m",
+      "km_migrate"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "restart",
+      "app"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "inspect",
+      "537c06f7d9d8771d56f0ebebe0eb24471a407f225639bf15a3a4a89a18e86b06"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-kompetenz-standalone-70b4c22af9",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/kompetenz-manager/docker-compose.yml",
+      "stop"
+    ],
+    "exitCode": 0
+  }
+]

@@ -28,14 +28,15 @@ INFRASTRUCTURE = {
 }
 
 
-APP_PORTS = {"gswb": 8000, "schulwissen": 8000, "zackboing": 3000, "schulhelfer": 8000, "losverkauf": 8000, "grundschultafel": 3000, "fahrradausbildung": 8000, "leseflux": 3001}
-DEFAULT_DOMAINS = {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost", "zackboing": "quiz.localhost", "schulhelfer": "helfer.localhost", "losverkauf": "lose.localhost", "grundschultafel": "tafel.localhost", "fahrradausbildung": "rad.localhost", "leseflux": "lesen.localhost"}
+APP_PORTS = {"gswb": 8000, "schulwissen": 8000, "zackboing": 3000, "schulhelfer": 8000, "losverkauf": 8000, "grundschultafel": 3000, "fahrradausbildung": 8000, "leseflux": 3001, "kompetenz-manager": 8000}
+DEFAULT_DOMAINS = {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost", "zackboing": "quiz.localhost", "schulhelfer": "helfer.localhost", "losverkauf": "lose.localhost", "grundschultafel": "tafel.localhost", "fahrradausbildung": "rad.localhost", "leseflux": "lesen.localhost", "kompetenz-manager": "kompetenz.localhost"}
 APP_SELECTIONS = (("gswb", "schulwissen"), ("gswb", "schulwissen", "zackboing"),
                   ("gswb", "schulwissen", "zackboing", "schulhelfer"),
                   ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf"),
                   ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel"),
                   ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung"),
-                  ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux"))
+                  ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux"),
+                  ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux", "kompetenz-manager"))
 
 class Pilot:
     def __init__(self, directory, apps=None):
@@ -84,6 +85,7 @@ class Pilot:
             "TAFEL_SECRET_FILE": str(self.directory / "runtime/tafel-key"),
             "FP_SECRETS_DIR": str(self.directory / "runtime/fahrrad"),
             "LESEFLUX_SECRETS_DIR": str(self.directory / "runtime/leseflux"),
+            "KM_SECRET_FILE": str(self.directory / "runtime/kompetenz-key"),
         }
         self.log = self.directory / "operations.jsonl"
 
@@ -139,6 +141,8 @@ class Pilot:
             values["leseflux/db-app"] = store.get_or_create("lese-db-app")
             values["leseflux/jwt-key"] = store.get_or_create("lese-jwt")
             values["leseflux/database-url"] = "postgresql://leseflux:"+values["leseflux/db-app"]+"@postgres:5432/leseflux?connection_limit=5&pool_timeout=3&connect_timeout=3"
+        if "kompetenz-manager" in self.apps:
+            values["kompetenz-key"] = store.get_or_create("kompetenz-key")
         values["gswb-editor"] = ""  # editor remains closed until separately provisioned
         values["wissen-db"] = "postgresql://schulwissen:" + values["postgres-app"] + "@db:5432/schulwissen"
         for name, value in values.items():
@@ -197,6 +201,10 @@ class Pilot:
         if "fahrradausbildung" in self.apps:
             infrastructure["services"]["proxy"]["networks"].append("rad-proxy")
             infrastructure["networks"]["rad-proxy"] = {"internal": True}
+        if "kompetenz-manager" in self.apps:
+            infrastructure["services"]["proxy"]["networks"].append("kompetenz-proxy")
+            infrastructure["services"]["mailpit"]["networks"]["kompetenz-proxy"] = {"aliases": ["mailpit"]}
+            infrastructure["networks"]["kompetenz-proxy"] = {"internal": True}
         if "leseflux" in self.apps:
             infrastructure["services"]["proxy"]["networks"].append("lese-proxy")
             infrastructure["networks"]["lese-proxy"] = {"internal": True}
@@ -319,6 +327,39 @@ networks:
   proxy:
     external: true
     name: {net}_rad-proxy
+""")
+        if "kompetenz-manager" in self.apps:
+            (self.directory / "kompetenz-manager.yml").write_text(f"""
+services:
+  app:
+    restart: "no"
+    ports: !reset []
+    environment:
+      DATABASE_URL: sqlite:////app/instance/schule.db
+      SESSION_COOKIE_SECURE: "1"
+      REMEMBER_COOKIE_SECURE: "1"
+      APP_BASE_URL: https://kompetenz.localhost:{port}
+      TRUSTED_PROXY_IPS: 127.0.0.1
+      MAIL_SERVER: mailpit
+      MAIL_PORT: "1025"
+      MAIL_SECURITY: none
+    networks:
+      default: {{}}
+      proxy:
+        aliases: [kompetenz-manager]
+  worker:
+    restart: "no"
+    environment:
+      DATABASE_URL: sqlite:////app/instance/schule.db
+      APP_BASE_URL: https://kompetenz.localhost:{port}
+      MAIL_SERVER: mailpit
+      MAIL_PORT: "1025"
+      MAIL_SECURITY: none
+    networks: [default, proxy]
+networks:
+  proxy:
+    external: true
+    name: {net}_kompetenz-proxy
 """)
         if "leseflux" in self.apps:
             (self.directory / "leseflux.yml").write_text(f"""
@@ -476,6 +517,14 @@ networks:
                      for line in path.read_text().splitlines()]
             path.write_text("\n".join(lines) + "\n")
 
+        if "kompetenz-manager" in self.apps:
+            address = proxy["NetworkSettings"]["Networks"][self.project + "-infra_kompetenz-proxy"]["IPAddress"]
+            ipaddress.ip_address(address)
+            path = self.directory / "kompetenz-manager.yml"
+            lines = [("      TRUSTED_PROXY_IPS: " + address) if line.startswith("      TRUSTED_PROXY_IPS:") else line
+                     for line in path.read_text().splitlines()]
+            path.write_text("\n".join(lines) + "\n")
+
     def bootstrap(self, identity):
         self.configure_proxy()
         if "fahrradausbildung" in self.apps:
@@ -485,6 +534,8 @@ networks:
             self.compose_command("leseflux", "up", "-d", "--no-build", "--wait", "postgres")
             self.compose_command("leseflux", "run", "--rm", "--no-deps", "app", "node", "scripts/platform-migrate.cjs")
             self.compose_command("leseflux", "run", "--rm", "--no-deps", "app", "node", "scripts/content.cjs")
+        if "kompetenz-manager" in self.apps:
+            self.compose_command("kompetenz-manager", "run", "--rm", "--no-deps", "app", "python", "-m", "km_migrate")
         # Schema/content jobs only. No administrative or real user account is created.
         self.compose_command("gswb", "run", "--rm", "--no-deps", "app", "python", "-m", "grundschul_woerterbuch.migrate")
         self.compose_command("schulwissen", "run", "--rm", "--no-deps", "app", "python", "manage.py", "platform_migrate")
@@ -516,10 +567,19 @@ networks:
         if "leseflux" in self.apps:
             self.compose_command("leseflux", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
 
+        if "kompetenz-manager" in self.apps:
+            self.compose_command("kompetenz-manager", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
+
     def ready(self, identity):
         try:
-            return all((self.inspect_service(app, "app") or {}).get("State", {}).get("Health", {}).get("Status") == "healthy"
-                       for app in self.apps)
+            services=[(app,"app") for app in self.apps]
+            if "kompetenz-manager" in self.apps:
+                services.append(("kompetenz-manager","worker"))
+            for app,service in services:
+                state=(self.inspect_service(app,service) or {}).get("State",{})
+                if state.get("Running") is not True or state.get("Health",{}).get("Status")!="healthy":
+                    return False
+            return True
         except StateError:
             return False
 
@@ -624,6 +684,13 @@ networks:
                 raise StateError("Anonymous bicycle administration accepted")
             if self.request(domains["fahrradausbildung"], "/p/demo")[0] != 200:
                 raise StateError("Public bicycle station app unavailable")
+        if "kompetenz-manager" in self.apps:
+            if self.request(domains["kompetenz-manager"], "/login")[0] != 200:
+                raise StateError("Competency login unavailable")
+            if self.request(domains["kompetenz-manager"], "/admin")[0] != 302:
+                raise StateError("Competency admin must require local login")
+            if self.request(domains["kompetenz-manager"], "/setup")[0] != 403:
+                raise StateError("Competency web setup must remain closed")
         if "leseflux" in self.apps:
             if self.request(domains["leseflux"], "/api/auth/me")[0] != 401:
                 raise StateError("Anonymous reading account access accepted")

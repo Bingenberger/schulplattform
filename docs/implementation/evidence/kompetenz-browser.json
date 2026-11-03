@@ -1,0 +1,11 @@
+{
+  "nativeTeacherUiLogin": true,
+  "tabletAccountAndStudentNavigation": true,
+  "adminRedirectDenial": true,
+  "httpOnlyCookie": true,
+  "logoutRequiresNewLogin": true,
+  "noThirdPartyRequestsObserved": true,
+  "scope": "Chromium tablet emulation; no complete visual/export interaction acceptance",
+  "browserImage": "sha256:7d3413a387d6653171e0aa86f4ee1a53aaa048a65b0f7c109515e96b189046a7",
+  "imageId": "sha256:3df623b1e19ebfe80d4e396a56c41ca0acbe0ad19e319268e2e3aea82d54f3e9"
+}

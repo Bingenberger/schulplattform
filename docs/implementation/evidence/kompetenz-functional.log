@@ -1,0 +1,21 @@
+imageId=sha256:aaabca963450cd737b5065abb2aee514cbfcaadd4edf94ec3521f0b3c83211b1
+$ docker run --rm --init --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 1536m --cpus 2 --pids-limit 256 --tmpfs /tmp:size=512m,mode=1777 --tmpfs /app/instance:size=64m,uid=10001,gid=10001,mode=700 --tmpfs /app/static/uploads:size=32m,uid=10001,gid=10001,mode=700 -e SECRET_KEY=synthetic-offline-test-session-key-not-for-deployment kompetenz-manager-tests:0.1.0-dev python -m pytest -q -p no:cacheprovider tests contract_tests
+........................................................................ [ 12%]
+........................................................................ [ 25%]
+........................................................................ [ 38%]
+........................................................................ [ 50%]
+........................................................................ [ 63%]
+........................................................................ [ 76%]
+........................................................................ [ 89%]
+..............................................................           [100%]
+=============================== warnings summary ===============================
+contract_tests/test_runtime.py:118
+tests/test_code_hygiene.py::CodeHygieneTestCase::test_every_python_file_parses
+tests/test_code_hygiene.py::CodeHygieneTestCase::test_no_deprecated_utcnow
+  /app/contract_tests/test_runtime.py:118: SyntaxWarning: invalid escape sequence '\s'
+    token=re.search(r'name="_csrf_token"\s+value="([^"]+)"',html)[1]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+566 passed, 3 warnings in 189.27s (0:03:09)
+
+exit_code=0

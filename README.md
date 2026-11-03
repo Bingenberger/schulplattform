@@ -4,7 +4,7 @@ Die Plattform bündelt eigenständige Apps für einen selbst gehosteten Schulser
 Maßgeblich sind der [Auftrag](Coding_Agent_Umsetzungsauftrag_Schulplattform.md) und
 der [Umfangsbeschluss](docs/platform-audit/scope-decision.md).
 
-**Aktuell ist ein lokaler Pilot mit schulwissen, gswb und optional Zackboing, Schulhelfer, Losverkauf, Grundschultafel, Fahrradausbildung sowie Leseflux geprüft.** Die vollständige
+**Aktuell ist ein lokaler Pilot mit schulwissen, gswb und optional Zackboing, Schulhelfer, Losverkauf, Grundschultafel, Fahrradausbildung, Leseflux sowie Kompetenz-Manager geprüft.** Die vollständige
 Installation auf leerem Ubuntu 24.04 und der Zehn-App-Stack sind noch offen.
 [Umsetzungsstand und Testnachweise](docs/implementation/status.md).
 
@@ -105,3 +105,7 @@ Kein externer SMTP-Upstream; keine Produktiv- oder DNSumstellung.
 Leseflux ergänzt einen neuen Achterpilot nach scripts/build_leseflux.py mit
 --apps gswb,schulwissen,zackboing,schulhelfer,losverkauf,grundschultafel,fahrradausbildung,leseflux.
 [Lokale Kinderzugänge, Sitzungswiderruf und Restore](docs/implementation/leseflux.md).
+
+Kompetenz-Manager ergänzt nach scripts/build_kompetenz.py den Neunerpilot mit
+--apps gswb,schulwissen,zackboing,schulhelfer,losverkauf,grundschultafel,fahrradausbildung,leseflux,kompetenz-manager.
+[SQLite, lokale Rechte, begrenzte PDF-Exporte und Restore](docs/implementation/kompetenz-manager.md).

@@ -18,6 +18,12 @@
     "patch": "patches/zackboing/changes.patch"
   },
   {
+    "app": "kompetenz-manager",
+    "baseCommit": "dd5f14c8badfa5c604cfdcf70a2ae0bf40267a20",
+    "implementationCommit": "5ddeb21c7dbfecef987ca498e0bc0694be3a348d",
+    "patch": "patches/kompetenz-manager/changes.patch"
+  },
+  {
     "app": "leseflux",
     "baseCommit": "6ad61b28a31d41d98e03d3be835a6c678ad6e439",
     "implementationCommit": "d129a2e6da550344ac4ede14851aff789c33ccb8",

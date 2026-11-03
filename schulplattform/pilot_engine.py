@@ -18,8 +18,13 @@ class PilotEngine:
         installed = self.installed() and app in self.pilot.apps
         backend = self.pilot.inspect_service(app, "app") if installed else None
         state = backend["State"] if backend else {}
+        health=state.get("Health", {}).get("Status", "stopped")
+        if app=="kompetenz-manager" and installed and state.get("Running"):
+            worker=self.pilot.inspect_service(app,"worker")
+            if not worker or not worker["State"]["Running"] or worker["State"].get("Health",{}).get("Status")!="healthy":
+                health="degraded"
         return {"app": app, "installed": installed, "running": state.get("Running") is True,
-                "health": state.get("Health", {}).get("Status", "stopped"),
+                "health": health,
                 "image": backend["Image"] if backend else None}
 
     def routes(self, maintenance):
@@ -42,13 +47,16 @@ class PilotEngine:
                         self.pilot.quiz_control("cancel-stop")
                         raise DeploymentBusy("Active games must finish before stop")
                 self.routes({app})
+                if app=="kompetenz-manager":
+                    self.pilot.compose_command(app,"stop","--timeout","130","worker")
                 self.pilot.compose_command(app, "stop", "--timeout", "130", "app")
             else:
                 self.pilot.compose_command("infra", "up", "-d", "--no-build")
                 if app == "schulwissen":
                     self.pilot.compose_command(app, "up", "-d", "--no-build", "--wait", "db")
                 self.pilot.configure_proxy()
-                self.pilot.compose_command(app, "up", "-d", "--no-build", "--wait", "--wait-timeout", "90", "app")
+                services=["app","worker"] if app=="kompetenz-manager" else ["app"]
+                self.pilot.compose_command(app, "up", "-d", "--no-build", "--wait", "--wait-timeout", "90", *services)
                 if app == "zackboing":
                     self.pilot.quiz_control("cancel-stop")
                 if self.status(app)["health"] != "healthy":

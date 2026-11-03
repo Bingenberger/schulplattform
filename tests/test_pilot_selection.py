@@ -31,7 +31,7 @@ def test_legacy_configuration_keeps_two_apps_without_rewrite(root):
     assert config.read_bytes() == before
 
 
-@pytest.mark.parametrize("selected", [("gswb", "schulwissen", "zackboing"), ("gswb", "schulwissen", "zackboing", "schulhelfer"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux")])
+@pytest.mark.parametrize("selected", [("gswb", "schulwissen", "zackboing"), ("gswb", "schulwissen", "zackboing", "schulhelfer"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux", "kompetenz-manager")])
 def test_optional_apps_persist_and_excluded_app_never_creates_state(root, selected):
     directory = root / "three"
     assert Pilot(directory, apps=selected).apps == selected
@@ -94,3 +94,28 @@ def test_private_projections_work_under_restrictive_umask(root):
             assert path.stat().st_mode & 0o777 == 0o444
     assert all(path.stat().st_mode & 0o777 == 0o600
                for path in (pilot.directory / "secrets").iterdir() if path.is_file())
+
+
+def test_competency_stop_pauses_background_writer_before_web(root):
+    from schulplattform.pilot_engine import PilotEngine
+    pilot=Pilot(root/"background",apps=module.APP_SELECTIONS[-1])
+    (pilot.directory/"state").mkdir()
+    (pilot.directory/"state/installation.json").write_text('{"status":"completed"}')
+    commands=[]
+    pilot.refresh_routes=lambda maintenance:None
+    pilot.compose_command=lambda *args:commands.append(args)
+    pilot.inspect_service=lambda *args:None
+    PilotEngine(pilot).execute("stop","kompetenz-manager")
+    assert [cmd[-1] for cmd in commands]==["worker","app"]
+
+def test_competency_failed_worker_degrades_running_app(root):
+    from schulplattform.pilot_engine import PilotEngine
+    pilot=Pilot(root/"degraded",apps=module.APP_SELECTIONS[-1])
+    (pilot.directory/"state").mkdir()
+    (pilot.directory/"state/installation.json").write_text('{"status":"completed"}')
+    def inspect(app,service):
+        return {"Image":"synthetic-image","State":{"Running":service=="app","Health":{"Status":"healthy"}}}
+    pilot.inspect_service=inspect
+    status=PilotEngine(pilot).status("kompetenz-manager")
+    assert status["running"] and status["health"]=="degraded"
+    assert not pilot.ready("synthetic-installation")

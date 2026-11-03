@@ -85,3 +85,11 @@ nur gehasht gespeichert. Historische QR-Rohwerte und Auditdaten bleiben erhalten
 und werden in API-Projektionen ausgeblendet; ihre Bereinigung muss vor realer
 Übernahme separat geprüft werden. Inhaltsjob legt keine Benutzer an. DB-Dump und
 private Credentials sichern. [Leseflux-Betriebsvertrag](docs/implementation/leseflux.md).
+
+Kompetenz-Manager benötigt python -m km_migrate als expliziten Job. Revision 0001
+übernimmt ausschließlich einen vollständigen passenden Ausgangsstand ohne Fachdaten-
+Backfill; unbekannte ältere Schemata benötigen einen gesonderten Plan. HTTP-Setup
+und Passwortausgabe sind geschlossen. SECRET_KEY bleibt dauerhaft erforderlich,
+Proxyadressen explizit setzen. Alte Sitzungen erfordern erneute Anmeldung. Beide
+Web-/Mail-Schreiber vor gemeinsamer SQLite-/Upload-/Logo-/Vorlagensicherung stoppen.
+[Abnahme und Kompatibilitätsgrenzen](docs/implementation/kompetenz-manager.md).

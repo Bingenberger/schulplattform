@@ -26,7 +26,7 @@ parser=argparse.ArgumentParser()
 parser.add_argument("--state-dir", default=".work/pilot-v2")
 args=parser.parse_args()
 pilot = Pilot(ROOT / args.state_dir)
-control_app = "leseflux" if "leseflux" in pilot.apps else "fahrradausbildung" if "fahrradausbildung" in pilot.apps else "grundschultafel" if "grundschultafel" in pilot.apps else "gswb"
+control_app = "kompetenz-manager" if "kompetenz-manager" in pilot.apps else "leseflux" if "leseflux" in pilot.apps else "fahrradausbildung" if "fahrradausbildung" in pilot.apps else "grundschultafel" if "grundschultafel" in pilot.apps else "gswb"
 directory = ROOT / ".work" / ("dashboard-test-" + secrets.token_hex(5))
 directory.mkdir(mode=0o700)
 sockets = directory / "sockets"
@@ -56,6 +56,9 @@ if "fahrradausbildung" in pilot.apps:
 if "leseflux" in pilot.apps:
     catalogue["leseflux"]={"name":"Leseflux","description":"Lokales Lesetraining",
         "url":"https://lesen.localhost:"+str(pilot.config["port"]), "public":False}
+if "kompetenz-manager" in pilot.apps:
+    catalogue["kompetenz-manager"]={"name":"Kompetenz-Manager","description":"Förder- und Diagnostikverwaltung",
+        "url":"https://kompetenz.localhost:"+str(pilot.config["port"]), "public":False}
 (directory / "apps.json").write_text(json.dumps(catalogue))
 (directory / "Caddyfile").write_text("{\n admin localhost:2019\n local_certs\n}\nverwaltung.localhost {\n reverse_proxy dashboard:8000\n}\n")
 compose_data = {

@@ -1,0 +1,78 @@
+$ docker build --platform linux/amd64 --memory 1024m --target runtime -t kompetenz-manager:0.1.0-dev .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon   5.02MB
+Step 1/24 : FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c AS base
+ ---> 9cb180cb36bd
+Step 2/24 : ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+ ---> Using cache
+ ---> 852e22c7c175
+Step 3/24 : WORKDIR /app
+ ---> Using cache
+ ---> 78e36e3da949
+Step 4/24 : RUN apt-get update && apt-get install -y --no-install-recommends libreoffice-writer poppler-utils fonts-liberation fonts-dejavu-core  && rm -rf /var/lib/apt/lists/*  && groupadd --gid 10001 kompetenz && useradd --uid 10001 --gid 10001 --no-create-home kompetenz
+ ---> Using cache
+ ---> 29dc5a833f97
+Step 5/24 : COPY requirements.lock ./
+ ---> Using cache
+ ---> 528e73a423ee
+Step 6/24 : RUN pip install --no-cache-dir --require-hashes -r requirements.lock
+ ---> Using cache
+ ---> 53c45a106018
+Step 7/24 : COPY *.py ./
+ ---> Using cache
+ ---> a3aacc5b30dc
+Step 8/24 : COPY routes ./routes
+ ---> Using cache
+ ---> 00e1298823cd
+Step 9/24 : COPY templates ./templates
+ ---> Using cache
+ ---> a6a72025ffcc
+Step 10/24 : COPY static ./static
+ ---> Using cache
+ ---> a531ae961aa6
+Step 11/24 : COPY gunicorn.conf.py ./
+ ---> Using cache
+ ---> 3d4160381a00
+Step 12/24 : RUN mkdir -p /app/instance /app/static/uploads /app/odt_templates  && chown -R 10001:10001 /app/instance /app/odt_templates
+ ---> Using cache
+ ---> 92f62ebb2b33
+Step 13/24 : FROM base AS tests
+ ---> 92f62ebb2b33
+Step 14/24 : COPY requirements-test.lock ./
+ ---> Using cache
+ ---> 3175b140b2cf
+Step 15/24 : RUN pip install --no-cache-dir --require-hashes -r requirements-test.lock
+ ---> Using cache
+ ---> eb9b7b3bd050
+Step 16/24 : COPY tests ./tests
+ ---> Using cache
+ ---> df14e029f8b1
+Step 17/24 : COPY contract_tests ./contract_tests
+ ---> 7819f83380a8
+Step 18/24 : COPY odt_templates ./odt_templates
+ ---> db2174571e96
+Step 19/24 : USER 10001:10001
+ ---> Running in aa7cfe8422df
+ ---> Removed intermediate container aa7cfe8422df
+ ---> 87435e6247fe
+Step 20/24 : FROM base AS runtime
+ ---> 92f62ebb2b33
+Step 21/24 : USER 10001:10001
+ ---> Using cache
+ ---> 532a4f74f9c0
+Step 22/24 : EXPOSE 8000
+ ---> Using cache
+ ---> c31af8e9a92e
+Step 23/24 : HEALTHCHECK --interval=5s --timeout=3s --retries=12 CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health/ready',timeout=2)"
+ ---> Using cache
+ ---> debf3c3b30b1
+Step 24/24 : CMD ["gunicorn","--config","gunicorn.conf.py","app:app"]
+ ---> Using cache
+ ---> 3df623b1e19e
+Successfully built 3df623b1e19e
+Successfully tagged kompetenz-manager:0.1.0-dev
+
+exit_code=0

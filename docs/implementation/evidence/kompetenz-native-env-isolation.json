@@ -1,0 +1,5 @@
+{
+  "foreignNativeDatabaseUrlIgnored": true,
+  "webAndWorkerUseOwnSqliteVolume": true,
+  "readOnlyComposeValidation": true
+}

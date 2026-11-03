@@ -1,0 +1,6 @@
+imageId=sha256:87435e6247fefb63f1214bb13b2cc2106d6a2fdde5857546325cd1c5e195c52d
+$ docker run --rm --init --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 1536m --cpus 2 --pids-limit 256 --tmpfs /tmp:size=512m,mode=1777 --tmpfs /app/instance:size=64m,uid=10001,gid=10001,mode=700 --tmpfs /app/static/uploads:size=32m,uid=10001,gid=10001,mode=700 -e SECRET_KEY=synthetic-offline-test-session-key-not-for-deployment kompetenz-manager-tests:0.1.0-dev python -m pytest -q -p no:cacheprovider contract_tests tests/test_code_hygiene.py
+.......                                                                  [100%]
+7 passed in 6.79s
+
+exit_code=0

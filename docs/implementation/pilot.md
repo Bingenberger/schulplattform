@@ -154,3 +154,16 @@ Persönlicher Erstadmin wird separat interaktiv eingerichtet.
 
 [Leseflux-Abnahme](leseflux.md) dokumentiert widerrufbare lokale Kinder-/Lehrkraftzugänge,
 Bestandskarten, CSRF, Domainrückfall, vollständige Fachdatensicherung und Grenzen.
+
+## Optionaler neunter Dienst: Kompetenz-Manager
+
+Nach scripts/build_kompetenz.py einen neuen Zustandsordner mit --apps
+gswb,schulwissen,zackboing,schulhelfer,losverkauf,grundschultafel,fahrradausbildung,leseflux,kompetenz-manager
+verwenden. Geprüft: .work/pilot-v20. Privater persistenter Schlüssel, eigenes
+SQLite-/Upload-/Logovolume und leeres Vorlagenvolume, zwei Webworker sowie
+separater Benachrichtigungsworker mit lokalem Mail-Sink. Die Erstmigration
+erzeugt kein Benutzerkonto. Erstadministration erfolgt separat interaktiv.
+
+Der begrenzte Steuerdienst hält beim Stop zuerst den Mail-Schreiber an und
+startet bei Wiederaufnahme beide Dienste ohne Migration oder Bootstrap.
+[Kompetenz-Manager-Abnahme und Grenzen](kompetenz-manager.md).

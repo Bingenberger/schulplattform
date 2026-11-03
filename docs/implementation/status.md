@@ -1,12 +1,12 @@
 # Umsetzungsstand vom 3. November 2026
 
 **Der Gesamtauftrag ist weiterhin offen.** Der lokale Pilot mit schulwissen,
-gswb und optional Zackboing, Schulhelfer, Losverkauf, Grundschultafel, Fahrradausbildung sowie Leseflux ist ausführbar und geprüft. Eine Freigabe für den leeren Ubuntu-Zielserver
+gswb und optional Zackboing, Schulhelfer, Losverkauf, Grundschultafel, Fahrradausbildung, Leseflux sowie Kompetenz-Manager ist ausführbar und geprüft. Eine Freigabe für den leeren Ubuntu-Zielserver
 oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
 
 ## Beobachtet und implementiert
 
-- Eigenständige, isolierte App-Repositories; acht lokale App-Änderungspakete mit
+- Eigenständige, isolierte App-Repositories; neun lokale App-Änderungspakete mit
   [Commits und Patches](../../patches/index.json). Keine Appquellen als Monorepo.
 - gswb-Redaktion mit lokaler Anmeldung, CSRF und Pflichtsecret abgesichert;
   öffentliche Lese-API bleibt zugänglich. Kein Vertrauen in Identitätsheader.
@@ -33,7 +33,12 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
   Lokale Kinderzugänge bleiben erhalten; Cookie-JWTs sind serverseitig widerrufbar.
   Neue QR-Werte werden nur gehasht gespeichert, historische Karten erhalten und
   aus API-Projektionen ausgeblendet. Zielklassen und Einwilligung werden geprüft.
-- Lokaler Zwei- bis Achterstack mit Caddy, getrennten Appnetzen, PostgreSQL und Mailpit.
+- Kompetenz-Manager: zwei Flask-Webworker, SQLite und separater dauerhafter
+  Benachrichtigungsworker. Explizite Schemaübernahme mit Wiederaufnahme,
+  persönliche Terminaleinrichtung, widerrufbare Sitzungen und ein gemeinsamer
+  LibreOffice-Slot. Klassenrechte bleiben fachlich unverändert. Worker wird
+  beim Stop zuerst pausiert und bei Wiederaufnahme ohne Bootstrap gestartet.
+- Lokaler Zwei- bis Neunerstack mit Caddy, getrennten Appnetzen, PostgreSQL und Mailpit.
   Nur Caddys TLS-Testport ist auf Host-Loopback veröffentlicht. Die Apps laufen
   ohne Rootrechte und mit schreibgeschütztem Root-Dateisystem. Die PostgreSQL-
   Approlle besitzt keine Superuser-, CREATEDB- oder CREATEROLE-Rechte.
@@ -50,7 +55,7 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
   Sitzungen, CSRF und Betriebsprotokoll. Öffentliche Kacheln und bestätigte
   Zugangsprojektion sind von der Administrationsansicht getrennt.
 - Separater Unix-Socket-Steuerdienst mit Peer-UID, HMAC und persistenten Nonces;
-  derzeit ausschließlich Status, Start und Stop für die acht bekannten Pilot-Apps.
+  derzeit ausschließlich Status, Start und Stop für die neun bekannten Pilot-Apps.
   Aktive Zackboing-Spiele verweigern Stop mit sicherem 409-Hinweis und Audit.
   Das Dashboard besitzt keinen Docker-Socket.
 - Releasebundles werden mit einem unabhängig bereitgestellten Ed25519-Schlüssel
@@ -61,7 +66,7 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
 
 | Prüfung | Ergebnis | Rohbeleg |
 | --- | --- | --- |
-| Python-Suite für Sicherheit, Manifeste, Signaturen, State, Domains, SQLite | 92 bestanden | [Log](evidence/python-tests.log) |
+| Python-Suite für Sicherheit, Manifeste, Signaturen, State, Domains, SQLite | 96 bestanden | [Log](evidence/python-tests.log) |
 | schulwissen-Vertragstests im Produktionsimage ohne Netzwerk | 5 bestanden | [Log](evidence/schulwissen-runtime.log) |
 | Zackboing-Bootstrap und Session-Negativtests | bestanden | [Bootstrap](evidence/zackboing-bootstrap.log), [Session](evidence/zackboing-session.log) |
 | Zackboing amd64/Standalone | Node 22.23.4, 117 Fach-/Negativprüfungen bestanden | [Image](evidence/zackboing-image.json), [Standalone](evidence/zackboing-standalone.json) |
@@ -94,6 +99,11 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
 | Leseflux Chromium-Tablet, Lehrkraft-/Kinder-Code-Anmeldung | bestanden; Kamera nicht geprüft | [Ergebnis](evidence/leseflux-browser.json) |
 | Leseflux frischer PostgreSQL-Restore mit HTTP-Abnahme | bestanden | [Ergebnis](evidence/leseflux-restore.json) |
 | Achterpilot: TLS-Domainwechsel/Rückfall, No-op und Stop/Start | bestanden | [Ergebnis](evidence/leseflux-platform.json) |
+| Kompetenz-Manager Fachsuite und echte Prozess-/Migrationsverträge | 566 bestanden | [Rohlog](evidence/kompetenz-functional.log) |
+| Kompetenz-Manager Standalone, Terminal, Rollen, zwei Worker, PDF und SMTP-Ausfall | bestanden | [Ergebnis](evidence/kompetenz-standalone.json) |
+| Kompetenz-Manager SQLite-/Datei-/Vorlagenrestore mit HTTP/PDF-Abnahme | bestanden | [Ergebnis](evidence/kompetenz-restore.json) |
+| Kompetenz-Manager Chromium-Tablet, persönlicher Login, Navigation und Logout | bestanden | [Ergebnis](evidence/kompetenz-browser.json) |
+| Neunerpilot: TLS-Mail-Domainwechsel/Rückfall, No-op und Web-/Worker-Start/Stop | bestanden | [Ergebnis](evidence/kompetenz-platform.json) |
 | amd64-Builds gswb und schulwissen | bestanden, lokale Entwicklungsimages | [gswb](evidence/gswb-build.log), [schulwissen](evidence/schulwissen-build.log) |
 | gswb Standalone-Start und Neustart | bestanden | [Ergebnis](evidence/gswb-container.json) |
 | schulwissen Standalone ohne Plattform-Override | bestanden | [Ergebnis](evidence/schulwissen-standalone.json), [Log](evidence/schulwissen-standalone.log) |
@@ -133,9 +143,9 @@ oder Löschungen von Bestandsvolumes ausgeführt.
 | A4 | beide Apps standalone und gemeinsam lokal gestartet | leerer Ubuntu-Server, öffentliche TLS-/DNS-Abnahme, vollständige Fachtests |
 | A5 | State-Maschine und Pilot-Lebenszyklus getestet | Host-Provisionierung, alle zehn Apps, vollständige Bootstrap-/Verify-Stufen auf Ubuntu |
 | A6 | lokaler Domainwechsel mit Rückfall getestet | öffentliche DNS-/Besitz-/ACME-Prüfung, Verwaltungsdomain, alle Link-/Callback-/WS-Varianten |
-| A7 | SQLite/PostgreSQL-Bausteine, Zackboing-, Schulhelfer-, Losverkauf-, Grundschultafel-, Fahrradausbildung- und Leseflux-Apprestore getestet | Plattform-/Datei-/Secret-Gesamtbackup, Verschlüsselung und Offsite, weitere Apprestores |
-| A8 | Dashboard mit TOTP und Steuerdienst für acht Apps, Stopsperre für Spiele | produktive Serviceinstallation, Updates/Domains/Backup/SMTP-Oberfläche, tatsächliche Zugangsprojektion aller zehn Apps |
-| A9 | acht Apps lokal containerisiert und geprüft | zwei weitere Apps; vollständige Release-/Lizenzabnahme |
+| A7 | SQLite/PostgreSQL-Bausteine, Zackboing-, Schulhelfer-, Losverkauf-, Grundschultafel-, Fahrradausbildung-, Leseflux- und Kompetenz-Manager-Apprestore getestet | Plattform-/Datei-/Secret-Gesamtbackup, Verschlüsselung und Offsite, weitere Apprestores |
+| A8 | Dashboard mit TOTP und Steuerdienst für neun Apps, Stopsperre für Spiele | produktive Serviceinstallation, Updates/Domains/Backup/SMTP-Oberfläche, tatsächliche Zugangsprojektion aller zehn Apps |
+| A9 | neun Apps lokal containerisiert und geprüft | abgen; vollständige Release-/Lizenzabnahme |
 | A10 | nicht ausgeführt | Zielservermessung, definierte Last- und Dauerläufe |
 | A11 | nicht begonnen | bleibt bis zur Abnahme der Pflichtpakete zurückgestellt |
 
@@ -190,4 +200,9 @@ Leseflux wurde mit identischen Fachzeilen, Lernfortschritt und beiden lokalen
 Kinderzugängen in einer frischen PostgreSQL-Instanz wiederhergestellt. Historische
 QR-/Audit-Rohwerte werden erhalten; ihre Bereinigung vor echter Bestandsübernahme
 ist weiterhin offen. [Leseflux-Abnahme und Grenzen](leseflux.md). Noch ausstehende
-Apps: kompetenz-manager und abgen; SSO bleibt zuletzt.
+App: abgen; SSO bleibt zuletzt.
+
+Kompetenz-Manager wurde mit identischen Fachzeilen, Rollen/Klassenzuordnungen,
+privaten Uploads und Schullogo in frische Volumes wiederhergestellt; danach echter
+PDF-Export und verweigerter Fremdklassenzugriff geprüft. PostgreSQL und reale
+Altbestände sind dabei nicht abgenommen. [Abnahme und Grenzen](kompetenz-manager.md).
