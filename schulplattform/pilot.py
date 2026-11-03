@@ -28,10 +28,11 @@ INFRASTRUCTURE = {
 }
 
 
-APP_PORTS = {"gswb": 8000, "schulwissen": 8000, "zackboing": 3000, "schulhelfer": 8000}
-DEFAULT_DOMAINS = {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost", "zackboing": "quiz.localhost", "schulhelfer": "helfer.localhost"}
+APP_PORTS = {"gswb": 8000, "schulwissen": 8000, "zackboing": 3000, "schulhelfer": 8000, "losverkauf": 8000}
+DEFAULT_DOMAINS = {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost", "zackboing": "quiz.localhost", "schulhelfer": "helfer.localhost", "losverkauf": "lose.localhost"}
 APP_SELECTIONS = (("gswb", "schulwissen"), ("gswb", "schulwissen", "zackboing"),
-                  ("gswb", "schulwissen", "zackboing", "schulhelfer"))
+                  ("gswb", "schulwissen", "zackboing", "schulhelfer"),
+                  ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf"))
 
 class Pilot:
     def __init__(self, directory, apps=None):
@@ -76,6 +77,7 @@ class Pilot:
             "GSWB_SECRET_FILE": str(self.directory / "runtime/gswb-key"),
             "GSWB_EDITOR_HASH_FILE": str(self.directory / "runtime/gswb-editor"),
             "SCHULHELFER_SECRET_FILE": str(self.directory / "runtime/helfer-key"),
+            "LOSVERKAUF_SECRETS_DIR": str(self.directory / "runtime/losverkauf"),
         }
         self.log = self.directory / "operations.jsonl"
 
@@ -112,6 +114,12 @@ class Pilot:
                   ["gswb-key", "wissen-key", "postgres-admin", "postgres-app"]}
         if "schulhelfer" in self.apps:
             values["helfer-key"] = store.get_or_create("helfer-key")
+        if "losverkauf" in self.apps:
+            (runtime / "losverkauf").mkdir(mode=0o700, exist_ok=True)
+            values["losverkauf/session-key"] = store.get_or_create("lose-key")
+            values["losverkauf/parent-token"] = store.get_or_create("lose-parent")
+            values["losverkauf/admin-name"] = ""  # configured locally, no default administrator
+            values["losverkauf/admin-hash"] = ""
         values["gswb-editor"] = ""  # editor remains closed until separately provisioned
         values["wissen-db"] = "postgresql://schulwissen:" + values["postgres-app"] + "@db:5432/schulwissen"
         for name, value in values.items():
@@ -158,6 +166,10 @@ class Pilot:
             infrastructure["services"]["proxy"]["networks"].append("helfer-proxy")
             infrastructure["services"]["mailpit"]["networks"]["helfer-proxy"] = {"aliases": ["mailpit"]}
             infrastructure["networks"]["helfer-proxy"] = {"internal": True}
+        if "losverkauf" in self.apps:
+            infrastructure["services"]["proxy"]["networks"].append("lose-proxy")
+            infrastructure["services"]["mailpit"]["networks"]["lose-proxy"] = {"aliases": ["mailpit"]}
+            infrastructure["networks"]["lose-proxy"] = {"internal": True}
         for service in infrastructure["services"].values():
             service["logging"] = {"driver": "json-file", "options": {"max-size": "10m", "max-file": "3"}}
         (self.directory / "infra.json").write_text(json.dumps(infrastructure, indent=2))
@@ -217,6 +229,27 @@ networks:
   proxy:
     external: true
     name: {net}_helfer-proxy
+""")
+        if "losverkauf" in self.apps:
+            (self.directory / "losverkauf.yml").write_text(f"""
+services:
+  app:
+    image: losverkauf:0.1.0-dev
+    ports: !reset []
+    environment:
+      BASE_URL: https://lose.localhost:{port}
+      PROXY_IPS: 127.0.0.1
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_SICHERHEIT: keine
+    networks:
+      default: {{}}
+      proxy:
+        aliases: [losverkauf]
+networks:
+  proxy:
+    external: true
+    name: {net}_lose-proxy
 """)
         # No administrative database credential is passed to the application.
         (self.directory / "init-postgres.sh").write_text("""#!/bin/sh
@@ -331,6 +364,14 @@ networks:
                      for line in path.read_text().splitlines()]
             path.write_text("\n".join(lines) + "\n")
 
+        if "losverkauf" in self.apps:
+            address = proxy["NetworkSettings"]["Networks"][self.project + "-infra_lose-proxy"]["IPAddress"]
+            ipaddress.ip_address(address)
+            path = self.directory / "losverkauf.yml"
+            lines = [("      PROXY_IPS: " + address) if line.startswith("      PROXY_IPS:") else line
+                     for line in path.read_text().splitlines()]
+            path.write_text("\n".join(lines) + "\n")
+
     def bootstrap(self, identity):
         self.configure_proxy()
         # Schema jobs only. No administrative or real user account is created.
@@ -340,6 +381,8 @@ networks:
             self.compose_command("zackboing", "run", "--rm", "--no-deps", "app", "node", "server/migrate.js")
         if "schulhelfer" in self.apps:
             self.compose_command("schulhelfer", "run", "--rm", "--no-deps", "app", "python", "-m", "app.migrate")
+        if "losverkauf" in self.apps:
+            self.compose_command("losverkauf", "run", "--rm", "--no-deps", "app", "python", "-m", "los_migrate")
         self.compose_command("gswb", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
         self.compose_command("schulwissen", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
         if "zackboing" in self.apps:
@@ -347,6 +390,9 @@ networks:
 
         if "schulhelfer" in self.apps:
             self.compose_command("schulhelfer", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
+
+        if "losverkauf" in self.apps:
+            self.compose_command("losverkauf", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
 
     def ready(self, identity):
         try:
@@ -443,6 +489,11 @@ networks:
                 raise StateError("Anonymous helper administration accepted")
             if self.request(domains["schulhelfer"], "/")[0] != 200:
                 raise StateError("Public helper index unavailable")
+        if "losverkauf" in self.apps:
+            if self.request(domains["losverkauf"], "/admin")[0] != 302:
+                raise StateError("Anonymous ticket administration accepted")
+            if self.request(domains["losverkauf"], "/")[0] != 403:
+                raise StateError("Ticket parent token gate bypassed")
         results["negative-access"] = True
         atomic_json(self.directory / "verified.json", {"installation": identity, "checks": results})
 

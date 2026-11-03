@@ -88,6 +88,12 @@ def test_health_checks_migration_version_without_initializing(dictionary):
 
 def test_losverkauf_requires_identity_and_rejects_legacy_session(tmp_path, monkeypatch):
     monkeypatch.setenv('DB_PATH', str(tmp_path / 'tickets.sqlite3'))
+    monkeypatch.setenv('SECRET_KEY', 'synthetic-ticket-session-key-0123456789')
+    monkeypatch.setenv('ELTERN_TOKEN', 'synthetic-ticket-parent-key-0123456789')
+    monkeypatch.setenv('BASE_URL', 'http://localhost')
+    geometry = tmp_path / 'districts.geojson'
+    geometry.write_text(json.dumps({'type': 'FeatureCollection', 'features': []}))
+    monkeypatch.setenv('GEOJSON_PATH', str(geometry))
     monkeypatch.setenv('ADMIN_USERNAME', 'synthetic.person')
     monkeypatch.setenv('ADMIN_PASSWORD', 'synthetic-password')
     sys.path.insert(0, str(APPS / 'losverkauf'))
@@ -95,14 +101,20 @@ def test_losverkauf_requires_identity_and_rejects_legacy_session(tmp_path, monke
     module = importlib.util.module_from_spec(spec)
     monkeypatch.setitem(sys.modules, 'ticket_app', module)
     spec.loader.exec_module(module)
+    import sqlite3
+    with sqlite3.connect(module.DB_PATH) as db:
+        db.executescript(module.SCHEMA)
+        db.execute('CREATE TABLE mail_outbox(id INTEGER PRIMARY KEY)')
+        db.execute('PRAGMA user_version=1')
     client = module.app.test_client()
+    nonce = re.search(r'name="csrf-token" content="([^"]+)"', client.get('/admin/login').text)[1]
     with client.session_transaction() as session:
         session['admin'] = True
     assert client.get('/admin').status_code == 302
-    assert client.post('/admin/login', data={'pw': 'synthetic-password'}).status_code == 200
+    assert client.post('/admin/login', data={'pw': 'synthetic-password', 'csrf_token': nonce}).status_code == 200
     with client.session_transaction() as session:
         assert 'admin_identity' not in session
     assert client.post('/admin/login', data={'username': 'synthetic.person',
-        'pw': 'synthetic-password'}).status_code == 302
+        'pw': 'synthetic-password', 'csrf_token': nonce}).status_code == 302
     with client.session_transaction() as session:
         assert session['admin_identity'] == 'synthetic.person'

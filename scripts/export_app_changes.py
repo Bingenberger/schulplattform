@@ -35,8 +35,12 @@ packages = {
         'app/jobs.py', 'app/main.py', 'app/scheduler.py', 'app/routers/admin.py', 'app/routers/public.py',
         'app/platform.py', 'app/migrate.py', 'app/setup_admin.py', 'app/export_limit.py', 'app/run.py',
         'migrations/env.py', 'tests/conftest.py', 'contract_tests/test_contract.py']),
-    'losverkauf': ('Bind administrative login to a personal identity', [
-        'app.py', 'templates/login.html', 'deploy/losverkauf.env.example', 'PLATFORM.md']),
+    'losverkauf': ('Add isolated ticket-sale runtime, explicit migrations and durable mail dispatcher', [
+        'app.py', 'mail.py', 'los_runtime.py', 'los_migrate.py', 'los_worker.py',
+        'gunicorn.conf.py', 'prepare_secrets.py', 'import_streets.py', 'Dockerfile', '.dockerignore',
+        '.gitignore', 'docker-compose.yml', 'requirements.lock', 'requirements-test.lock',
+        'templates', 'static/app.js', 'static/vendor', 'tests', 'README.md', 'PLATFORM.md',
+        'deploy/losverkauf.env.example', 'deploy/losverkauf.service', 'deploy/nginx-losverkauf.conf']),
 }
 index = []
 for app, (message, files) in packages.items():

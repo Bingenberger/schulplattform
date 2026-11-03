@@ -1,0 +1,15 @@
+services:
+  app:
+    image: ${LOSVERKAUF_IMAGE:?version and digest required by release validator}
+    ports: !reset []
+    environment:
+      BASE_URL: ${LOSVERKAUF_PUBLIC_URL:?canonical runtime origin required}
+      PROXY_IPS: ${LOSVERKAUF_PROXY_IPS:?explicit proxy addresses required}
+    networks:
+      default: {}
+      proxy:
+        aliases: [losverkauf]
+networks:
+  proxy:
+    external: true
+    name: schulplattform-losverkauf-proxy

@@ -58,13 +58,14 @@ def test_existing_database_never_gets_replacement_keys(tmp_path):
     assert not store.secrets.path("totp-wrapping-key").exists()
 
 
-def test_schulhelfer_access_is_explicit_and_operations_are_audited(tmp_path):
+@pytest.mark.parametrize("app_id", ["schulhelfer", "losverkauf"])
+def test_optional_app_access_is_explicit_and_operations_are_audited(tmp_path, app_id):
     store = AdminStore(tmp_path / "admin", initialize=True)
     identity = store.create_admin("synthetic.operator", "synthetic-password-123", SEED)
-    assert "schulhelfer" not in store.access(identity)
-    store.confirm_access(identity, "schulhelfer")
-    assert store.access(identity) == {"schulhelfer"}
-    store.audit(identity, "stop", "schulhelfer", "completed")
+    assert app_id not in store.access(identity)
+    store.confirm_access(identity, app_id)
+    assert store.access(identity) == {app_id}
+    store.audit(identity, "stop", app_id, "completed")
     with store.connect() as db:
         assert tuple(db.execute("SELECT actor,action,app_id,outcome FROM audit").fetchone()) == (
-            identity, "stop", "schulhelfer", "completed")
+            identity, "stop", app_id, "completed")
