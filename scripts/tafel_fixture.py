@@ -22,6 +22,7 @@ class Client:
                     self.cookie_options[key]={"secure":bool(value["secure"]),"httponly":bool(value["httponly"]),"samesite":value["samesite"]}
                     if value.value:self.cookies[key]=value.value
                     else:self.cookies.pop(key,None)
+        self.last_status=response.status
         assert response.status==expected,f"{method} {path.split('?')[0]} returned {response.status}, expected {expected}"
         conn.close()
         try:return json.loads(data)

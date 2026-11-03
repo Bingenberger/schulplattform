@@ -18,6 +18,12 @@
     "patch": "patches/zackboing/changes.patch"
   },
   {
+    "app": "fahrradausbildung",
+    "baseCommit": "d9a9a6c8e02dd7fd5a14a5e2151948d7ec32c207",
+    "implementationCommit": "4e007ffd20e5236cf82b7d4a9f72f873fa1ae2fe",
+    "patch": "patches/fahrradausbildung/changes.patch"
+  },
+  {
     "app": "grundschultafel",
     "baseCommit": "496466cac7cc2b3e48a6acd2940ebc91029c145f",
     "implementationCommit": "4307aeeb5c172ee4a6ed8763ead2828281e9b66e",

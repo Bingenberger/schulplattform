@@ -23,6 +23,15 @@ packages = {
         'public/teacher.html', 'public/js/teacher.js',
         'test/session-expiry.js', 'test/bootstrap.js', 'test/e2e.js',
         'test/run-fixtures.js', 'test/platform-contract.js']),
+    'fahrradausbildung': ('Add explicit PostgreSQL migration, shared worker limits and standalone isolation', [
+        'Dockerfile', '.dockerignore', '.env.example', '.gitignore', 'docker-compose.yml',
+        'docker/start.sh', 'docker/init-postgres.sh', 'prepare_secrets.py',
+        'app/betrieb.py', 'app/migrate.py', 'app/run.py', 'app/config.py', 'app/db.py',
+        'app/kartenbild.py', 'app/kommandos.py', 'app/main.py', 'app/modelle.py',
+        'app/pdf.py', 'app/posten/api.py', 'app/web/anmeldung.py',
+        'app/posten_app/js/main.js', 'app/posten_app/css/posten.css', 'tests/test_posten_offline.py',
+        'migrations/versions/0008_betriebslimits.py', 'contract_tests',
+        'PLATFORM.md', 'README.md', 'DEPLOYMENT.md']),
     'grundschultafel': ('Add isolated Next runtime, transactional files and revocable personal sessions', [
         'Dockerfile', '.dockerignore', '.gitignore', 'docker-compose.yml', 'next.config.ts', 'PLATFORM.md', 'README.md',
         'src/lib', 'src/middleware.ts', 'src/app/api', 'src/app/assets', 'src/app/health',

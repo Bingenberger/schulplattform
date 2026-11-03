@@ -28,12 +28,13 @@ INFRASTRUCTURE = {
 }
 
 
-APP_PORTS = {"gswb": 8000, "schulwissen": 8000, "zackboing": 3000, "schulhelfer": 8000, "losverkauf": 8000, "grundschultafel": 3000}
-DEFAULT_DOMAINS = {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost", "zackboing": "quiz.localhost", "schulhelfer": "helfer.localhost", "losverkauf": "lose.localhost", "grundschultafel": "tafel.localhost"}
+APP_PORTS = {"gswb": 8000, "schulwissen": 8000, "zackboing": 3000, "schulhelfer": 8000, "losverkauf": 8000, "grundschultafel": 3000, "fahrradausbildung": 8000}
+DEFAULT_DOMAINS = {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost", "zackboing": "quiz.localhost", "schulhelfer": "helfer.localhost", "losverkauf": "lose.localhost", "grundschultafel": "tafel.localhost", "fahrradausbildung": "rad.localhost"}
 APP_SELECTIONS = (("gswb", "schulwissen"), ("gswb", "schulwissen", "zackboing"),
                   ("gswb", "schulwissen", "zackboing", "schulhelfer"),
                   ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf"),
-                  ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel"))
+                  ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel"),
+                  ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung"))
 
 class Pilot:
     def __init__(self, directory, apps=None):
@@ -80,6 +81,7 @@ class Pilot:
             "SCHULHELFER_SECRET_FILE": str(self.directory / "runtime/helfer-key"),
             "LOSVERKAUF_SECRETS_DIR": str(self.directory / "runtime/losverkauf"),
             "TAFEL_SECRET_FILE": str(self.directory / "runtime/tafel-key"),
+            "FP_SECRETS_DIR": str(self.directory / "runtime/fahrrad"),
         }
         self.log = self.directory / "operations.jsonl"
 
@@ -124,6 +126,11 @@ class Pilot:
             values["losverkauf/admin-hash"] = ""
         if "grundschultafel" in self.apps:
             values["tafel-key"] = store.get_or_create("tafel-key")
+        if "fahrradausbildung" in self.apps:
+            (runtime / "fahrrad").mkdir(mode=0o700, exist_ok=True)
+            values["fahrrad/db-admin"] = store.get_or_create("rad-db-admin")
+            values["fahrrad/db-app"] = store.get_or_create("rad-db-app")
+            values["fahrrad/database-url"] = "postgresql+psycopg://fahrrad:"+values["fahrrad/db-app"]+"@db:5432/fahrrad"
         values["gswb-editor"] = ""  # editor remains closed until separately provisioned
         values["wissen-db"] = "postgresql://schulwissen:" + values["postgres-app"] + "@db:5432/schulwissen"
         for name, value in values.items():
@@ -177,6 +184,9 @@ class Pilot:
         if "grundschultafel" in self.apps:
             infrastructure["services"]["proxy"]["networks"].append("tafel-proxy")
             infrastructure["networks"]["tafel-proxy"] = {"internal": True}
+        if "fahrradausbildung" in self.apps:
+            infrastructure["services"]["proxy"]["networks"].append("rad-proxy")
+            infrastructure["networks"]["rad-proxy"] = {"internal": True}
         for service in infrastructure["services"].values():
             service["logging"] = {"driver": "json-file", "options": {"max-size": "10m", "max-file": "3"}}
         (self.directory / "infra.json").write_text(json.dumps(infrastructure, indent=2))
@@ -277,6 +287,26 @@ networks:
     external: true
     name: {net}_tafel-proxy
 """)
+        if "fahrradausbildung" in self.apps:
+            (self.directory / "fahrradausbildung.yml").write_text(f"""
+services:
+  app:
+    image: fahrradausbildung:0.1.0-dev
+    ports: !reset []
+    environment:
+      FP_OEFFENTLICHE_URL: https://rad.localhost:{port}
+      FP_COOKIE_SECURE: "true"
+      FP_KARTEN_KACHELN: ""
+      FP_PROXY_IPS: 127.0.0.1
+    networks:
+      default: {{}}
+      proxy:
+        aliases: [fahrradausbildung]
+networks:
+  proxy:
+    external: true
+    name: {net}_rad-proxy
+""")
         # No administrative database credential is passed to the application.
         (self.directory / "init-postgres.sh").write_text("""#!/bin/sh
 set -eu
@@ -308,7 +338,7 @@ services:
     volumes:
       - {self.directory}/init-postgres.sh:/docker-entrypoint-initdb.d/01-app.sh:ro
     healthcheck:
-      test: [CMD-SHELL, "pg_isready -U postgres -d postgres"]
+      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U postgres -d postgres"]
   app:
     image: schulwissen:0.1.0-dev
     restart: "no"
@@ -398,8 +428,19 @@ networks:
                      for line in path.read_text().splitlines()]
             path.write_text("\n".join(lines) + "\n")
 
+        if "fahrradausbildung" in self.apps:
+            address = proxy["NetworkSettings"]["Networks"][self.project + "-infra_rad-proxy"]["IPAddress"]
+            ipaddress.ip_address(address)
+            path = self.directory / "fahrradausbildung.yml"
+            lines = [("      FP_PROXY_IPS: " + address) if line.startswith("      FP_PROXY_IPS:") else line
+                     for line in path.read_text().splitlines()]
+            path.write_text("\n".join(lines) + "\n")
+
     def bootstrap(self, identity):
         self.configure_proxy()
+        if "fahrradausbildung" in self.apps:
+            self.compose_command("fahrradausbildung", "up", "-d", "--no-build", "--wait", "db")
+            self.compose_command("fahrradausbildung", "run", "--rm", "--no-deps", "app", "python", "-m", "app.migrate")
         # Schema jobs only. No administrative or real user account is created.
         self.compose_command("gswb", "run", "--rm", "--no-deps", "app", "python", "-m", "grundschul_woerterbuch.migrate")
         self.compose_command("schulwissen", "run", "--rm", "--no-deps", "app", "python", "manage.py", "platform_migrate")
@@ -424,6 +465,9 @@ networks:
 
         if "grundschultafel" in self.apps:
             self.compose_command("grundschultafel", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
+
+        if "fahrradausbildung" in self.apps:
+            self.compose_command("fahrradausbildung", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
 
     def ready(self, identity):
         try:
@@ -528,6 +572,11 @@ networks:
         if "grundschultafel" in self.apps:
             if self.request(domains["grundschultafel"], "/api/admin/users")[0] != 401:
                 raise StateError("Anonymous whiteboard administration accepted")
+        if "fahrradausbildung" in self.apps:
+            if self.request(domains["fahrradausbildung"], "/verwaltung/")[0] != 303:
+                raise StateError("Anonymous bicycle administration accepted")
+            if self.request(domains["fahrradausbildung"], "/p/demo")[0] != 200:
+                raise StateError("Public bicycle station app unavailable")
         results["negative-access"] = True
         atomic_json(self.directory / "verified.json", {"installation": identity, "checks": results})
 
@@ -573,7 +622,8 @@ networks:
 
     def stop(self):
         with exclusive(self.directory / "state/installation.lock"):
-            if "zackboing" in self.apps and self.inspect_service("zackboing", "app"):
+            quiz = self.inspect_service("zackboing", "app") if "zackboing" in self.apps else None
+            if quiz and quiz.get("State", {}).get("Running") is True:
                 pending = self.quiz_control("prepare-stop")
                 if pending["activeGames"]:
                     self.quiz_control("cancel-stop")

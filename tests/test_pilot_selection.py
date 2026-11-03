@@ -31,7 +31,7 @@ def test_legacy_configuration_keeps_two_apps_without_rewrite(root):
     assert config.read_bytes() == before
 
 
-@pytest.mark.parametrize("selected", [("gswb", "schulwissen", "zackboing"), ("gswb", "schulwissen", "zackboing", "schulhelfer"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel")])
+@pytest.mark.parametrize("selected", [("gswb", "schulwissen", "zackboing"), ("gswb", "schulwissen", "zackboing", "schulhelfer"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung")])
 def test_optional_apps_persist_and_excluded_app_never_creates_state(root, selected):
     directory = root / "three"
     assert Pilot(directory, apps=selected).apps == selected
@@ -65,3 +65,13 @@ def test_zackboing_stop_route_uses_its_declared_port(root):
     assert "reverse_proxy zackboing:3000" not in config
     assert 'respond "Wartung" 503' in config
     assert "reverse_proxy schulwissen:8000" in config
+
+
+def test_stopping_already_stopped_quiz_does_not_call_private_control(root):
+    pilot = Pilot(root / "stopped", apps=("gswb", "schulwissen", "zackboing"))
+    pilot.inspect_service = lambda *args: {"State": {"Running": False}}
+    def forbidden(*args):
+        raise AssertionError("Cannot drain a stopped container")
+    pilot.quiz_control = forbidden
+    pilot.stop()
+    pilot.stop()

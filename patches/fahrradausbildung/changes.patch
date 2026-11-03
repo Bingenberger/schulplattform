@@ -1,0 +1,1462 @@
+From 8d1e4991a73967917def574ee75f321e181feb3b Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Tue, 3 Nov 2026 09:14:17 +0100
+Subject: [PATCH 1/3] Add explicit PostgreSQL migration, shared worker limits
+ and standalone isolation
+
+---
+ .dockerignore                              |  24 +-
+ .env.example                               |   8 +-
+ .gitignore                                 |   2 +
+ DEPLOYMENT.md                              | 297 ++-------------------
+ Dockerfile                                 |  60 ++---
+ PLATFORM.md                                | 123 +++++++++
+ README.md                                  |  13 +-
+ app/betrieb.py                             |  86 ++++++
+ app/config.py                              |  20 ++
+ app/db.py                                  |   2 +-
+ app/kartenbild.py                          |   8 +-
+ app/kommandos.py                           |   9 +-
+ app/main.py                                |  27 +-
+ app/migrate.py                             |  20 ++
+ app/modelle.py                             |   8 +-
+ app/pdf.py                                 |  10 +
+ app/posten/api.py                          |   3 +-
+ app/run.py                                 |  11 +
+ app/web/anmeldung.py                       |   9 +-
+ contract_tests/conftest.py                 |   1 +
+ contract_tests/test_platform.py            |  66 +++++
+ docker-compose.yml                         |  81 +++---
+ docker/init-postgres.sh                    |  10 +
+ docker/start.sh                            |  16 +-
+ migrations/versions/0008_betriebslimits.py |  13 +
+ prepare_secrets.py                         |  12 +
+ 26 files changed, 542 insertions(+), 397 deletions(-)
+ create mode 100644 PLATFORM.md
+ create mode 100644 app/betrieb.py
+ create mode 100644 app/migrate.py
+ create mode 100644 app/run.py
+ create mode 100644 contract_tests/conftest.py
+ create mode 100644 contract_tests/test_platform.py
+ create mode 100644 docker/init-postgres.sh
+ create mode 100644 migrations/versions/0008_betriebslimits.py
+ create mode 100644 prepare_secrets.py
+
+diff --git a/.dockerignore b/.dockerignore
+index 98ccb7e..14164d0 100644
+--- a/.dockerignore
++++ b/.dockerignore
+@@ -1,8 +1,16 @@
+-.venv
+-.git
+-.pytest_cache
+-**/__pycache__
+-tests
+-.env
+-vorlagen
+-*.md
++*
++!pyproject.toml
++!uv.lock
++!alembic.ini
++!app/
++!app/**
++!migrations/
++!migrations/**
++!docker/
++!docker/start.sh
++!tests/
++!tests/**
++!contract_tests/
++!contract_tests/**
++!.env.example
++!docker-compose.yml
+diff --git a/.env.example b/.env.example
+index 4713f7a..f9aac36 100644
+--- a/.env.example
++++ b/.env.example
+@@ -1,7 +1,9 @@
++# Aktuelles Compose: zuerst prepare_secrets.py; FP_SECRETS_DIR auf .private setzen.
++# POSTGRES_PASSWORD ist eine ungenutzte Altvariable. Keine Credentials hier eintragen.
+ # ---------------------------------------------------------------- Docker Compose
+ # Passwort der PostgreSQL-Datenbank. Nur Buchstaben und Ziffern (steht in einer URL),
+ # z. B. erzeugen mit:  openssl rand -hex 24
+-POSTGRES_PASSWORD=bitte-aendern
++POSTGRES_PASSWORD=
+ # Port, an den nginx weiterleitet
+ FP_PORT=8000
+ # Adresse, auf der der Port veröffentlicht wird. Vorgabe 127.0.0.1: nur für nginx auf
+@@ -10,7 +12,7 @@ FP_PORT=8000
+ FP_BIND=127.0.0.1
+ # Wessen X-Forwarded-For geglaubt wird. Nur bei FP_BIND=127.0.0.1 darf hier „*" stehen.
+ # Sonst die Adresse des Proxys, wie die App sie sieht – mehrere mit Komma, CIDR erlaubt.
+-FP_PROXY_IPS=*
++FP_PROXY_IPS=127.0.0.1
+ 
+ # ---------------------------------------------------------------- Anwendung
+ # Verbindung zur PostgreSQL-Datenbank (SQLAlchemy-URL mit psycopg-Treiber).
+@@ -41,3 +43,5 @@ FP_KARTEN_KACHELN=https://tile.openstreetmap.de/{z}/{x}/{y}.png
+ # Optional: Verzeichnis mit eigenen Feedbackbogen-Vorlagen und Logos je Schule (siehe README).
+ # Unter Docker Compose fest auf /vorlagen (= Ordner ./vorlagen neben docker-compose.yml).
+ FP_VORLAGEN_VERZEICHNIS=
++
++FP_DATABASE_URL_FILE=
+diff --git a/.gitignore b/.gitignore
+index ac54c42..911ae20 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -6,3 +6,5 @@ __pycache__/
+ # Eigene Vorlagen (außer der Erklärung)
+ vorlagen/*
+ !vorlagen/LIESMICH.txt
++
++.private/
+diff --git a/DEPLOYMENT.md b/DEPLOYMENT.md
+index b4fa374..68a4547 100644
+--- a/DEPLOYMENT.md
++++ b/DEPLOYMENT.md
+@@ -1,279 +1,22 @@
+ # Betrieb der Fahrradprüfung
+ 
+-Diese Anleitung beschreibt den Betrieb auf einem Ubuntu-Server mit Docker Compose
+-hinter nginx. Sie richtet sich an die Person, die den Server betreut. Programmierkenntnisse
+-sind dafür nicht nötig.
+-
+-```
+-Internet ──HTTPS──► nginx (Host, Port 443) ──HTTP──► app (127.0.0.1:8000) ──► db (PostgreSQL 16)
+-                                                      └── Docker Compose ──────────┘
+-```
+-
+-## 1. Voraussetzungen
+-
+-- Ubuntu 22.04 oder 24.04 mit einer festen Domain, z. B. `fahrrad.example.org`, deren
+-  DNS-Eintrag auf den Server zeigt.
+-- Docker Engine mit dem Compose-Plugin (`docker compose version` muss funktionieren),
+-  siehe <https://docs.docker.com/engine/install/ubuntu/>.
+-  Das alte `docker-compose` 1.x funktioniert mit aktuellen Docker-Versionen nicht
+-  zuverlässig (Fehler `KeyError: 'ContainerConfig'` beim Aktualisieren).
+-- nginx und certbot: `sudo apt install nginx certbot python3-certbot-nginx`.
+-
+-**HTTPS ist Pflicht.** Ohne HTTPS funktioniert die Posten-App nicht offline: Browser
+-erlauben Service Worker und dauerhaften Speicher nur auf sicheren Seiten.
+-
+-## 2. Installation
+-
+-```bash
+-sudo mkdir -p /opt/fahrradpruefung && sudo chown $USER /opt/fahrradpruefung
+-# Code nach /opt/fahrradpruefung kopieren (git clone oder Archiv entpacken)
+-cd /opt/fahrradpruefung
+-
+-cp .env.example .env
+-nano .env
+-```
+-
+-In `.env` mindestens anpassen:
+-
+-| Variable | Wert |
+-|---|---|
+-| `POSTGRES_PASSWORD` | langes Zufallspasswort, nur Buchstaben und Ziffern: `openssl rand -hex 24` |
+-| `FP_OEFFENTLICHE_URL` | `https://fahrrad.example.org` (ohne `/` am Ende) – steht in den QR-Codes |
+-| `FP_COOKIE_SECURE` | `true` |
+-
+-`FP_DATABASE_URL` und `FP_VORLAGEN_VERZEICHNIS` setzt `docker-compose.yml` selbst.
+-Die Datei `.env` enthält das Datenbankpasswort: `chmod 600 .env`.
+-
+-```bash
+-docker compose up -d --build
+-docker compose ps                        # app muss nach etwa 20 s "healthy" sein
+-docker compose exec app python -m app.kommandos systemadmin-anlegen admin@example.org
+-```
+-
+-Beim Start bringt der Container die Datenbank automatisch auf den neuesten Stand
+-(`alembic upgrade head`).
+-
+-### Besonderheit: Docker in einem LXC-Container (Proxmox)
+-
+-Die Anwendung läuft in einem LXC-Container, aber Docker braucht dort Rechte, die ein
+-unprivilegierter Container nicht von sich aus hat. Auf dem Proxmox-Host gehört in
+-`/etc/pve/lxc/<ID>.conf`:
+-
+-```
+-features: nesting=1,keyctl=1
+-```
+-
+-Danach den Container neu starten. Zwei Fallen kosten sonst einen Abend Fehlersuche:
+-
+-**1. Firewall-Dienste räumen Dockers Netzwerkregeln weg.** Debian aktiviert
+-`nftables.service` mitunter von sich aus. Dessen `/etc/nftables.conf` beginnt mit
+-`flush ruleset` – und weil `iptables` im `nft`-Modus arbeitet, löscht dieser Befehl
+-auch Dockers Ketten. Docker legt sie wenige Sekunden nach dem Systemstart an, der
+-Firewall-Dienst startet danach und wischt sie weg. Im Protokoll steht kein Fehler,
+-denn Docker hat korrekt gearbeitet; ihm wurde nur hinterher der Boden entzogen.
+-
+-Das Fehlerbild wandert weit vom Verursacher weg: Der Build bricht in `apt-get update`
+-ab mit `Temporary failure resolving 'deb.debian.org'`, jeder Versuch nach genau 30
+-Sekunden. Image-Pulls funktionieren trotzdem, weil die der Docker-Dienst selbst
+-ausführt und dafür kein NAT braucht. Nur Container kommen nicht hinaus.
+-
+-Prüfen – in dieser Reihenfolge, jeder Schritt schließt eine Ursache aus:
+-
+-```bash
+-docker info | grep -A2 "Storage Driver"      # overlay2 erwartet; vfs wäre nur sehr langsam
+-sysctl net.ipv4.ip_forward                   # muss 1 sein
+-iptables -t nat -S POSTROUTING | grep -i masq   # MASQUERADE-Regel für 172.17.0.0/16?
+-iptables -t nat -S | grep -c DOCKER          # muss > 0 sein
+-docker run --rm busybox ping -c2 -W2 <IP des Gateways>
+-systemctl is-enabled nftables ufw
+-```
+-
+-Fehlen die `DOCKER`-Ketten, scheitert auch `docker network create` mit
+-`Unable to enable SKIP DNAT rule: … No chain/target/match by that name` – und damit
+-jedes `docker compose up`, weil Compose ein eigenes Netz anlegt.
+-
+-Behebung, wenn im Container keine Firewall gebraucht wird (hinter einem Router und der
+-Proxmox-Host-Firewall ist das der Normalfall; `ufw status` zeigt dann `inactive`):
+-
+-```bash
+-systemctl disable --now nftables ufw
+-systemctl restart docker                     # erst danach, der Stop-Befehl flusht erneut
+-iptables -t nat -S | grep -c DOCKER          # jetzt > 0
+-```
+-
+-Wird eine Firewall gebraucht, bleibt sie – dann muss Docker nach ihr starten:
+-`systemctl edit docker` mit `[Unit]` / `After=nftables.service ufw.service`.
+-Der eigentliche Test ist in beiden Fällen ein Neustart des Containers: danach müssen
+-die Ketten noch stehen.
+-
+-**2. Dateirechte gehen beim Kopieren verloren.** Kommt der Quellbaum nicht per
+-`git clone`, sondern über eine Windows-Freigabe, `scp` oder ein neu gepacktes Archiv,
+-fehlt den Skripten das Ausführungsbit. Das `Dockerfile` setzt es für `docker/start.sh`
+-inzwischen selbst (`chmod 0755`), damit ein Image nicht davon abhängt. Zeigt ein
+-Container trotzdem `exec … permission denied`, ist `chmod +x` auf die betroffene Datei
+-und ein `docker compose build` die Lösung.
+-
+-## 3. nginx und HTTPS
+-
+-```bash
+-sudo cp deploy/nginx-fahrradpruefung.conf /etc/nginx/sites-available/fahrradpruefung
+-sudo nano /etc/nginx/sites-available/fahrradpruefung   # Domain eintragen
+-sudo ln -s /etc/nginx/sites-available/fahrradpruefung /etc/nginx/sites-enabled/
+-sudo mkdir -p /var/www/certbot
+-sudo certbot certonly --webroot -w /var/www/certbot -d fahrrad.example.org
+-sudo nginx -t && sudo systemctl reload nginx
+-```
+-
+-Hinweis: Damit nginx den ersten `certbot`-Aufruf übersteht, den `server`-Block für
+-Port 443 vorher auskommentieren und danach wieder aktivieren. Alternativ
+-`sudo certbot --nginx -d fahrrad.example.org`.
+-
+-Was die Beispielkonfiguration bewusst tut:
+-
+-- **Kein Pfad im Zugriffsprotokoll.** Posten-Adressen enthalten das Zugangs-Token
+-  (`/p/…`, `/api/p/…`). Das eigene Logformat `fahrrad_ohne_pfad` protokolliert nur
+-  Methode, Status und Größe. Auch die Anwendung selbst schwärzt Tokens (`/p/***`).
+-- **`X-Forwarded-For $remote_addr`** – die Anwendung erfährt die echte IP und kann
+-  wiederholte Fehlanmeldungen bremsen; ein vom Client erfundener Header wird
+-  überschrieben.
+-- **Keine Sicherheits-Header in nginx.** CSP, HSTS, `X-Content-Type-Options` usw.
+-  setzt die Anwendung selbst; doppelte Header stören.
+-
+-Test: `curl -sI https://fahrrad.example.org/anmelden` zeigt u. a.
+-`strict-transport-security` und `content-security-policy`.
+-
+-### Proxy auf einem anderen Rechner
+-
+-Standardmäßig veröffentlicht `docker-compose.yml` den Port nur auf `127.0.0.1` – das
+-setzt voraus, dass nginx auf demselben Host läuft. Terminiert HTTPS auf einem anderen
+-Rechner (etwa ein öffentlicher Server, der per VPN zum Heimserver tunnelt), müssen zwei
+-Werte in die `.env`:
+-
+-| Variable | Wert |
+-|---|---|
+-| `FP_BIND` | Adresse, über die der Proxy die App erreicht, z. B. `192.168.178.103` |
+-| `FP_PROXY_IPS` | Adresse des Proxys, wie die App sie sieht – mehrere mit Komma, CIDR erlaubt |
+-
+-`FP_PROXY_IPS` ist dabei nicht optional. Der Vorgabewert `*` heißt „jedem
+-`X-Forwarded-For`-Header glauben" und ist nur deshalb unbedenklich, weil an
+-`127.0.0.1` niemand von außen herankommt. Sobald der Port im Netz liegt, könnte jedes
+-Gerät dort die Anmeldebremse umgehen, indem es bei jedem Fehlversuch eine andere IP
+-behauptet – und in den Protokollen stünde die erfundene Adresse.
+-
+-Welchen Wert die App tatsächlich sieht, verrät sie selbst: `FP_PROXY_IPS` vorübergehend
+-auf eine falsche Adresse setzen, `docker compose up -d`, die Seite über den Proxy
+-aufrufen und `docker compose logs app --tail=20` ansehen. Weil der Header dann nicht
+-geglaubt wird, protokolliert uvicorn die echte Gegenstelle.
+-
+-Zu bedenken: Mit gesetztem `FP_BIND` ist die App für jedes Gerät im selben Netz
+-unverschlüsselt und am Proxy vorbei erreichbar. Soll das nicht sein, gehört ein
+-zweiter nginx auf den Host, der auf der Netzadresse lauscht und auf `127.0.0.1`
+-weiterleitet; dann bleibt `FP_BIND` leer und `FP_PROXY_IPS` auf `*`.
+-
+-### Ausgehende Verbindungen
+-
+-Für den Kartenausschnitt auf den Posten-Blättern lädt der Server Kartenkacheln von
+-`FP_KARTEN_KACHELN` (Standard: `tile.openstreetmap.de`, ausgehend HTTPS). Ohne
+-Internetzugang oder mit leerem Wert entstehen die Blätter ohne Karte. Die Kartenseite
+-der Streckenplanung lädt Karten und Routing direkt im Browser der Lehrkraft; dafür
+-braucht der Server nichts.
+-
+-## 4. Regelmäßige Aufgaben (cron)
+-
+-Die Anwendung hat bewusst keine versteckten Hintergrundprozesse. Diese Aufgaben
+-laufen per cron (`crontab -e` des Benutzers, der Docker bedienen darf):
+-
+-```cron
+-# Erfassungen nach Ablauf der Aufbewahrungsfrist löschen (FP_AUFBEWAHRUNG_MONATE, Standard 12)
+-30 3 * * *  cd /opt/fahrradpruefung && docker compose exec -T app python -m app.kommandos aufbewahrung >> /var/log/fahrrad/aufbewahrung.log 2>&1
+-# Abgelaufene Anmeldesitzungen entfernen
+-45 3 * * *  cd /opt/fahrradpruefung && docker compose exec -T app python -m app.kommandos sitzungen-aufraeumen > /dev/null
+-# Nächtliche Sicherung, 14 Tage aufbewahrt (siehe Abschnitt 5)
+-0 2 * * *   cd /opt/fahrradpruefung && docker compose exec -T db pg_dump -U fahrrad -Fc fahrrad > /var/backups/fahrrad/fahrrad-$(date +\%F).dump && find /var/backups/fahrrad -name '*.dump' -mtime +14 -delete
+-```
+-
+-(`sudo mkdir -p /var/log/fahrrad /var/backups/fahrrad` und dem cron-Benutzer geben.)
+-
+-Das Aufbewahrungs-Kommando löscht alle Erfassungen eines Laufs, dessen Datum älter
+-als die Frist ist, archiviert den Lauf und vermerkt das Löschdatum; die Verwaltung
+-zeigt dann einen Hinweis statt leerer Tabellen. Vorher ansehen, was passieren würde:
+-
+-```bash
+-docker compose exec app python -m app.kommandos aufbewahrung --trocken
+-```
+-
+-Namen von Kindern speichert die Anwendung nicht; Gruppen bestehen nur aus Startnummern.
+-Die Zuordnung zu Namen steht auf der Papierliste der Klassenleitung.
+-
+-## 5. Sicherung und Wiederherstellung
+-
+-Sicherung von Hand:
+-
+-```bash
+-docker compose exec -T db pg_dump -U fahrrad -Fc fahrrad > fahrrad-$(date +%F).dump
+-```
+-
+-Wiederherstellen (überschreibt die laufende Datenbank!):
+-
+-```bash
+-docker compose stop app
+-docker compose exec -T db pg_restore -U fahrrad -d fahrrad --clean --if-exists < fahrrad-2026-10-15.dump
+-docker compose start app
+-```
+-
+-**Datenschutz:** Sicherungen enthalten Erfassungen und die E-Mail-Adressen der Schuladmins. Bewahre sie nur so
+-lange auf, wie nötig (oben: 14 Tage) – sonst läuft die Löschfrist ins Leere. Sicherungen
+-gehören verschlüsselt auf ein anderes System.
+-
+-Zusätzlich müssen gesichert werden: `.env` und der Ordner `vorlagen/`.
+-
+-## 6. Aktualisieren
+-
+-```bash
+-cd /opt/fahrradpruefung
+-# neuen Code holen (git pull o. Ä.)
+-docker compose up -d --build
+-```
+-
+-Migrationen laufen beim Start automatisch. Vorher eine Sicherung ziehen.
+-
+-**Nicht am Vortag oder Tag einer Prüfung aktualisieren.** Eingerichtete iPads behalten
+-zwar ihre Daten und laden die neue App-Version erst, wenn sie wieder online sind –
+-aber am Prüfungstag soll nichts Unerwartetes passieren.
+-
+-## 7. Eigene Feedbackbögen
+-
+-Der Ordner `vorlagen/` neben `docker-compose.yml` ist im Container als `/vorlagen`
+-eingebunden. Aufbau und Beispiele: README, Abschnitt „Feedbackbogen anpassen".
+-Änderungen wirken sofort, ohne Neustart.
+-
+-## 8. Überwachung und Protokolle
+-
+-- `https://fahrrad.example.org/gesund` antwortet mit `{"ok": true}`, wenn Anwendung und
+-  Datenbank laufen (sonst Status 503). Geeignet für externe Überwachung.
+-- `docker compose logs -f app` – Anwendungsprotokoll. Es enthält Lauf- und Posten-IDs,
+-  aber keine Namen, Startnummern oder Tokens.
+-- `docker compose ps` zeigt den Zustand des Healthchecks.
+-
+-## 9. Häufige Probleme
+-
+-| Beobachtung | Ursache / Lösung |
+-|---|---|
+-| QR-Codes führen auf `localhost` | `FP_OEFFENTLICHE_URL` in `.env` setzen, `docker compose up -d`, Posten-Blätter neu drucken |
+-| Einrichtungsseite am iPad meldet, die App sei nicht offline bereit | Seite nicht über HTTPS aufgerufen, oder privates Surfen aktiv |
+-| Anmeldung „zu viele Versuche" für alle gleichzeitig | nginx setzt `X-Forwarded-For` nicht – alle Anfragen haben dieselbe IP |
+-| Anmeldung klappt, aber man landet wieder auf der Anmeldeseite | Aufruf über `http://` mit `FP_COOKIE_SECURE=true` – über HTTPS aufrufen |
+-| `KeyError: 'ContainerConfig'` | altes `docker-compose` 1.x; das Compose-Plugin (`docker compose`) verwenden |
+-| Build bricht ab: `Temporary failure resolving 'deb.debian.org'` | Container kommen nicht ins Netz, meist in LXC – siehe „Docker in einem LXC-Container" |
+-| `docker network create` meldet `No chain/target/match by that name` | Dockers iptables-Ketten fehlen; gleiche Ursache wie oben |
+-| `exec /usr/local/bin/start.sh: permission denied` | Ausführungsbit beim Kopieren verloren: `chmod +x docker/start.sh`, dann `docker compose up -d --build` |
+-| Proxy auf einem anderen Rechner erreicht die App nicht | Port liegt nur auf `127.0.0.1`: `FP_BIND` setzen – siehe „Proxy auf einem anderen Rechner" |
+-
+-## 10. Bewusste Grenzen
+-
+-- **Ein Anwendungsprozess.** Die Bremsen gegen zu viele Anmeldeversuche und Uploads
+-  zählen im Arbeitsspeicher; mehrere Prozesse würden sie unterlaufen. Für eine Schule
+-  mit einigen iPads reicht ein Prozess bei Weitem. Bei einem Neustart beginnen die
+-  Zähler von vorn.
+-- **Keine E-Mails.** Startpasswörter zeigt die Systemverwaltung einmalig an; sie werden
+-  persönlich weitergegeben.
++Die aktuelle Installation mit eigenen Credentialdateien, expliziter Migration,
++zwei Webworkern und Sicherung ist in [PLATFORM.md](PLATFORM.md) beschrieben.
++Die frühere automatische Migration beim Containerstart entfällt.
++
++[deploy/nginx-fahrradpruefung.conf](deploy/nginx-fahrradpruefung.conf) bleibt
++ein Beispiel für einen separat administrierten TLS-Proxy. FP_PROXY_IPS muss seine
++exakte aus dem Container sichtbare Adresse enthalten. Bestehende nginx-, Docker-,
++Firewall- und SSH-Konfiguration vor Änderungen prüfen und nicht blind ersetzen.
++
++HTTPS ist für den realen Posten-PWA-/Offlinebetrieb erforderlich. Keine pauschale
++Anmeldung vor /p/ und /api/p/: Dort autorisiert ausschließlich der Postenzugang.
++
++Eigene Feedbackvorlagen und Logos liegen im benannten Volume vorlagen und sind
++im Webcontainer nur lesbar. Vor Übernahme alter Bindmount-Dateien einen geprüften
++Dateisnapshot anlegen und IDs, Dateirechte sowie die passende Schule kontrollieren.
++Aufbewahrung und Sitzungsbereinigung bleiben explizite Managementkommandos;
++bestehende Timer erst nach Prüfung ihrer Datenbank-/Credentialkonfiguration übernehmen.
++
++Keine produktive Server-, DNS-, Zertifikats- oder Firewallkonfiguration wurde durch
++die lokalen Plattformtests verändert.
+diff --git a/Dockerfile b/Dockerfile
+index d094a03..58d7ee2 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -1,41 +1,37 @@
+-# Fahrradprüfung – Anwendungs-Image (Python 3.12, WeasyPrint)
+-FROM python:3.12-slim-bookworm
+-
+-ENV PYTHONDONTWRITEBYTECODE=1 \
+-    PYTHONUNBUFFERED=1 \
+-    UV_COMPILE_BYTECODE=1 \
+-    UV_LINK_MODE=copy \
+-    UV_PROJECT_ENVIRONMENT=/opt/venv \
+-    PATH=/opt/venv/bin:$PATH \
+-    XDG_CACHE_HOME=/var/cache/fahrrad
+-
+-# WeasyPrint braucht Pango/HarfBuzz; DejaVu ist die Schrift der PDF-Vorlagen.
+-RUN apt-get update \
+- && apt-get install -y --no-install-recommends \
+-      libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libharfbuzz-subset0 fonts-dejavu-core \
+- && rm -rf /var/lib/apt/lists/*
+-
+-COPY --from=ghcr.io/astral-sh/uv:0.11.6 /uv /usr/local/bin/uv
+-
++FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c AS runtime
++ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PROJECT_ENVIRONMENT=/opt/venv PATH=/opt/venv/bin:$PATH XDG_CACHE_HOME=/tmp/fahrrad-cache UV_CACHE_DIR=/tmp/uv-cache
++RUN apt-get update && apt-get install -y --no-install-recommends \
++    libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libharfbuzz-subset0 fonts-dejavu-core \
++    && rm -rf /var/lib/apt/lists/*
++COPY --from=ghcr.io/astral-sh/uv:0.11.6@sha256:b1e699368d24c57cda93c338a57a8c5a119009ba809305cc8e86986d4a006754 /uv /usr/local/bin/uv
+ WORKDIR /app
+-# Abhängigkeiten zuerst – diese Schicht bleibt bei Codeänderungen im Cache.
+ COPY pyproject.toml uv.lock ./
+-RUN uv sync --frozen --no-dev --no-install-project
+-
++RUN uv sync --frozen --no-dev --no-install-project && rm -rf /tmp/uv-cache
+ COPY alembic.ini ./
+ COPY migrations ./migrations
+ COPY app ./app
+ COPY docker/start.sh /usr/local/bin/start.sh
+-
+-# chmod: Das x-Bit von start.sh kann beim Kopieren des Quellbaums verloren gehen
+-# (SMB-Freigabe, Archiv) – ohne es startet der Container nicht.
+ RUN chmod 0755 /usr/local/bin/start.sh \
+- && useradd --system --uid 10001 --no-create-home fahrrad \
+- && mkdir -p /var/cache/fahrrad && chown fahrrad /var/cache/fahrrad
+-USER fahrrad
+-
++    && groupadd --gid 10001 fahrrad && useradd --uid 10001 --gid 10001 --no-create-home fahrrad \
++    && mkdir -p /vorlagen && chown 10001:10001 /vorlagen && chmod 700 /vorlagen
++USER 10001:10001
+ EXPOSE 8000
+-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+-  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/gesund', timeout=4).status == 200 else 1)"
+-
++HEALTHCHECK --interval=5s --timeout=4s --start-period=10s --retries=12 \
++ CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready',timeout=3)"
+ CMD ["/usr/local/bin/start.sh"]
++
++FROM runtime AS tests
++USER root
++RUN apt-get update && apt-get install -y --no-install-recommends libzbar0 && rm -rf /var/lib/apt/lists/*
++RUN uv sync --frozen --no-install-project && rm -rf /tmp/uv-cache
++COPY tests ./tests
++COPY contract_tests ./contract_tests
++COPY .env.example docker-compose.yml ./
++USER 10001:10001
++
++FROM tests AS browser-tests
++USER root
++ENV PLAYWRIGHT_BROWSERS_PATH=/opt/browsers
++RUN python -m playwright install --with-deps chromium webkit
++RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils && rm -rf /var/lib/apt/lists/*
++USER 10001:10001
+diff --git a/PLATFORM.md b/PLATFORM.md
+new file mode 100644
+index 0000000..210cc04
+--- /dev/null
++++ b/PLATFORM.md
+@@ -0,0 +1,123 @@
++# Standalone und Plattformvertrag
++
++## Neue Installation
++
++Python 3.12.12, FastAPI/WeasyPrint aus vorhandenem uv.lock, amd64. Basisimages
++Python/uv/PostgreSQL sind mit Digest fixiert; lokale Entwicklungstags sind kein
++freigegebenes Registry-Release. Debian-Systempakete werden aus den konfigurierten
++Paketquellen installiert, noch ohne vollständigen Paket-Snapshot/SBOM.
++
++~~~sh
++python3 prepare_secrets.py
++export FP_SECRETS_DIR="$PWD/.private"
++export FP_OEFFENTLICHE_URL="https://fahrrad.example.org"
++export FP_PROXY_IPS="EXAKTE_PROXY_IP_WIE_DER_CONTAINER_SIE_SIEHT"
++docker compose build
++docker compose up -d --wait db
++docker compose run --rm --no-deps app python -m app.migrate
++docker compose up -d --no-build
++docker compose exec app python -m app.kommandos systemadmin-anlegen PERSOENLICHE_EMAIL
++~~~
++
++Ein vorhandener Proxy wird ausdrücklich konfiguriert, keine DNS-/Firewall-
++Änderung durch Compose. Backend standardmäßig nur 127.0.0.1:8000; FP_BIND und
++FP_PORT bleiben erhalten. Vor den Schulbetrieb gehört HTTPS; nur für lokales
++synthetisches HTTP-Testen FP_COOKIE_SECURE=false setzen.
++
++Der Schlüsselhelfer erzeugt ausschließlich neue private Dateien, verweigert
++Überschreiben und gibt keine Werte aus. Elternverzeichnis 0700, einzeln in die
++Container projizierte Credentialdateien 0444. Der Webcontainer bekommt nur
++database-url, niemals das PostgreSQL-Administrationspasswort.
++FP_DATABASE_URL_FILE ergänzt FP_DATABASE_URL; beide zugleich werden abgewiesen.
++Die DB-Approlle fahrrad besitzt ausschließlich ihre eigene Datenbank und hat
++weder Superuser-, CREATEDB- noch CREATEROLE-Recht.
++
++Kein Standardkonto, keine Registrierung oder Seed beim Start. Das persönliche
++Adminpasswort wird ausschließlich über das kontrollierende Terminal abgefragt;
++ohne Terminal scheitert das Kommando. Fachrollen und Konten bleiben in dieser App.
++Keine SSO-Pflicht vor der Posten-App.
++
++## Migration und Übernahme
++
++Version 0008 ergänzt ausschließlich betriebliche Limitdaten; bestehende Fach-IDs,
++Posten-Tokens und Ereignisse bleiben erhalten. Der explizite Job hält eine
++PostgreSQL-Transaktionssperre. Gleichzeitige Migration wartet begrenzt, Fehler
++rollen die Transaktion zurück. Unversionierte Bestandsdaten werden nicht automatisch
++adoptiert; unbekannte Revisionen scheitern. Migration niemals beim Webstart.
++
++Bestehende native Installation erst mit zugehörigen Dateien sichern, dann
++kontrolliert in isolierte Datenbank übernehmen und explizit migrieren.
++Das Compose-DB-Initialisierungsskript gilt nur für leeres pgdata; es ändert keine
++vorhandenen Rollenpasswörter. Alte Volumes nicht ungeprüft an neue Compose-Dateien
++hängen. Ein neuer Pilotzustandsordner ist kein Datenupgrade.
++
++## Laufzeit, Grenzen und Diagnose
++
++Zwei Uvicorn-Worker, gemeinsame PostgreSQL-Anmelde-/Postenlimits und ein gemeinsamer
++PDF-Slot über Dateisperre im Container. Getrennte zusätzliche Appcontainer würden
++eigene PDF-Slots besitzen; diese Composekonfiguration startet genau eine Appinstanz.
++Alle vier PDF-Funktionen werden begrenzt. Überlast liefert 503/Retry-After.
++Höchstens 200 Feedbackbögen, 100 Posten oder 2000 Startnummern pro Export.
++Requestbody-Streaming wird auch ohne Content-Length auf 2,1 MB begrenzt;
++Postenbatch weiterhin höchstens 1000 Ereignisse/2 MB. Keine unbeschränkte
++Argon2-Eingabelänge. Kartenkachelantworten höchstens 2 MiB/4 Millionen Pixel.
++
++Anmeldeversuche reservieren den gemeinsamen Slot vor der Passwortprüfung.
++Standard zehn erfolglose/in Bearbeitung befindliche Versuche je E-Mail/IP in
++einem festen 15-Minuten-Fenster; eine erfolgreiche Prüfung gibt ihren eigenen Slot
++zurück. Neustart setzt die Zähler nicht zurück. Kein gleitendes Fenster mehr.
++Postenanfragen höchstens 120 je Token in festem 60-Sekunden-Fenster.
++Gehasht gespeicherte Schlüssel, abgelaufene Einträge werden entfernt, maximal
++10000 aktive Limitschlüssel. Bei voller Tabelle wird weiterer Zugang begrenzt.
++
++UID/GID 10001, Read-only-Root, 128 MiB /tmp, 768 MiB RAM, eine CPU und 128 PIDs.
++DB eigenes pgdata, 512 MiB/eine CPU. Das sind konfigurierte Grenzen, keine
++Kapazitätsmessung. /health/live ist unabhängig von DB/Karten/SMTP;
++ /health/ready und /gesund verlangen eigene DB und genau Revision 0008.
++DB-Healthcheck nutzt TCP und prüft dadurch nicht den temporären Socket-Initserver.
++Keine Accesslogs mit Postentokens; SQL-Fehler liefern generische 503-Antwort.
++
++## Daten, Karten, Offline und Domainwechsel
++
++pgdata enthält sämtliche Schul-, Rollen-, Sitzungs-, Token-, Ereignis- und Limitdaten.
++Das Volume vorlagen wird im Webcontainer nur unter /vorlagen:ro eingebunden.
++Eigene Vorlagen nur bewusst und mit passender Lizenz unter UID/GID 10001 bereitstellen.
++Die App verändert diese Dateien nicht. Keine Credentialdateien im Image.
++
++FP_OEFFENTLICHE_URL ist die Laufzeit-Origin für vorhandene Postenlinks/QR-Codes;
++Domainwechsel braucht Containerneustart und Proxyänderung, keinen Frontendbuild.
++Host-/Forwarded-Header bestimmen die QR-Origin nicht. Bestehende Tokens bleiben
++unverändert und funktionieren unter der neuen Origin.
++
++IndexedDB, installierte PWA und Service Worker gehören zur Browser-Origin.
++Sie wandern nicht durch Domainänderung oder Serverrestore mit. Vor Domainwechsel
++alle Postengeräte online synchronisieren, lokalen Stand prüfen, erst dann umstellen
++und Geräte neu einrichten. Nicht synchronisierte Browserdaten sind kein Serverbackup.
++Offline-Sperren können erst beim Wiederverbinden wirken.
++
++Serverseitige Kartenkacheln sind im Compose standardmäßig deaktiviert; bei Ausfall
++bleiben PDF/Kernbetrieb verfügbar. Die interaktive Kartenseite kann weiterhin die
++vorhandenen externen Karten-, Routing- und Suchanbieter ansprechen. Deren
++Nutzungsbedingungen, Attribution und datenschutzrechtliche Freigabe bleiben
++Betreiberaufgabe. Keine SMTP-Konfiguration, kein künstlicher Maildienst.
++
++## Sicherung und Wiederherstellung
++
++Appschreiber stoppen/drainieren, PostgreSQL mit pg_dump -Fc sichern, Vorlagen
++generisch als Datei-/Verzeichnissnapshot und Credentials separat mit sichern.
++Private Archive, vertrauenswürdig separat übergebene Prüfsummen, neues leeres
++isoliertes Ziel, gleiche Rollen/UIDs. Danach Revision, Fremdschlüssel, Ereignis-
++Trigger, Rollen/IDs und Zugriffssperren prüfen. Docker-exec-Transporte für
++pg_restore brauchen -i, damit die Archivbytes tatsächlich ankommen.
++Serverbackup enthält keine noch ungesendeten Geräteereignisse.
++
++Image-Rollback setzt Daten nicht zurück. Daten-Rollback benötigt passenden
++DB-/Datei-/Credentialstand und kann neuere Erfassungen verlieren. Restore von
++Sitzungen und Tokens kann vorherige Zugänge reaktivieren; produktiv Widerruf und
++Neuverteilung planen. Verschlüsseltes Offsitebackup, Rotation und Alarmierung
++sind noch kein Bestandteil dieses Compose.
++
++Tests: Testimage enthält Fach-/Vertragstests gegen eine eigene disposable
++PostgreSQL-Instanz. Browser-Teststage enthält Chromium, WebKit und QR-Decoder.
++Testdatenbank-Setup darf ausschließlich auf dieser isolierten Testinstanz laufen,
++weil die vorhandene Suite ihre benannte Testdatenbank neu anlegt.
+diff --git a/README.md b/README.md
+index 77549d0..5bc8f03 100644
+--- a/README.md
++++ b/README.md
+@@ -102,16 +102,11 @@ Posten-Blatt; Kinder werden weiterhin nicht verortet, und die Posten-App zeigt k
+ 
+ ## Betrieb
+ 
+-Docker Compose (App + PostgreSQL 16, benanntes Volume `pgdata`) hinter nginx mit HTTPS:
++Eigenständiges Docker Compose mit PostgreSQL 16, privaten Credentialdateien
++und expliziter Migration. Kein Standardkonto; persönliche lokale Administration.
+ 
+-```bash
+-cp .env.example .env              # POSTGRES_PASSWORD, FP_OEFFENTLICHE_URL setzen
+-docker compose up -d --build
+-docker compose exec app python -m app.kommandos systemadmin-anlegen admin@example.org
+-```
+-
+-Alles Weitere – nginx-Konfiguration, cron-Aufgaben, Sicherung, Aktualisierung,
+-Fehlersuche – steht in [`DEPLOYMENT.md`](DEPLOYMENT.md).
++Installation, Limits, Offline-/Domainwechsel und Sicherung:
++[PLATFORM.md](PLATFORM.md), Proxyhinweise: [DEPLOYMENT.md](DEPLOYMENT.md).
+ 
+ ## Projektaufbau
+ 
+diff --git a/app/betrieb.py b/app/betrieb.py
+new file mode 100644
+index 0000000..c94240f
+--- /dev/null
++++ b/app/betrieb.py
+@@ -0,0 +1,86 @@
++"""Shared PostgreSQL limits and process-safe local export slot."""
++from contextlib import contextmanager
++from datetime import UTC, datetime, timedelta
++from functools import wraps
++import fcntl
++import hashlib
++import os
++
++from fastapi import HTTPException
++from sqlalchemy import delete, func, select, text
++
++from app.modelle import BetriebsLimit
++
++LIMIT_LOCK = 762431801
++
++def belasten(fabrik, keys, maximum, seconds):
++    """Reserve before expensive work. Fixed windows, shared across workers/restarts."""
++    keys=sorted({hashlib.sha256(k.encode()).hexdigest() for k in keys})
++    with fabrik.intern_kontext() as session:
++        session.execute(text("SET LOCAL lock_timeout = '2s'"))
++        session.execute(text("SELECT pg_advisory_xact_lock(:key)"),{"key":LIMIT_LOCK})
++        now=datetime.now(UTC)
++        session.execute(delete(BetriebsLimit).where(BetriebsLimit.bis<=now))
++        rows={key:session.get(BetriebsLimit,key) for key in keys}
++        if any(row is not None and row.anzahl>=maximum for row in rows.values()):
++            return False
++        count=session.execute(select(func.count()).select_from(BetriebsLimit)).scalar_one()
++        if count+sum(row is None for row in rows.values())>10000:
++            return False
++        for key,row in rows.items():
++            if row is None:
++                session.add(BetriebsLimit(schluessel=key,anzahl=1,bis=now+timedelta(seconds=seconds)))
++            else:
++                row.anzahl+=1
++        return True
++
++def entlasten(fabrik, keys):
++    keys=sorted({hashlib.sha256(k.encode()).hexdigest() for k in keys})
++    with fabrik.intern_kontext() as session:
++        session.execute(text("SET LOCAL lock_timeout = '2s'"))
++        session.execute(text("SELECT pg_advisory_xact_lock(:key)"),{"key":LIMIT_LOCK})
++        for key in keys:
++            row=session.get(BetriebsLimit,key)
++            if row is not None:
++                row.anzahl=max(0,row.anzahl-1)
++
++class PostenBremse:
++    def __init__(self,fabrik):self.fabrik=fabrik
++    def erlaubt(self,key):return belasten(self.fabrik,["posten:"+key],120,60)
++
++@contextmanager
++def pdf_slot():
++    descriptor=os.open("/tmp/fahrrad-pdf.lock",os.O_CREAT|os.O_RDWR,0o600)
++    try:
++        try:fcntl.flock(descriptor,fcntl.LOCK_EX|fcntl.LOCK_NB)
++        except BlockingIOError:
++            raise HTTPException(503,"PDF-Erzeugung belegt",headers={"Retry-After":"10"}) from None
++        yield
++    finally:
++        os.close(descriptor)
++
++def begrenzter_export(function):
++    @wraps(function)
++    def wrapped(*args,**kwargs):
++        with pdf_slot():return function(*args,**kwargs)
++    return wrapped
++
++class BodyLimit:
++    def __init__(self,app,maximum=2_100_000):self.app,self.maximum=app,maximum
++    async def __call__(self,scope,receive,send):
++        if scope["type"]!="http" or scope["method"] not in ("POST","PUT","PATCH"):
++            return await self.app(scope,receive,send)
++        chunks=[];size=0
++        while True:
++            message=await receive()
++            if message["type"]=="http.disconnect":return
++            size+=len(message.get("body",b""))
++            if size>self.maximum:
++                from starlette.responses import JSONResponse
++                return await JSONResponse({"fehler":"Anfrage zu groß"},413)(scope,receive,send)
++            chunks.append(message)
++            if not message.get("more_body",False):break
++        async def replay():
++            if chunks:return chunks.pop(0)
++            return await receive()
++        await self.app(scope,replay,send)
+diff --git a/app/config.py b/app/config.py
+index 19d5dd7..25a9195 100644
+--- a/app/config.py
++++ b/app/config.py
+@@ -1,6 +1,10 @@
+ """Zentrale Konfiguration, ausschließlich aus Umgebungsvariablen."""
+ 
+ from functools import lru_cache
++from pathlib import Path
++import os
++from urllib.parse import urlsplit
++from pydantic import model_validator
+ 
+ from pydantic_settings import BaseSettings, SettingsConfigDict
+ 
+@@ -9,6 +13,22 @@ class Einstellungen(BaseSettings):
+     model_config = SettingsConfigDict(env_file=".env", env_prefix="FP_", extra="ignore")
+ 
+     database_url: str = "postgresql+psycopg://fahrrad:fahrrad@localhost:55432/fahrrad"
++    database_url_file: str = ""
++
++    @model_validator(mode="before")
++    @classmethod
++    def private_url(cls, values):
++        values=dict(values)
++        file=values.get("database_url_file") or os.environ.get("FP_DATABASE_URL_FILE")
++        if file:
++            if os.environ.get("FP_DATABASE_URL") or values.get("database_url"):
++                raise ValueError("Configure one database credential source")
++            values["database_url"]=Path(file).read_text().strip()
++        origin=urlsplit(values.get("oeffentliche_url",os.environ.get("FP_OEFFENTLICHE_URL","http://localhost:8000")))
++        if origin.scheme not in ("http","https") or not origin.netloc or origin.username or origin.password or origin.path not in ("","/") or origin.query or origin.fragment:
++            raise ValueError("Public URL must be an HTTP(S) origin")
++        return values
++
+     # Gültigkeit der Posten-Tokens nach dem Laufdatum (Spezifikation 9: 24 Stunden).
+     token_gueltigkeit_stunden: int = 24
+     # Aufbewahrungsfrist der Ereignisdaten in Monaten (Spezifikation 9: Standard 12).
+diff --git a/app/db.py b/app/db.py
+index 48aa791..83ec0ee 100644
+--- a/app/db.py
++++ b/app/db.py
+@@ -10,7 +10,7 @@ from app.mandant import Sitzungsfabrik
+ 
+ @lru_cache
+ def engine() -> Engine:
+-    return create_engine(einstellungen().database_url, pool_pre_ping=True)
++    return create_engine(einstellungen().database_url, pool_pre_ping=True, pool_size=5, max_overflow=0, pool_timeout=3, connect_args={"connect_timeout": 3})
+ 
+ 
+ @lru_cache
+diff --git a/app/kartenbild.py b/app/kartenbild.py
+index 4cb2b68..1ca2932 100644
+--- a/app/kartenbild.py
++++ b/app/kartenbild.py
+@@ -64,14 +64,18 @@ def _kachel_holen(url: str) -> bytes:
+         url, headers={"User-Agent": f"Fahrradpruefung/1.0 (+{einstellungen().oeffentliche_url})"}
+     )
+     with urllib.request.urlopen(anfrage, timeout=6) as antwort:
+-        return antwort.read()
++        data=antwort.read(2*1024*1024+1)
++        if len(data)>2*1024*1024:raise ValueError("Tile byte limit")
++        return data
+ 
+ 
+ def _laden(url: str, z: int) -> Image.Image | None:
+     """Kachel holen, bei vorübergehenden Serverfehlern erneut versuchen."""
+     for versuch in range(1, VERSUCHE + 1):
+         try:
+-            return Image.open(io.BytesIO(_kachel_holen(url))).convert("RGB")
++            image=Image.open(io.BytesIO(_kachel_holen(url)))
++            if image.width*image.height>4_000_000:raise ValueError("Tile pixel limit")
++            return image.convert("RGB")
+         except urllib.error.HTTPError as fehler:
+             if fehler.code not in VORUEBERGEHEND or versuch == VERSUCHE:
+                 log.warning("Kartenkachel nicht geladen (z=%s): HTTP %s", z, fehler.code)
+diff --git a/app/kommandos.py b/app/kommandos.py
+index 1bde1a7..2a627f0 100644
+--- a/app/kommandos.py
++++ b/app/kommandos.py
+@@ -22,11 +22,16 @@ from app.web.sitzung import MIN_PASSWORTLAENGE, abgelaufene_sitzungen_loeschen
+ 
+ 
+ def systemadmin_anlegen(email: str) -> int:
+-    passwort = getpass.getpass("Passwort: ")
++    try:
++        tty=open("/dev/tty","r+")
++    except OSError:
++        print("Lokales kontrollierendes Terminal erforderlich.",file=sys.stderr)
++        return 1
++    passwort = getpass.getpass("Passwort: ",stream=tty)
+     if len(passwort) < MIN_PASSWORTLAENGE:
+         print(f"Das Passwort muss mindestens {MIN_PASSWORTLAENGE} Zeichen lang sein.", file=sys.stderr)
+         return 1
+-    if getpass.getpass("Passwort wiederholen: ") != passwort:
++    if getpass.getpass("Passwort wiederholen: ",stream=tty) != passwort:
+         print("Die Passwörter stimmen nicht überein.", file=sys.stderr)
+         return 1
+     with sitzungen().intern_kontext() as s:
+diff --git a/app/main.py b/app/main.py
+index 0533204..c34facf 100644
+--- a/app/main.py
++++ b/app/main.py
+@@ -12,7 +12,8 @@ from fastapi import FastAPI, Request
+ from fastapi.exceptions import RequestValidationError
+ from fastapi.responses import JSONResponse, RedirectResponse
+ from fastapi.staticfiles import StaticFiles
+-from sqlalchemy import select
++from sqlalchemy import select, text
++from app.betrieb import BodyLimit
+ from sqlalchemy.exc import SQLAlchemyError
+ 
+ from app import protokoll, system, verwaltung
+@@ -44,6 +45,7 @@ def erstelle_app(fabrik: Sitzungsfabrik | None = None) -> FastAPI:
+ 
+     # Verwaltungsseiten enthalten Auswertungen: nie zwischenspeichern.
+     # (Die Posten-App setzt eigene Cache-Header; Offline übernimmt der Service Worker.)
++    app.add_middleware(BodyLimit)
+     app.add_middleware(Sicherheitsheader, cache="no-store")
+     app.mount("/static", StaticFiles(directory=STATIC), name="static")
+     app.mount("/p/assets", StaticFiles(directory=posten_seiten.POSTEN_APP), name="posten_assets")
+@@ -53,16 +55,27 @@ def erstelle_app(fabrik: Sitzungsfabrik | None = None) -> FastAPI:
+     app.include_router(verwaltung.router)
+     app.include_router(system.router)
+ 
++    @app.get("/health/live", include_in_schema=False)
++    def live():
++        return {"ok": True}
++
+     @app.get("/gesund", include_in_schema=False)
++    @app.get("/health/ready", include_in_schema=False)
+     def gesund():
+-        """Für Docker-Healthcheck und Monitoring: Anwendung läuft und erreicht die Datenbank."""
+         try:
+-            with fabrik.intern_kontext() as s:
+-                s.execute(select(Schule.id).limit(1))
++            with fabrik.intern_kontext() as session:
++                revision=session.execute(text("SELECT version_num FROM alembic_version")).scalars().all()
++                if revision!=["0008"]:
++                    return JSONResponse({"ok":False},status_code=503)
++                session.execute(select(Schule.id).limit(1))
+         except SQLAlchemyError:
+-            log.exception("Gesundheitsprüfung: Datenbank nicht erreichbar")
+-            return JSONResponse({"ok": False}, status_code=503)
+-        return {"ok": True}
++            return JSONResponse({"ok":False},status_code=503)
++        return {"ok":True}
++
++    @app.exception_handler(SQLAlchemyError)
++    async def unavailable(request,exc):
++        log.error("Database operation unavailable")
++        return JSONResponse({"fehler":"Dienst derzeit nicht verfügbar"},status_code=503)
+ 
+     @app.exception_handler(NichtAngemeldet)
+     async def _nicht_angemeldet(request: Request, exc: NichtAngemeldet):
+diff --git a/app/migrate.py b/app/migrate.py
+new file mode 100644
+index 0000000..b4cdfb9
+--- /dev/null
++++ b/app/migrate.py
+@@ -0,0 +1,20 @@
++"""Explicit schema job; serialized with a database advisory transaction lock."""
++from pathlib import Path
++from alembic import command
++from alembic.config import Config
++from sqlalchemy import inspect,text
++from app.db import engine
++LOCK=762431802
++def migrate():
++    config=Config(str(Path(__file__).resolve().parents[1]/"alembic.ini"))
++    with engine().begin() as connection:
++        connection.execute(text("SET LOCAL lock_timeout = '5s'"))
++        connection.execute(text("SELECT pg_advisory_xact_lock(:key)"),{"key":LOCK})
++        tables=inspect(connection).get_table_names()
++        if tables and "alembic_version" not in tables:
++            raise RuntimeError("Unversioned existing database; explicit adoption required")
++        config.attributes["connection"]=connection
++        command.upgrade(config,"head")
++if __name__=="__main__":
++    try:migrate();print("Fahrrad schema verified; no accounts created.")
++    except Exception:raise SystemExit("Fahrrad migration failed; database/schema/lock must be checked") from None
+diff --git a/app/modelle.py b/app/modelle.py
+index 027353c..5af6e6d 100644
+--- a/app/modelle.py
++++ b/app/modelle.py
+@@ -499,7 +499,13 @@ class AdminSitzung(Basis):
+         return f"<AdminSitzung benutzer_id={self.benutzer_id}>"
+ 
+ 
+-INFRASTRUKTURMODELLE: tuple[type, ...] = (AdminSitzung,)
++class BetriebsLimit(Basis):
++    __tablename__ = "betriebs_limit"
++    schluessel: Mapped[str] = mapped_column(String(64), primary_key=True)
++    anzahl: Mapped[int] = mapped_column(Integer)
++    bis: Mapped[datetime] = mapped_column(DateTime(timezone=True))
++
++INFRASTRUKTURMODELLE: tuple[type, ...] = (AdminSitzung, BetriebsLimit)
+ 
+ 
+ MANDANTENMODELLE: tuple[type[Mandantenmodell], ...] = (
+diff --git a/app/pdf.py b/app/pdf.py
+index b4fb177..ec025e3 100644
+--- a/app/pdf.py
++++ b/app/pdf.py
+@@ -18,6 +18,8 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
+ from weasyprint import CSS, HTML
+ 
+ from app.config import einstellungen
++from app.betrieb import begrenzter_export
++from fastapi import HTTPException
+ from app.kartenbild import ZOOM_POSTEN, ausschnitt, kartenbild, laenge_meter
+ from app.formate import datum_kurz, datum_lang, laenge_text
+ from app.modelle import Gruppe, Kind, Lauf, Schule, Strecke
+@@ -80,6 +82,7 @@ def _rendern(vorlage: str, stylesheet: str, **kontext) -> bytes:
+     )
+ 
+ 
++@begrenzter_export
+ def feedbackboegen_pdf(schule: Schule, lauf: Lauf, boegen: list[dict]) -> bytes:
+     """Feedbackbögen, je Eintrag in ``boegen`` ({"kind", "feedback"}) ein Bogen.
+ 
+@@ -89,6 +92,7 @@ def feedbackboegen_pdf(schule: Schule, lauf: Lauf, boegen: list[dict]) -> bytes:
+     Vorlage, Stylesheet und Logo kommen aus dem Schulordner, dem gemeinsamen
+     Ordner oder – falls dort nichts liegt – aus ``app/vorlagen/pdf/``.
+     """
++    if len(boegen)>200:raise HTTPException(413,"Höchstens 200 Feedbackbögen je Export")
+     pfade = suchpfade(schule)
+     vorlage = _umgebung(pfade).get_template("feedbackbogen.html")
+     css = _erste_datei(pfade, ["feedbackbogen.css"])
+@@ -100,8 +104,10 @@ def feedbackboegen_pdf(schule: Schule, lauf: Lauf, boegen: list[dict]) -> bytes:
+     )
+ 
+ 
++@begrenzter_export
+ def namensliste_pdf(schule: Schule, gruppe: Gruppe, kinder: Sequence[Kind]) -> bytes:
+     """Startnummern der Gruppe mit leeren Zeilen – die Namen kommen von Hand dazu."""
++    if len(kinder)>2000:raise HTTPException(413,"Namensliste zu groß")
+     return _rendern("namensliste.html", "namensliste.css", schule=schule, gruppe=gruppe, kinder=kinder)
+ 
+ 
+@@ -126,8 +132,10 @@ def _standort_karte(lauf: Lauf, nummer: int) -> str | None:
+     return _bild_uri(png)
+ 
+ 
++@begrenzter_export
+ def postenblaetter_pdf(lauf: Lauf, schule_name: str) -> bytes:
+     """Eine Seite je Posten. Das Blatt geht an die Eltern."""
++    if len(lauf.strecke.posten)>100:raise HTTPException(413,"Höchstens 100 Posten je Export")
+     tokens = {t.posten_id: t for t in lauf.tokens}
+     blaetter = [
+         {
+@@ -158,6 +166,7 @@ UEBERSICHT_PX = (1200, 1000)
+ POSTEN_PX = (1200, 860)
+ 
+ 
++@begrenzter_export
+ def streckenplan_pdf(strecke: Strecke, schule_name: str) -> bytes:
+     """Streckenplan: Übersichtskarte der Gesamtstrecke, dann eine Seite je Posten.
+ 
+@@ -166,6 +175,7 @@ def streckenplan_pdf(strecke: Strecke, schule_name: str) -> bytes:
+     Posten ohne Standort bekommen ihre Seite ohne Karte; fällt der Kachelserver
+     aus, entsteht der Plan ohne Bilder statt gar nicht.
+     """
++    if len(strecke.posten)>100:raise HTTPException(413,"Höchstens 100 Posten je Export")
+     linie = (strecke.verlauf or {}).get("linie", [])
+     verortet = _verortet(strecke)
+ 
+diff --git a/app/posten/api.py b/app/posten/api.py
+index 315452e..0669843 100644
+--- a/app/posten/api.py
++++ b/app/posten/api.py
+@@ -29,6 +29,7 @@ from sqlalchemy import func, select
+ from sqlalchemy.dialects.postgresql import insert
+ 
+ from app.mandant import FPSession
++from app.betrieb import PostenBremse
+ from app.modelle import Ereignis, Gruppe, Item, Kind, Lauf, PostenToken
+ from app.token import token_gueltig
+ 
+@@ -79,7 +80,7 @@ class Bremse:
+ 
+ def _bremse(request: Request) -> Bremse:
+     if not hasattr(request.app.state, "posten_bremse"):
+-        request.app.state.posten_bremse = Bremse()
++        request.app.state.posten_bremse = PostenBremse(request.app.state.fabrik)
+     return request.app.state.posten_bremse
+ 
+ 
+diff --git a/app/run.py b/app/run.py
+new file mode 100644
+index 0000000..c57e1bd
+--- /dev/null
++++ b/app/run.py
+@@ -0,0 +1,11 @@
++"""Production entry point: no migrations, no seeding, fixed two-worker minimum."""
++import os
++import uvicorn
++from app.config import einstellungen
++def main():
++    os.umask(0o077)
++    cfg=einstellungen()
++    uvicorn.run("app.main:app",host="0.0.0.0",port=8000,workers=2,
++        proxy_headers=True,forwarded_allow_ips=os.environ.get("FP_PROXY_IPS","127.0.0.1"),
++        server_header=False,access_log=False,limit_concurrency=64,timeout_keep_alive=5)
++if __name__=="__main__":main()
+diff --git a/app/web/anmeldung.py b/app/web/anmeldung.py
+index 53a4802..f928eb5 100644
+--- a/app/web/anmeldung.py
++++ b/app/web/anmeldung.py
+@@ -14,6 +14,7 @@ from fastapi import APIRouter, Form, Request
+ from fastapi.responses import RedirectResponse
+ 
+ from app.config import einstellungen
++from app.betrieb import belasten, entlasten
+ from app.web.abhaengigkeiten import CsrfFehler, csrf_pruefen, fabrik, sitzung_optional
+ from app.web.sitzung import (
+     COOKIE_NAME,
+@@ -72,13 +73,14 @@ def anmelden_absenden(
+     passwort: Annotated[str, Form()] = "",
+     csrf: Annotated[str, Form()] = "",
+ ):
++    if len(email)>254 or len(passwort)>256 or len(csrf)>128:
++        return _anmeldeseite(request,"Ungültige Anmeldedaten",status_code=400)
+     cookie = request.cookies.get(ANMELDE_CSRF_COOKIE, "")
+     if not cookie or not hmac.compare_digest(cookie, csrf):
+         raise CsrfFehler
+ 
+-    bremse = _bremse(request)
+     schluessel = (f"email:{email.strip().lower()}", f"ip:{request.client.host if request.client else '-'}")
+-    if bremse.gesperrt(*schluessel):
++    if not belasten(fabrik(request),schluessel,einstellungen().anmeldung_max_fehlversuche,900):
+         return _anmeldeseite(
+             request,
+             "Zu viele Fehlversuche. Bitte warte 15 Minuten und versuche es dann erneut.",
+@@ -87,10 +89,9 @@ def anmelden_absenden(
+ 
+     ergebnis = anmelden(fabrik(request), email, passwort)
+     if ergebnis is None:
+-        bremse.fehlschlag(*schluessel)
+         return _anmeldeseite(request, "E-Mail-Adresse oder Passwort stimmen nicht.", status_code=401)
+ 
+-    bremse.erfolg(*schluessel)
++    entlasten(fabrik(request),schluessel)
+     # Vorherige Sitzung dieses Browsers verwerfen (keine Sitzungsfixierung).
+     sitzung_beenden(fabrik(request), request.cookies.get(COOKIE_NAME))
+     cookie_wert = sitzung_anlegen(fabrik(request), ergebnis.benutzer_id)
+diff --git a/contract_tests/conftest.py b/contract_tests/conftest.py
+new file mode 100644
+index 0000000..df6fec3
+--- /dev/null
++++ b/contract_tests/conftest.py
+@@ -0,0 +1 @@
++from tests.conftest import engine, fabrik, client, schulen
+diff --git a/contract_tests/test_platform.py b/contract_tests/test_platform.py
+new file mode 100644
+index 0000000..7bda2e1
+--- /dev/null
++++ b/contract_tests/test_platform.py
+@@ -0,0 +1,66 @@
++"""Meaningful platform limits against real PostgreSQL."""
++import concurrent.futures
++import multiprocessing
++import os
++from pathlib import Path
++import pytest
++from sqlalchemy import select,text
++from fastapi import HTTPException
++from app.betrieb import belasten,pdf_slot
++from app.modelle import BetriebsLimit
++from tests.conftest import anmelden
++
++def test_two_independent_clients_share_persistent_login_failures(fabrik,schulen):
++    from fastapi.testclient import TestClient
++    from app.main import erstelle_app
++    a,_=schulen
++    with TestClient(erstelle_app(fabrik)) as one,TestClient(erstelle_app(fabrik)) as two:
++        for i in range(10):
++            assert anmelden(one if i%2 else two,a.email,"wrong-password").status_code==401
++        assert anmelden(two,a.email).status_code==429
++    with TestClient(erstelle_app(fabrik)) as restarted:
++        assert anmelden(restarted,a.email).status_code==429
++
++def test_parallel_reservations_do_not_overbook_and_store_only_hashes(fabrik):
++    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
++        results=list(pool.map(lambda _:belasten(fabrik,["synthetic-private-key"],3,60),range(8)))
++    assert results.count(True)==3
++    with fabrik.intern_kontext() as s:
++        rows=s.execute(select(BetriebsLimit)).scalars().all()
++        assert len(rows)==1 and len(rows[0].schluessel)==64 and rows[0].anzahl==3
++
++def test_expired_limit_is_removed(fabrik):
++    assert belasten(fabrik,["expired"],1,-1)
++    assert belasten(fabrik,["expired"],1,60)
++
++def _competing_export(queue):
++    try:
++        with pdf_slot():queue.put("accepted")
++    except HTTPException as error:queue.put(error.status_code)
++
++def test_pdf_slot_shared_between_processes_and_recovers_after_release():
++    context=multiprocessing.get_context("spawn");queue=context.Queue()
++    with pdf_slot():
++        child=context.Process(target=_competing_export,args=(queue,));child.start();child.join(10)
++        assert child.exitcode==0 and queue.get(timeout=1)==503
++    with pdf_slot():pass
++
++def test_chunked_body_limit_without_content_length(client):
++    response=client.post("/api/p/synthetic-token-which-is-long/events",
++        content=iter([b"x"*1_100_000,b"x"*1_100_000]),headers={"Content-Type":"application/json"})
++    assert response.status_code==413
++
++def test_migration_exclusive_and_preserves_ids(engine,schulen):
++    from alembic import command
++    from alembic.config import Config
++    from app.migrate import LOCK
++    from tests.conftest import PROJEKT
++    with engine.begin() as held:
++        held.execute(text("SELECT pg_advisory_xact_lock(:key)"),{"key":LOCK})
++        with engine.connect() as competing:
++            assert competing.execute(text("SELECT pg_try_advisory_xact_lock(:key)"),{"key":LOCK}).scalar_one() is False
++    with engine.begin() as connection:
++        config=Config(str(PROJEKT/"alembic.ini"));config.attributes["connection"]=connection
++        command.upgrade(config,"head")
++        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()=="0008"
++        assert connection.execute(text("SELECT id FROM schule ORDER BY id")).scalars().all()==[schulen[0].schule,schulen[1].schule]
+diff --git a/docker-compose.yml b/docker-compose.yml
+index 9fb8296..7632edd 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -1,53 +1,62 @@
+-# Fahrradprüfung – Betrieb mit Docker Compose.
+-#
+-#   cp .env.example .env      # Werte anpassen, vor allem POSTGRES_PASSWORD und FP_OEFFENTLICHE_URL
+-#   docker compose up -d --build
+-#   docker compose exec app python -m app.kommandos systemadmin-anlegen admin@example.org
+-#
+-# Die App lauscht nur auf 127.0.0.1 – davor gehört nginx mit HTTPS
+-# (Beispiel: deploy/nginx-fahrradpruefung.conf). Details: DEPLOYMENT.md.
+-
+ services:
+   db:
+-    image: postgres:16-alpine
+-    restart: unless-stopped
++    image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
++    restart: "no"
+     environment:
+-      POSTGRES_DB: fahrrad
+-      POSTGRES_USER: fahrrad
+-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt in .env}
++      POSTGRES_DB: postgres
++      POSTGRES_USER: postgres
++      POSTGRES_PASSWORD_FILE: /run/secrets/db-admin
+     volumes:
+       - pgdata:/var/lib/postgresql/data
++      - ./docker/init-postgres.sh:/docker-entrypoint-initdb.d/01-fahrrad.sh:ro
++      - ${FP_SECRETS_DIR:?private credentials directory required}/db-admin:/run/secrets/db-admin:ro
++      - ${FP_SECRETS_DIR}/db-app:/run/secrets/db-app:ro
+     healthcheck:
+-      test: ["CMD-SHELL", "pg_isready -U fahrrad -d fahrrad"]
++      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -U postgres -d fahrrad]
+       interval: 5s
+-      timeout: 5s
++      timeout: 4s
+       retries: 20
+-
++    mem_limit: 512m
++    cpus: 1
++    pids_limit: 128
++    logging: &logging
++      driver: json-file
++      options: {max-size: 10m, max-file: "3"}
+   app:
+-    build: .
+-    image: fahrradpruefung:latest
+-    restart: unless-stopped
+-    env_file: .env
++    build: {context: ., target: runtime}
++    image: fahrradausbildung:0.1.0-dev
++    restart: "no"
++    init: true
++    user: "10001:10001"
++    read_only: true
++    cap_drop: [ALL]
++    security_opt: [no-new-privileges:true]
++    tmpfs: ["/tmp:size=128m,mode=1777"]
++    mem_limit: 768m
++    cpus: 1
++    pids_limit: 128
++    stop_grace_period: 60s
+     environment:
+-      # Überschreibt den Wert aus .env: Im Compose-Netz heißt die Datenbank „db".
+-      FP_DATABASE_URL: postgresql+psycopg://fahrrad:${POSTGRES_PASSWORD}@db:5432/fahrrad
++      FP_DATABASE_URL_FILE: /run/secrets/database-url
+       FP_VORLAGEN_VERZEICHNIS: /vorlagen
+-      # X-Forwarded-For nur von nginx glauben. „*" ist unbedenklich, solange der Port
+-      # auf 127.0.0.1 liegt – dort kommt niemand von außen hin. Wird FP_BIND geöffnet,
+-      # MUSS hier die Adresse des Proxys stehen (FP_PROXY_IPS), sonst kann jeder, der
+-      # den Port erreicht, mit erfundenem X-Forwarded-For die Anmeldebremse umgehen.
+-      FORWARDED_ALLOW_IPS: "${FP_PROXY_IPS:-*}"
++      FP_PROXY_IPS: ${FP_PROXY_IPS:-127.0.0.1}
++      FP_OEFFENTLICHE_URL: ${FP_OEFFENTLICHE_URL:-http://localhost:8000}
++      FP_COOKIE_SECURE: ${FP_COOKIE_SECURE:-true}
++      FP_KARTEN_KACHELN: ${FP_KARTEN_KACHELN:-}
++      FP_TOKEN_GUELTIGKEIT_STUNDEN: ${FP_TOKEN_GUELTIGKEIT_STUNDEN:-24}
++      FP_AUFBEWAHRUNG_MONATE: ${FP_AUFBEWAHRUNG_MONATE:-12}
++      FP_ZEITZONE: ${FP_ZEITZONE:-Europe/Berlin}
++      FP_SITZUNG_LEERLAUF_MINUTEN: ${FP_SITZUNG_LEERLAUF_MINUTEN:-120}
++      FP_SITZUNG_MAX_STUNDEN: ${FP_SITZUNG_MAX_STUNDEN:-12}
++      FP_ANMELDUNG_MAX_FEHLVERSUCHE: ${FP_ANMELDUNG_MAX_FEHLVERSUCHE:-10}
+     depends_on:
+-      db:
+-        condition: service_healthy
++      db: {condition: service_healthy}
+     ports:
+-      # Vorgabe: nur über 127.0.0.1 erreichbar, für nginx auf demselben Host. Sitzt der
+-      # Proxy auf einem anderen Rechner (z. B. über VPN), FP_BIND in der .env auf die
+-      # Adresse setzen, über die er die App erreicht – und FP_PROXY_IPS mitsetzen.
+       - "${FP_BIND:-127.0.0.1}:${FP_PORT:-8000}:8000"
+     volumes:
+-      # Eigene Feedbackbogen-Vorlagen und Logos je Schule (README: „Feedbackbogen anpassen").
+-      - ./vorlagen:/vorlagen:ro
+-
++      - vorlagen:/vorlagen:ro
++      - ${FP_SECRETS_DIR}/database-url:/run/secrets/database-url:ro
++    logging: *logging
+ volumes:
+   pgdata:
++  vorlagen:
+diff --git a/docker/init-postgres.sh b/docker/init-postgres.sh
+new file mode 100644
+index 0000000..7dd1e73
+--- /dev/null
++++ b/docker/init-postgres.sh
+@@ -0,0 +1,10 @@
++#!/bin/sh
++set -eu
++export FP_INIT_PASSWORD="$(cat /run/secrets/db-app)"
++psql --username "$POSTGRES_USER" --dbname postgres --set ON_ERROR_STOP=1 <<'SQL'
++\getenv app_password FP_INIT_PASSWORD
++CREATE ROLE fahrrad LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD :'app_password';
++CREATE DATABASE fahrrad OWNER fahrrad;
++REVOKE ALL ON DATABASE postgres FROM PUBLIC;
++REVOKE ALL ON DATABASE template1 FROM PUBLIC;
++SQL
+diff --git a/docker/start.sh b/docker/start.sh
+index e5ef8fb..af7b555 100755
+--- a/docker/start.sh
++++ b/docker/start.sh
+@@ -1,17 +1,3 @@
+ #!/bin/sh
+-# Container-Start: Datenbank auf den neuesten Stand bringen, dann die Anwendung starten.
+ set -eu
+-
+-alembic upgrade head
+-
+-# Ein Prozess: Die Bremsen gegen zu viele Anmeldeversuche und Uploads zählen im
+-# Arbeitsspeicher. Mehrere Worker würden sie unterlaufen. Für eine Schule mit
+-# einigen iPads reicht ein Prozess mit Thread-Pool bei Weitem.
+-#
+-# --proxy-headers: Die echte Client-IP kommt von nginx (X-Forwarded-For) – sonst
+-# sähe die Anmeldebremse für alle Anfragen dieselbe IP. FORWARDED_ALLOW_IPS legt
+-# fest, wessen Header geglaubt wird (siehe docker-compose.yml).
+-exec uvicorn app.main:app \
+-  --host 0.0.0.0 --port 8000 \
+-  --proxy-headers --forwarded-allow-ips "${FORWARDED_ALLOW_IPS:-127.0.0.1}" \
+-  --no-server-header
++exec python -m app.run
+diff --git a/migrations/versions/0008_betriebslimits.py b/migrations/versions/0008_betriebslimits.py
+new file mode 100644
+index 0000000..c434c91
+--- /dev/null
++++ b/migrations/versions/0008_betriebslimits.py
+@@ -0,0 +1,13 @@
++"""Shared bounded login/upload counters."""
++from alembic import op
++import sqlalchemy as sa
++revision="0008"
++down_revision="0007"
++branch_labels=None
++depends_on=None
++def upgrade():
++    op.create_table("betriebs_limit",
++        sa.Column("schluessel",sa.String(64),primary_key=True),
++        sa.Column("anzahl",sa.Integer(),nullable=False),
++        sa.Column("bis",sa.DateTime(timezone=True),nullable=False))
++def downgrade():op.drop_table("betriebs_limit")
+diff --git a/prepare_secrets.py b/prepare_secrets.py
+new file mode 100644
+index 0000000..cee6ad5
+--- /dev/null
++++ b/prepare_secrets.py
+@@ -0,0 +1,12 @@
++"""One-time local credentials, no values printed."""
++import os,secrets
++from pathlib import Path
++os.umask(0o077)
++folder=Path(".private")
++folder.mkdir(mode=0o700)
++password=secrets.token_hex(32)
++for name,value in {"db-admin":secrets.token_hex(32),"db-app":password,
++    "database-url":"postgresql+psycopg://fahrrad:"+password+"@db:5432/fahrrad"}.items():
++    descriptor=os.open(folder/name,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o444)
++    with os.fdopen(descriptor,"w") as stream:stream.write(value)
++print("Private credentials created; set FP_SECRETS_DIR to absolute .private path.")
+-- 
+2.43.0
+
+
+From dc699c4ad8218b8928083111e511723caf279faf Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Tue, 3 Nov 2026 09:29:35 +0100
+Subject: [PATCH 2/3] Add explicit PostgreSQL migration, shared worker limits
+ and standalone isolation
+
+---
+ tests/test_posten_offline.py | 13 +++++++------
+ 1 file changed, 7 insertions(+), 6 deletions(-)
+
+diff --git a/tests/test_posten_offline.py b/tests/test_posten_offline.py
+index 07b7251..02c5d6d 100644
+--- a/tests/test_posten_offline.py
++++ b/tests/test_posten_offline.py
+@@ -8,6 +8,7 @@ Cache und IndexedDB müssen das überstehen.
+ from __future__ import annotations
+ 
+ import json
++import re
+ from datetime import UTC, date, datetime
+ 
+ import pytest
+@@ -176,7 +177,7 @@ def test_flugmodus_mit_neustart(pw, basis_url, fabrik, lauf, tmp_path, browser_t
+ 
+     # Wiederverbindung: automatischer Upload
+     geraet.offline(False)
+-    expect(seite.locator("#status-zaehler")).to_have_text("0 · alles übertragen", timeout=30_000)
++    expect(seite.locator("#status-zaehler")).to_have_text(re.compile(r"^0 · alles übertragen(?: · Display sperrt sich)?$"), timeout=30_000)
+ 
+     server = server_ereignisse(fabrik, lauf["lauf_id"])
+     assert set(server) == {e["event_id"] for e in lokal}
+@@ -221,7 +222,7 @@ def test_abgebrochener_upload(pw, basis_url, fabrik, lauf, tmp_path):
+     expect(seite.locator("#status-zaehler")).to_contain_text("10 Erfassungen · nicht übertragen")
+ 
+     seite.click("#uebertragen")
+-    expect(seite.locator("#status-zaehler")).to_have_text("0 · alles übertragen", timeout=15_000)
++    expect(seite.locator("#status-zaehler")).to_have_text(re.compile(r"^0 · alles übertragen(?: · Display sperrt sich)?$"), timeout=15_000)
+     assert len(versuche) == 2
+     assert len(server_ereignisse(fabrik, lauf["lauf_id"])) == 10
+     geraet.beenden()
+@@ -241,7 +242,7 @@ def test_keine_namen_auf_dem_geraet(pw, basis_url, fabrik, lauf, tmp_path):
+     seite.click("#bewertung-stufen .stufe-2")
+     seite.click("#bewertung-fertig")
+     seite.click("#uebertragen")
+-    expect(seite.locator("#status-zaehler")).to_have_text("0 · alles übertragen", timeout=15_000)
++    expect(seite.locator("#status-zaehler")).to_have_text(re.compile(r"^0 · alles übertragen(?: · Display sperrt sich)?$"), timeout=15_000)
+ 
+     inhalt = json.dumps(geraet.indexeddb(), ensure_ascii=False)
+     assert '"startnummern"' in inhalt and "bremst spät" in inhalt  # Gegenprobe: Daten sind da
+@@ -261,7 +262,7 @@ def test_nach_abschluss_werden_lokale_daten_geloescht(pw, basis_url, fabrik, lau
+     seite = einrichten(geraet, lauf["tokens"][0])
+     erfassen(seite, 3)
+     seite.click("#uebertragen")
+-    expect(seite.locator("#status-zaehler")).to_have_text("0 · alles übertragen", timeout=15_000)
++    expect(seite.locator("#status-zaehler")).to_have_text(re.compile(r"^0 · alles übertragen(?: · Display sperrt sich)?$"), timeout=15_000)
+     assert len(geraet.indexeddb()["ereignisse"]["werte"]) == 3  # noch nicht löschen: Lauf läuft
+ 
+     with fabrik.intern_kontext() as s:
+@@ -299,7 +300,7 @@ def test_offene_daten_bleiben_wenn_lauf_zu_frueh_abgeschlossen(pw, basis_url, fa
+     with fabrik.intern_kontext() as s:
+         s.get(Lauf, lauf["lauf_id"]).status = "laufend"
+     seite.click("#uebertragen")
+-    expect(seite.locator("#status-zaehler")).to_have_text("0 · alles übertragen", timeout=15_000)
++    expect(seite.locator("#status-zaehler")).to_have_text(re.compile(r"^0 · alles übertragen(?: · Display sperrt sich)?$"), timeout=15_000)
+     assert len(server_ereignisse(fabrik, lauf["lauf_id"])) == 4
+     geraet.beenden()
+ 
+@@ -354,7 +355,7 @@ def test_versehentlicher_wechsel_offline_behaelt_alten_posten(pw, basis_url, fab
+     seite = einrichten(geraet, lauf["tokens"][0])
+     erfassen(seite, 2)
+     seite.click("#uebertragen")
+-    expect(seite.locator("#status-zaehler")).to_have_text("0 · alles übertragen", timeout=15_000)
++    expect(seite.locator("#status-zaehler")).to_have_text(re.compile(r"^0 · alles übertragen(?: · Display sperrt sich)?$"), timeout=15_000)
+     geraet.beenden()
+ 
+     seite = geraet.starten(f"/p/{lauf['tokens'][1]}", offline=True)
+-- 
+2.43.0
+
+
+From 4e007ffd20e5236cf82b7d4a9f72f873fa1ae2fe Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Tue, 3 Nov 2026 11:12:59 +0100
+Subject: [PATCH 3/3] Add explicit PostgreSQL migration, shared worker limits
+ and standalone isolation
+
+---
+ app/posten_app/css/posten.css | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/app/posten_app/css/posten.css b/app/posten_app/css/posten.css
+index 89ae578..d79a55c 100644
+--- a/app/posten_app/css/posten.css
++++ b/app/posten_app/css/posten.css
+@@ -140,6 +140,7 @@ button { font: inherit; color: inherit; }
+ 
+ .statusleiste {
+   display: flex;
++  flex-wrap: wrap;
+   align-items: center;
+   gap: 16px;
+   min-height: 52px;
+@@ -150,8 +151,9 @@ button { font: inherit; color: inherit; }
+   font-weight: 600;
+ }
+ 
+-.statusleiste-posten { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+-.statusleiste-zaehler { white-space: nowrap; }
++.statusleiste-posten { flex: 1 1 120px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++.statusleiste-zaehler { flex: 1 1 240px; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
++.statusleiste-knopf { flex-shrink: 0; }
+ .statusleiste-netz {
+   white-space: nowrap;
+   padding: 2px 10px;
+-- 
+2.43.0
+
