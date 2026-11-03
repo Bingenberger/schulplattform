@@ -8,6 +8,13 @@ ROOT = Path(__file__).resolve().parents[1]
 rows = json.loads((ROOT / 'docs/platform-audit/evidence/repositories.json').read_text())
 audited = {row['repo']: row['sha'] for row in rows}
 packages = {
+    'abgen': ('Add standalone PostgreSQL 18 runtime, local setup and durable collaborative state', [
+        'Dockerfile', '.dockerignore', '.gitignore', '.env.example', 'docker-compose.yml',
+        'docker/server.Dockerfile', 'docker/web.Dockerfile', 'docker/pdf.Dockerfile',
+        'docker/init-postgres.sh', 'prepare_secrets.py', 'apps/server/src',
+        'apps/server/drizzle/0006_runtime_collab.sql', 'apps/server/drizzle/meta/_journal.json',
+        'apps/web/src', 'packages/model/src/index.ts', 'packages/model/src/collaboration.ts',
+        'playwright.config.ts', 'contract_tests', 'PLATFORM.md', 'README.md']),
     'schulwissen': ('Add explicit migrations, readiness, proxy trust and bounded PDF exports', [
         'Dockerfile', 'docker-compose.yml', 'docker/start.sh',
         'schulwissen/umgebung.py', 'schulwissen/einstellungen.py', 'schulwissen/urls.py',

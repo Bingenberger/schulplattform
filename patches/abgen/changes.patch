@@ -1,0 +1,3986 @@
+From e14bbe6664087aaef8ecb027913297885b4f6c13 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Tue, 3 Nov 2026 17:26:18 +0100
+Subject: [PATCH] Add standalone PostgreSQL 18 runtime, local setup and durable
+ collaborative state
+
+---
+ .dockerignore                                |  32 ++-
+ .env.example                                 |  41 ++--
+ .gitignore                                   |   2 +
+ Dockerfile                                   |  45 ++++
+ PLATFORM.md                                  | 125 ++++++++++
+ README.md                                    |  44 ++--
+ apps/server/drizzle/0006_runtime_collab.sql  |   7 +
+ apps/server/drizzle/meta/_journal.json       |   9 +-
+ apps/server/src/app.test.ts                  |  14 +-
+ apps/server/src/app.ts                       |  59 ++++-
+ apps/server/src/assets/store.ts              |  18 +-
+ apps/server/src/auth.test.ts                 | 164 +++++--------
+ apps/server/src/config.ts                    |  19 +-
+ apps/server/src/db/client.ts                 |   3 +-
+ apps/server/src/db/migrate.ts                |  64 +++--
+ apps/server/src/db/schema.ts                 |   1 +
+ apps/server/src/documents.test.ts            |  37 ++-
+ apps/server/src/index.ts                     |  10 +-
+ apps/server/src/pdf/index.ts                 |  12 +-
+ apps/server/src/pdf/service.ts               | 108 ++++----
+ apps/server/src/phase4.test.ts               | 125 +++++-----
+ apps/server/src/platform/collab-state.ts     |  15 ++
+ apps/server/src/platform/private.ts          |  13 +
+ apps/server/src/repositories/memory.ts       |  31 ++-
+ apps/server/src/repositories/postgres.ts     |  46 +++-
+ apps/server/src/repositories/types.ts        |   9 +-
+ apps/server/src/routes/auth.ts               |  36 +--
+ apps/server/src/routes/collab.ts             | 244 +++++++++++--------
+ apps/server/src/routes/documents.ts          |   2 +
+ apps/server/src/routes/health.ts             |   7 +-
+ apps/server/src/routes/print.ts              |   6 +-
+ apps/server/src/routes/users.ts              |   2 +-
+ apps/server/src/setup.ts                     |  58 +++++
+ apps/server/src/testing/fixtures.ts          |  19 ++
+ apps/server/src/testing/server.ts            |  21 ++
+ apps/server/src/users.test.ts                |  48 ++--
+ apps/web/src/api/assets.ts                   |   2 +-
+ apps/web/src/api/client.ts                   |   6 +-
+ apps/web/src/api/submissions.ts              |   2 +-
+ apps/web/src/components/LibraryDialog.tsx    |   2 +-
+ apps/web/src/components/properties/media.tsx |   2 +-
+ apps/web/src/state/collab.ts                 |  95 +++-----
+ apps/web/src/state/spellStore.ts             |   2 +-
+ apps/web/src/views/LoginView.tsx             |  21 +-
+ contract_tests/browser.mjs                   |  49 ++++
+ contract_tests/runtime.mjs                   | 189 ++++++++++++++
+ docker-compose.yml                           | 163 ++++++-------
+ docker/init-postgres.sh                      |  10 +
+ docker/pdf.Dockerfile                        |  57 ++++-
+ docker/server.Dockerfile                     |  58 +++--
+ docker/web.Dockerfile                        |  57 ++++-
+ packages/model/src/collaboration.ts          |  67 +++++
+ packages/model/src/index.ts                  |   2 +
+ playwright.config.ts                         |   5 +-
+ prepare_secrets.py                           |  10 +
+ 55 files changed, 1575 insertions(+), 720 deletions(-)
+ create mode 100644 Dockerfile
+ create mode 100644 PLATFORM.md
+ create mode 100644 apps/server/drizzle/0006_runtime_collab.sql
+ create mode 100644 apps/server/src/platform/collab-state.ts
+ create mode 100644 apps/server/src/platform/private.ts
+ create mode 100644 apps/server/src/setup.ts
+ create mode 100644 apps/server/src/testing/fixtures.ts
+ create mode 100644 apps/server/src/testing/server.ts
+ create mode 100644 contract_tests/browser.mjs
+ create mode 100644 contract_tests/runtime.mjs
+ create mode 100755 docker/init-postgres.sh
+ create mode 100644 packages/model/src/collaboration.ts
+ create mode 100644 prepare_secrets.py
+
+diff --git a/.dockerignore b/.dockerignore
+index b7c479a..0e1ec2e 100644
+--- a/.dockerignore
++++ b/.dockerignore
+@@ -1,12 +1,24 @@
+-node_modules
++*
++!package.json
++!pnpm-lock.yaml
++!pnpm-workspace.yaml
++!tsconfig.base.json
++!playwright.config.ts
++!eslint.config.js
++!.prettierrc.json
++!apps/
++!apps/**
++!packages/
++!packages/**
++!assets/
++!assets/**
++!scripts/
++!scripts/**
++!e2e/
++!e2e/**
++!contract_tests/
++!contract_tests/**
+ **/node_modules
+ **/dist
+-**/.vite
+-coverage
+-playwright-report
+-test-results
+-blob-report
+-.git
+-.env
+-data
+-docs/ARBEITSAUFTRAG.md
++**/__pycache__
++**/.env*
+diff --git a/.env.example b/.env.example
+index e2a1d55..50de0df 100644
+--- a/.env.example
++++ b/.env.example
+@@ -1,30 +1,17 @@
+-# Beispielkonfiguration – als .env kopieren und anpassen.
+-
+-# --- Datenbank ---
+-POSTGRES_USER=abgen
+-POSTGRES_PASSWORD=bitte-aendern
+-POSTGRES_DB=abgen
+-DATABASE_URL=postgres://abgen:bitte-aendern@postgres:5432/abgen
+-
+-# --- API ---
+-HOST=0.0.0.0
+-PORT=3000
+-LOG_LEVEL=info
+-# postgres im Betrieb; memory nur zum Ausprobieren (nichts wird gespeichert)
+-STORAGE=postgres
+-# Sitzungscookie nur über HTTPS senden (hinter nginx mit Zertifikat: true)
++# Standalone Compose: private Dateien mit prepare_secrets.py erzeugen.
++# ABGEN_SECRETS_DIR vor Compose als absoluten Pfad zur .private setzen.
++# Keine Passwörter oder Datenbank-URIs in diese Datei eintragen.
++WEB_PORT=8080
++WEB_ORIGIN=http://localhost:8080
+ COOKIE_SECURE=false
+-# Dürfen sich Lehrkräfte selbst registrieren? Das erste Konto geht immer.
+ ALLOW_REGISTRATION=false
+-# Verzeichnis für Asset-Dateien (per SHA-256 adressiert)
+-ASSET_DIR=/app/data/assets
+-# Adresse, unter der der Editor erreichbar ist (CORS)
+-WEB_ORIGIN=http://localhost:8080
+-# Migrationen beim Serverstart einspielen
+-RUN_MIGRATIONS=1
+-
+-# --- PDF-Dienst ---
+-PDF_SERVICE_URL=http://pdf:3001
+ 
+-# --- Veröffentlichter Port des Editors ---
+-WEB_PORT=8080
++# Native API-Variablen für einen Start außerhalb von Compose:
++# DATABASE_URL oder DATABASE_URL_FILE (gegenseitig ausschließend, Pflicht bei postgres)
++STORAGE=postgres
++HOST=0.0.0.0
++PORT=3000
++LOG_LEVEL=warn
++ASSET_DIR=./data/assets
++PDF_SERVICE_URL=http://127.0.0.1:3001
++# RUN_MIGRATIONS wird nicht mehr ausgewertet; Migration ist ein expliziter Schritt.
+diff --git a/.gitignore b/.gitignore
+index 4474b10..b5c0073 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -11,3 +11,5 @@ test-results/
+ blob-report/
+ /data/
+ /assets/store/
++
++.private/
+diff --git a/Dockerfile b/Dockerfile
+new file mode 100644
+index 0000000..ba2645d
+--- /dev/null
++++ b/Dockerfile
+@@ -0,0 +1,45 @@
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS dependencies
++ENV npm_config_cache=/tmp/npm-cache PNPM_HOME=/pnpm
++RUN npm install -g pnpm@12.15.0 && rm -rf /tmp/npm-cache
++WORKDIR /app
++COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
++COPY apps/server/package.json ./apps/server/
++COPY apps/web/package.json ./apps/web/
++COPY packages/generators/package.json ./packages/generators/
++COPY packages/model/package.json ./packages/model/
++COPY packages/render/package.json ./packages/render/
++COPY packages/text/package.json ./packages/text/
++RUN node --version && pnpm --version && pnpm install --frozen-lockfile
++
++FROM dependencies AS builder
++ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
++COPY tsconfig.base.json ./
++COPY apps ./apps
++COPY packages ./packages
++COPY assets ./assets
++COPY scripts ./scripts
++RUN pnpm fonts:check && pnpm -r --if-present build && pnpm -r --if-present typecheck
++
++FROM builder AS tests
++COPY e2e ./e2e
++COPY playwright.config.ts eslint.config.js .prettierrc.json ./
++USER 10001:10001
++
++FROM mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f AS pdf
++ENV NODE_ENV=production PORT=3001 HOST=0.0.0.0
++WORKDIR /app
++RUN groupadd --gid 10001 abgen && useradd --uid 10001 --gid 10001 --create-home abgen
++COPY --from=builder /app /app
++USER 10001:10001
++EXPOSE 3001
++CMD ["node","apps/server/dist/pdf/index.js"]
++
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS runtime
++ENV NODE_ENV=production PORT=3000 HOST=0.0.0.0 RUN_MIGRATIONS=0
++WORKDIR /app
++RUN groupadd --gid 10001 abgen && useradd --uid 10001 --gid 10001 --no-create-home abgen \
++ && mkdir -p /app/data/assets && chown -R 10001:10001 /app/data
++COPY --from=builder /app /app
++USER 10001:10001
++EXPOSE 3000
++CMD ["node","apps/server/dist/index.js"]
+diff --git a/PLATFORM.md b/PLATFORM.md
+new file mode 100644
+index 0000000..72ffbd3
+--- /dev/null
++++ b/PLATFORM.md
+@@ -0,0 +1,125 @@
++# Eigenständiger Betrieb von abgen
++
++Dieser Stand ist ein lokaler Entwicklungs- und Integrationsstand. Er ist nicht
++als Produktionsrelease veröffentlicht. Native pnpm-Workspaces und Lockfile bleiben
++eigenständig; die Schulplattform ist für den Standalone-Start nicht erforderlich.
++
++## Start und Identitäten
++
++Die Befehle stehen im README. Zuerst private Datenbankdateien mit
++`prepare_secrets.py` erzeugen, `ABGEN_SECRETS_DIR` setzen und die Images bauen.
++Compose startet PostgreSQL 18, die gemeinsame SPA/API und den privaten PDF-Dienst.
++Migrationen werden ausschließlich explizit mit
++`node apps/server/dist/db/migrate.js` ausgeführt. Normale Starts verändern kein
++Schema und erzeugen keine Benutzer. Bereits protokollierte Migrations-Hashes
++müssen zum Release passen; unbekannte Bestandsdatenbanken ohne passende Historie
++werden vor Änderungen zurückgewiesen. Die bisherigen Migrationen 0000–0005
++bleiben unverändert; 0006 ergänzt Sitzungsbindung und dauerhaften Yjs-Zustand.
++
++Die erste Administration entsteht über ein echtes lokales Terminal mit
++`docker compose exec app node apps/server/dist/setup.js person@example.org "Eigener Name"`.
++Das Passwort wird verdeckt abgefragt und bestätigt (mindestens zwölf Zeichen).
++Vorhandene Konten, ein zweiter Einrichtungsversuch und Einrichtung ohne Terminal
++werden abgewiesen. HTTP-Registrierung erzeugt niemals die erste Administration.
++Nach Einrichtung öffnet `ALLOW_REGISTRATION=true` ausdrücklich Lehrkraftkonten.
++Die Betreuung kann native Kontenverwaltung und Einmalpasswörter verwenden.
++Serverseitig gespeicherte Sitzungen sind gehasht, zeitlich begrenzt und an aktuelle
++Zugangsdaten gebunden. Logout, Sperrung, Rollen- und Passwortwechsel widerrufen
++betroffene Sitzungen. Ein eigener Passwortwechsel rotiert das aktuelle Cookie.
++
++Native Namen wie `WEB_PORT`, `WEB_ORIGIN`, `COOKIE_SECURE`, `STORAGE`,
++`ASSET_DIR`, `PDF_SERVICE_URL` und `DATABASE_URL` bleiben erhalten.
++Für native Starts außerhalb Compose sind `DATABASE_URL` oder alternativ
++`DATABASE_URL_FILE` gegenseitig ausschließend. Compose verwendet nur die private
++Dateiprojektion. Geheimnisse gehören weder in Git noch in Befehlsargumente oder
++eine öffentliche .env. Dateien sind unter einem 0700-Verzeichnis projiziert;
++die Projektionen sind 0444, damit UID 10001 sie lesen kann.
++
++## Daten, Zusammenarbeit und Grenzen
++
++PostgreSQL enthält Identitäten, Rollen, Sitzungen, Dokumente und Revisionen,
++Freigaben, Kinder-Kurzcodes, Abgaben, Vorlagen, Wörterbücher und Asset-Metadaten.
++Das eigene Asset-Volume enthält die über SHA-256 adressierten Mediendateien.
++Dateien werden über eine synchronisierte temporäre Datei und atomare Umbenennung
++veröffentlicht. Fremde Originaldaten wurden nicht übernommen.
++
++Yjs-Zustände liegen in `collab_state`, gebunden an die bestehende Dokument-ID.
++Ein gültiges Update wird zuerst in PostgreSQL bestätigt und anschließend an andere
++Teilnehmer gesendet. Fehlerhafte Updates und fehlgeschlagene Speicherungen werden
++nicht verteilt. Neue Teilnehmer bekommen den gespeicherten Zustand; ein normaler
++Dokumentabruf wird daraus aktualisiert. Explizite Dokumentersetzung außerhalb eines
++aktiven Raums und Revisionswiederherstellung ersetzen den bisherigen Zustand.
++Private Räume verlangen Sitzung und Eigentümerschaft; schulweit freigegebene
++Dokumente erlauben angemeldeten Lehrkräften die gemeinsame Bearbeitung.
++Zugriff und Sitzung werden pro Nachricht erneut geprüft; Sitzungen zusätzlich
++alle 15 Sekunden. Freigabelinks geben keinen anonymen WebSocket-Zugang.
++
++**Genau ein API-Prozess, keine mehreren Replikate.** Raumkoordination ist lokal.
++Grenzen: 32 Räume, 16 Teilnehmer je Raum, 1 MiB je Nachricht, 4 MiB je Snapshot,
++64 ausstehende Nachrichten und 16 MiB ausstehende Nachrichtendaten insgesamt.
++Bei einer unterbrochenen Verbindung die Zusammenarbeit in der Oberfläche erneut
++einschalten. Ein Client-Reconnect mit dauerhaftem Offline-Änderungsjournal ist
++nicht implementiert; ein abgeschicktes Update ist ohne bestätigenden zweiten
++Teilnehmer noch kein sichtbarer Speicherbeleg für die schreibende Person.
++
++## Netzwerk, Druck und Ressourcen
++
++Nur der SPA/API-Port ist auf Host-Loopback veröffentlicht. PostgreSQL und PDF haben
++keine Hostports. Die App-Rolle besitzt keine PostgreSQL-Clusteradministration.
++Der PDF-Dienst besitzt keine Datenbank-Zugangsdaten.
++API und PDF laufen als UID 10001 auf schreibgeschütztem Rootdateisystem mit
++begrenzten tmpfs, CPU, RAM und PIDs. Externer Zugriff verlangt einen eigenen
++TLS-Proxy, exakte öffentliche `WEB_ORIGIN` und `COOKIE_SECURE=true`.
++Fremde Origins werden verworfen, schreibende Requests benötigen
++`X-Abgen-Request: 1`; der native Webclient setzt diesen Header.
++
++Die interne Druckadresse verwendet `http://abgen-web:3000`. Der Alias verhindert
++die im Browserversuch beobachtete HTTPS-Umleitung des Hostnamens `app`.
++Nur lesende interne Druckzugriffe sind als zusätzliche Origin zugelassen.
++Chromium darf nur diese interne Origin sowie data-/blob-Ressourcen laden.
++Ein PDF-Slot, keine Warteschlange: weiterer Auftrag 429; Renderdeadline 45 Sekunden,
++Browserstart höchstens zehn Sekunden, maximal 80 berechnete Seiten und 64 MiB PDF.
++Temporäre Render-Freigaben werden nach dem Auftrag entfernt; sie sind zusätzlich
++zeitlich begrenzt. Die exakten Chromium-Images enthalten Node 26; die API und der
++SPA-Build verwenden Node 22. Das ist bewusst im Imagebeleg getrennt erfasst.
++
++`/api/health/live` prüft den API-Prozess, `/api/health/ready` Datenbank und
++Migrationshistorie. Ein Datenbankausfall liefert Readiness 503 bei weiterlaufendem
++Prozess. `/api/health` zeigt zusätzlich einen PDF-Ausfall. Der PDF-Dienst meldet
++unter `/health/ready` kalt/warm und frei/belegt. Prozessgesundheit ist keine
++Kapazitätsmessung und ersetzt keinen echten Drucktest.
++
++## Sicherung, Restore und Abschalten
++
++Vor einer gemeinsamen Sicherung alle API- und PDF-Schreiber anhalten.
++Der ausschließlich über Container-Loopback erreichbare
++`POST /_platform/prepare-stop` (Header wie oben) drainiert die Zusammenarbeit,
++schließt Räume und wartet auf übernommene Schreibaufträge.
++`/_platform/cancel-stop` hebt eine abgebrochene Wartung wieder auf.
++Anschließend App und PDF stoppen; PostgreSQL für einen konsistenten
++`pg_dump -Fc` laufen lassen. Das Asset-Volume synchronisiert sichern.
++Datenbankdump und Asset-Archiv gehören als ein gemeinsamer Sicherungsstand
++zusammen. Private Datenbankdateien und Plattform-Schlüssel getrennt verschlüsselt
++sichern. Kein automatisches Löschen von Volumes.
++
++Restore nur in eine isolierte leere PostgreSQL-Datenbank und ein leeres
++Asset-Volume. Abgen-Rolle und Datenbank aus den separat gesicherten Zugangsdaten
++vorbereiten, Dump transaktional einspielen, Assets mit UID 10001 wiederherstellen,
++erst danach App/PDF starten. Kein Setup, Seed oder Bootstrap über restaurierte
++Konten ausführen. Die Akzeptanzskripte im Plattformrepository prüfen identische
++Fachzeilen, Fremdschlüssel, Rollen, Originalfreigaben, Kinderzugänge, Yjs und PDF.
++Ein Container-Rollback ist kein Datenbank-Rollback: nach einer Schemaänderung
++müssen kompatible Images oder der gemeinsam gesicherte frühere Datenstand gewählt
++werden. Für konkrete Produktionsupgrades fehlen noch signierte Releases und
++geprüfte Kompatibilitätsmatrizen.
++
++## Noch nicht abgenommen
++
++Plattformanbindung mit zehn Apps, lokaler TLS-Domainwechsel samt Rückfall,
++Dashboard-Lebenszyklus für abgen und Zielserver-/Lastmessung sind separat offen.
++Keine Ubuntu-24.04-Abnahme, keine öffentlichen DNS-/ACME-Änderungen, kein Offsite-
++Transport und keine bestätigten RPO/RTO-Ziele. Die vollständige native Playwright-
++Suite und visuelle/Offline-Abnahme wurden nicht ausgeführt. Schriftinventar:
++elf von zwölf nativen Familien vorhanden; Gruschudru Basic bleibt als fehlend
++ausgewiesen. Lizenzentscheidung und Freigabe sämtlicher Fremdmaterialien stehen
++aus. Keine Lizenz oder fehlende Schrift wurde erfunden oder nachgeladen.
+diff --git a/README.md b/README.md
+index 60823af..0af9e62 100644
+--- a/README.md
++++ b/README.md
+@@ -46,25 +46,41 @@ Der PDF-Druck braucht den PDF-Dienst (Chromium). In der Entwicklung läuft er mi
+ pnpm --filter @abgen/server dev:pdf   # Dienst auf :3001
+ ```
+ 
+-Ohne Datenbank ausprobieren (nichts wird gespeichert):
+-
+-```sh
+-STORAGE=memory ALLOW_REGISTRATION=true pnpm dev
+-```
+-
+ ## Betrieb
+ 
++Der eigenständige Betrieb benötigt keine Schulplattform. Die API liefert den gebauten Editor
++mit aus; PostgreSQL und Chromium laufen in eigenen privaten Containern.
++
+ ```sh
+-cp .env.example .env    # Passwörter und Adressen anpassen
+-docker compose up --build
++python3 prepare_secrets.py
++export ABGEN_SECRETS_DIR="$PWD/.private"
++cp .env.example .env
++docker compose build app pdf
++docker compose up -d postgres app pdf
++# Anfangs: Liveness 200, Readiness 503 bis zum expliziten Migrationsschritt.
++docker compose exec -T app node apps/server/dist/db/migrate.js
++docker compose exec app node apps/server/dist/setup.js person@example.org "Eigener Name"
+ ```
+ 
+-Danach ist der Editor unter `http://localhost:8080` erreichbar (Port über `WEB_PORT`).
+-Der PDF-Export läuft über den Container `pdf`; die API spricht ihn über `PDF_SERVICE_URL` an.
+-Die Container: `web` (nginx mit dem gebauten Editor), `server` (API, spielt Migrationen ein),
+-`pdf` (Chromium für den PDF-Export ab Phase 4) und `postgres`.
+-Für den Betrieb hinter dem nginx des Servers liegt eine Beispielkonfiguration in
+-[`nginx/abgen.conf.example`](nginx/abgen.conf.example).
++Die Einrichtung verlangt ein echtes Terminal und ein verdeckt eingegebenes persönliches
++Passwort. Sie legt genau die erste Administration an; vorhandene Konten werden nicht
++übernommen oder ersetzt. Die öffentliche Erstanmeldung bleibt auch bei eingeschalteter
++Registrierung geschlossen. Danach kann die Administration Lehrkräfte anlegen.
++`ALLOW_REGISTRATION=true` öffnet nach der lokalen Einrichtung ausschließlich Lehrkraftkonten.
++
++Der Editor ist unter `http://localhost:8080` erreichbar (`WEB_PORT` und `WEB_ORIGIN` zusammen
++anpassen). Compose veröffentlicht nur diesen Port auf Host-Loopback. Für externe Zugriffe
++einen eigenen TLS-Proxy verwenden und `COOKIE_SECURE=true` sowie die exakte öffentliche
++`WEB_ORIGIN` setzen. Native Variablennamen bleiben erhalten; Datenbankzugänge stammen aus
++privaten Dateien. `RUN_MIGRATIONS` löst keine Startmigration mehr aus.
++
++Gemeinsame Bearbeitung wird vor dem Versand an andere Teilnehmer in PostgreSQL gespeichert.
++Der API-Prozess läuft einmal; mehrere API-Replikate werden nicht unterstützt.
++Der separate PDF-Dienst bekommt keine Datenbank-Zugangsdaten, verarbeitet einen Auftrag
++gleichzeitig und lehnt weitere mit 429 ab. Er lädt die Druckansicht über den privaten
++DNS-Alias `abgen-web`, einschließlich lokal ausgelieferter Schriften.
++
++[PLATFORM.md](PLATFORM.md) beschreibt Sicherung, Wiederherstellung, Abschalten und Grenzen.
+ 
+ ## Verzeichnisse
+ 
+diff --git a/apps/server/drizzle/0006_runtime_collab.sql b/apps/server/drizzle/0006_runtime_collab.sql
+new file mode 100644
+index 0000000..74eb9d4
+--- /dev/null
++++ b/apps/server/drizzle/0006_runtime_collab.sql
+@@ -0,0 +1,7 @@
++ALTER TABLE "sessions" ADD COLUMN "version" text;
++--> statement-breakpoint
++CREATE TABLE "collab_state" (
++ "document_id" uuid PRIMARY KEY NOT NULL REFERENCES "documents"("id") ON DELETE CASCADE,
++ "snapshot" bytea NOT NULL,
++ "updated_at" timestamp with time zone DEFAULT now() NOT NULL
++);
+diff --git a/apps/server/drizzle/meta/_journal.json b/apps/server/drizzle/meta/_journal.json
+index 678b636..bebd80d 100644
+--- a/apps/server/drizzle/meta/_journal.json
++++ b/apps/server/drizzle/meta/_journal.json
+@@ -43,6 +43,13 @@
+       "when": 1792934751531,
+       "tag": "0005_schulbibliothek",
+       "breakpoints": true
++    },
++    {
++      "idx": 6,
++      "version": "7",
++      "when": 1793707200000,
++      "tag": "0006_runtime_collab",
++      "breakpoints": true
+     }
+   ]
+-}
+\ No newline at end of file
++}
+diff --git a/apps/server/src/app.test.ts b/apps/server/src/app.test.ts
+index 996ab9e..e9e28c0 100644
+--- a/apps/server/src/app.test.ts
++++ b/apps/server/src/app.test.ts
+@@ -26,7 +26,7 @@ describe('API', () => {
+   });
+ 
+   it('meldet den Zustand, auch ohne Datenbank', async () => {
+-    const response = await app.inject({ method: 'GET', url: '/api/health' });
++    const response = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/health' });
+     expect(response.statusCode).toBe(200);
+     expect(response.json()).toEqual({
+       status: 'degraded',
+@@ -36,7 +36,7 @@ describe('API', () => {
+   });
+ 
+   it('liefert die Schrift-Allowlist mit Lizenzangaben', async () => {
+-    const response = await app.inject({ method: 'GET', url: '/api/fonts' });
++    const response = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/fonts' });
+     expect(response.statusCode).toBe(200);
+     const body = response.json() as {
+       available: { id: string; license: { spdx: string } }[];
+@@ -48,7 +48,7 @@ describe('API', () => {
+   });
+ 
+   it('antwortet auf unbekannte Adressen auf Deutsch', async () => {
+-    const response = await app.inject({ method: 'GET', url: '/api/gibtsnicht' });
++    const response = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/gibtsnicht' });
+     expect(response.statusCode).toBe(404);
+     expect(response.json()).toMatchObject({ error: 'Nicht gefunden' });
+   });
+@@ -56,7 +56,7 @@ describe('API', () => {
+ 
+ describe('Konfiguration', () => {
+   it('setzt Vorgabewerte', () => {
+-    expect(loadConfig({}).PORT).toBe(3000);
++    expect(loadConfig({ STORAGE: 'memory' }).PORT).toBe(3000);
+   });
+ 
+   it('meldet falsche Werte verständlich', () => {
+@@ -68,12 +68,12 @@ describe('Konfiguration', () => {
+ describe('PDF-Dienst', () => {
+   it('meldet seinen Zustand und prüft die Anfrage', async () => {
+     const app = await buildPdfService(config);
+-    const health = await app.inject({ method: 'GET', url: '/health' });
++    const health = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/health' });
+     // Chromium startet erst beim ersten Auftrag.
+     expect(health.json()).toMatchObject({ status: 'ok', renderer: 'chromium', ready: false });
+ 
+     // Ohne Token darf nichts gerendert werden.
+-    const invalid = await app.inject({
++    const invalid = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: '/render',
+       payload: { documentId: 'doc-01' },
+@@ -81,7 +81,7 @@ describe('PDF-Dienst', () => {
+     expect(invalid.statusCode).toBe(400);
+     expect(invalid.json()).toMatchObject({ error: 'Ungültige Anfrage' });
+ 
+-    const empty = await app.inject({ method: 'POST', url: '/render', payload: {} });
++    const empty = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'POST', url: '/render', payload: {} });
+     expect(empty.statusCode).toBe(400);
+     await app.close();
+   });
+diff --git a/apps/server/src/app.ts b/apps/server/src/app.ts
+index 249d2eb..ce6b8d3 100644
+--- a/apps/server/src/app.ts
++++ b/apps/server/src/app.ts
+@@ -1,11 +1,12 @@
+ import { existsSync } from 'node:fs';
++import { resolve } from 'node:path';
+ import { fileURLToPath } from 'node:url';
+ import cookie from '@fastify/cookie';
+ import cors from '@fastify/cors';
+ import multipart from '@fastify/multipart';
+ import websocket from '@fastify/websocket';
+ import fastifyStatic from '@fastify/static';
+-import Fastify, { type FastifyInstance } from 'fastify';
++import Fastify, { LogController, type FastifyInstance } from 'fastify';
+ import { healthRoutes } from './routes/health.js';
+ import { fontRoutes } from './routes/fonts.js';
+ import { authRoutes } from './routes/auth.js';
+@@ -44,14 +45,44 @@ export async function buildApp({
+ }: BuildAppOptions): Promise<FastifyInstance> {
+   const storage = provided ?? createStorage(config);
+   const app = Fastify({
+-    logger: { level: config.LOG_LEVEL },
++    logController: new LogController({ disableRequestLogging: true }),
++    bodyLimit: 2 * 1024 * 1024,
++    requestTimeout: 15000,
++    logger: { level: config.LOG_LEVEL, serializers: { req: request => ({ method: request.method }) } },
+   });
+ 
+-  await app.register(cors, { origin: config.WEB_ORIGIN, credentials: true });
++  let checkedAt = 0;
++  let healthy = false;
++  app.addHook('onRequest', async (request, reply) => {
++    reply.header('Referrer-Policy', 'no-referrer').header('X-Content-Type-Options', 'nosniff');
++    const path = request.url.split('?')[0] ?? '/';
++    if (path === '/api/health/live' || path === '/api/health/ready' || path === '/api/health') return;
++    const safeInternalRender = ['GET', 'HEAD'].includes(request.method) &&
++      !path.startsWith('/api/collab/') && !!config.INTERNAL_WEB_ORIGIN &&
++      request.headers.origin === config.INTERNAL_WEB_ORIGIN;
++    if (request.headers.origin && request.headers.origin !== config.WEB_ORIGIN && !safeInternalRender)
++      return reply.code(403).send({ error: 'Origin nicht zulässig' });
++    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && request.headers['x-abgen-request'] !== '1')
++      return reply.code(403).send({ error: 'Anfrage nicht zulässig' });
++    if (Date.now() - checkedAt > 1000) { healthy = await storage.ready(); checkedAt = Date.now(); }
++    if (!healthy) return reply.code(503).send({ error: 'Datenbank/Migration nicht bereit' });
++  });
++  app.get('/api/health/live', async () => ({ status: 'ok' }));
++  app.get('/api/health/ready', async (_request, reply) => {
++    const ready = await storage.ready();
++    return reply.code(ready ? 200 : 503).send({ status: ready ? 'ok' : 'not-ready' });
++  });
++  app.setErrorHandler((error, _request, reply) => {
++    const status = (error as { statusCode?: number }).statusCode;
++    return reply.code(status && status >= 400 && status < 500 ? status : 503)
++      .send({ error: 'Anfrage konnte nicht ausgeführt werden' });
++  });
++
++  await app.register(cors, { origin: [config.WEB_ORIGIN, ...(config.INTERNAL_WEB_ORIGIN ? [config.INTERNAL_WEB_ORIGIN] : [])], credentials: true });
+   await app.register(cookie);
+   await app.register(multipart, { limits: { fileSize: MAX_EXCHANGE_BYTES, files: 1 } });
+   // Gemeinsames Bearbeiten (Phase 8.4)
+-  await app.register(websocket);
++  await app.register(websocket, { options: { maxPayload: 1024 * 1024 } });
+ 
+   if (existsSync(fontsDir)) {
+     await app.register(fastifyStatic, {
+@@ -78,7 +109,12 @@ export async function buildApp({
+     });
+   }
+ 
+-  await app.register(healthRoutes({ storage, version: SERVER_VERSION }));
++  await app.register(healthRoutes({ storage, version: SERVER_VERSION,
++    ...(config.STORAGE === 'postgres' ? { pdf: async () => {
++      try { return (await fetch(config.PDF_SERVICE_URL + '/health/ready', { signal: AbortSignal.timeout(500) })).ok; }
++      catch { return false; }
++    } } : {}),
++  }));
+   await app.register(fontRoutes);
+   await app.register(authRoutes({ storage, config }));
+   await app.register(documentRoutes({ storage }));
+@@ -92,6 +128,10 @@ export async function buildApp({
+   await app.register(libraryRoutes({ storage }));
+   await app.register(collabRoutes({ storage }));
+ 
++  const webRoot = resolve(process.env.WEB_ROOT ?? 'apps/web/dist');
++  if (existsSync(webRoot)) {
++    await app.register(fastifyStatic, { root: webRoot, prefix: '/', decorateReply: false });
++  }
+   // Nur selbst angelegte Speicher wieder schließen; übergebene gehören dem Aufrufer.
+   if (!provided) {
+     app.addHook('onClose', async () => {
+@@ -100,10 +140,11 @@ export async function buildApp({
+   }
+ 
+   app.setNotFoundHandler(async (request, reply) => {
+-    await reply.status(404).send({
+-      error: 'Nicht gefunden',
+-      message: `Die Adresse ${request.url} gibt es nicht.`,
+-    });
++    const path = request.url.split('?')[0] ?? '/';
++    if (existsSync(webRoot) && path !== '/api' && !path.startsWith('/api/') && !path.split('/').some(part => part.includes('.'))) {
++      return reply.type('text/html; charset=utf-8').send(await import('node:fs/promises').then(fs => fs.readFile(resolve(webRoot, 'index.html'))));
++    }
++    return reply.status(404).send({ error: 'Nicht gefunden' });
+   });
+ 
+   return app;
+diff --git a/apps/server/src/assets/store.ts b/apps/server/src/assets/store.ts
+index 955c6f6..4595944 100644
+--- a/apps/server/src/assets/store.ts
++++ b/apps/server/src/assets/store.ts
+@@ -1,5 +1,5 @@
+-import { createHash } from 'node:crypto';
+-import { mkdir, readFile, writeFile } from 'node:fs/promises';
++import { createHash, randomUUID } from 'node:crypto';
++import { mkdir, readFile, open, rename, unlink } from 'node:fs/promises';
+ import { existsSync } from 'node:fs';
+ import { join, resolve } from 'node:path';
+ 
+@@ -27,8 +27,18 @@ export function createFileStore(directory: string): FileStore {
+   return {
+     write: async (hash, data) => {
+       const file = pathOf(hash);
+-      await mkdir(join(root, hash.slice(0, 2)), { recursive: true });
+-      await writeFile(file, data);
++      // Publish complete immutable content only after it is durable.
++      const parent = join(root, hash.slice(0, 2));
++      await mkdir(parent, { recursive: true });
++      const temporary = join(parent, '.' + randomUUID() + '.tmp');
++      try {
++        const handle = await open(temporary, 'wx', 0o600);
++        try { await handle.writeFile(data); await handle.sync(); }
++        finally { await handle.close(); }
++        await rename(temporary, file);
++        const directoryHandle = await open(parent, 'r');
++        try { await directoryHandle.sync(); } finally { await directoryHandle.close(); }
++      } finally { await unlink(temporary).catch(() => undefined); }
+     },
+     read: async (hash) => {
+       const file = pathOf(hash);
+diff --git a/apps/server/src/auth.test.ts b/apps/server/src/auth.test.ts
+index 92776b1..d29ac2f 100644
+--- a/apps/server/src/auth.test.ts
++++ b/apps/server/src/auth.test.ts
+@@ -5,29 +5,23 @@ import { loadConfig } from './config.js';
+ import { createMemoryStorage, type Storage } from './repositories/index.js';
+ import { checkPassword, hashPassword, verifyPassword } from './auth/password.js';
+ import { SESSION_COOKIE } from './auth/session.js';
++import { initialAccount } from './testing/fixtures.js';
+ 
+ const config = loadConfig({ NODE_ENV: 'test', LOG_LEVEL: 'fatal', STORAGE: 'memory' });
+-
+ let app: FastifyInstance;
+ let storage: Storage;
+-
+-const register = (payload: Record<string, string>) =>
+-  app.inject({ method: 'POST', url: '/api/auth/register', payload });
+-
+-const login = (payload: Record<string, string>) =>
+-  app.inject({ method: 'POST', url: '/api/auth/login', payload });
+-
+-const sessionCookie = (response: Awaited<ReturnType<typeof register>>) =>
+-  response.cookies.find((cookie) => cookie.name === SESSION_COOKIE)?.value ?? '';
+-
+-beforeEach(async () => {
+-  storage = createMemoryStorage();
+-  app = await buildApp({ config, storage });
++const credentials = { email: 'a@b.example', password: 'Arbeitsblatt-2026', displayName: 'A' };
++const register = (payload: Record<string, string>) => app.inject({
++  method: 'POST', url: '/api/auth/register', headers: { 'X-Abgen-Request': '1' }, payload,
+ });
+-
+-afterEach(async () => {
+-  await app.close();
++const login = (payload: Record<string, string>) => app.inject({
++  method: 'POST', url: '/api/auth/login', headers: { 'X-Abgen-Request': '1' }, payload,
+ });
++const sessionCookie = (response: Awaited<ReturnType<typeof register>>) =>
++  response.cookies.find(cookie => cookie.name === SESSION_COOKIE)?.value ?? '';
++
++beforeEach(async () => { storage = createMemoryStorage(); app = await buildApp({ config, storage }); });
++afterEach(async () => { await app.close(); });
+ 
+ describe('Passwörter', () => {
+   it('werden mit Argon2id gehasht und geprüft', async () => {
+@@ -36,114 +30,66 @@ describe('Passwörter', () => {
+     expect(await verifyPassword(stored, 'Arbeitsblatt-2026')).toBe(true);
+     expect(await verifyPassword(stored, 'falsch')).toBe(false);
+   });
+-
+   it('brauchen mindestens zehn Zeichen', () => {
+     expect(checkPassword('kurz')).toMatch(/mindestens 10 Zeichen/);
+     expect(checkPassword('lang-genug-2026')).toBeNull();
+   });
+ });
+-
+ describe('Anmeldung', () => {
+-  it('legt das erste Konto an und setzt ein httpOnly-Cookie', async () => {
++  it('hält die erste öffentliche Registrierung geschlossen', async () => {
+     const state = await app.inject({ method: 'GET', url: '/api/auth/state' });
+-    expect(state.json()).toMatchObject({ needsFirstAccount: true });
+-
+-    const response = await register({
+-      email: 'Lehrkraft@Schule.example',
+-      password: 'Arbeitsblatt-2026',
+-      displayName: 'Frau Berger',
+-    });
+-    expect(response.statusCode).toBe(201);
+-    expect(response.json()).toMatchObject({
+-      user: { email: 'lehrkraft@schule.example', displayName: 'Frau Berger' },
+-    });
+-    const cookie = response.cookies.find((entry) => entry.name === SESSION_COOKIE);
++    expect(state.json()).toMatchObject({ needsFirstAccount: false, localSetupRequired: true });
++    expect((await register(credentials)).statusCode).toBe(403);
++    expect(await storage.users.countUsers()).toBe(0);
++  });
++  it('öffnet den ersten Admin auch bei erlaubter Folgeregistrierung nicht', async () => {
++    await app.close();
++    app = await buildApp({ config: { ...config, ALLOW_REGISTRATION: true }, storage });
++    expect((await register(credentials)).statusCode).toBe(403);
++    expect(await storage.users.countUsers()).toBe(0);
++  });
++  it('meldet einen ausdrücklich lokal eingerichteten Admin mit HttpOnly-Cookie an', async () => {
++    const response = await initialAccount(app, storage, credentials);
++    expect(response.statusCode).toBe(200);
++    expect(response.json()).toMatchObject({ user: { role: 'admin', email: credentials.email } });
++    const cookie = response.cookies.find(entry => entry.name === SESSION_COOKIE);
+     expect(cookie?.httpOnly).toBe(true);
+     expect(cookie?.sameSite?.toLowerCase()).toBe('lax');
+   });
+-
+-  it('lehnt ein zweites Konto ab, solange die Registrierung geschlossen ist', async () => {
+-    await register({ email: 'a@b.example', password: 'Arbeitsblatt-2026', displayName: 'A' });
+-    const second = await register({
+-      email: 'c@d.example',
+-      password: 'Arbeitsblatt-2026',
+-      displayName: 'C',
+-    });
+-    expect(second.statusCode).toBe(403);
+-    expect(second.json()).toMatchObject({ message: 'Neue Konten legt die Schulverwaltung an.' });
++  it('lehnt weitere Konten bei geschlossener Registrierung ab', async () => {
++    await initialAccount(app, storage, credentials);
++    const response = await register({ ...credentials, email: 'c@d.example' });
++    expect(response.statusCode).toBe(403);
+   });
+-
+-  it('erlaubt weitere Konten, wenn die Registrierung offen ist', async () => {
++  it('erlaubt ausdrücklich geöffnete Folgeregistrierung ausschließlich als Lehrkraft', async () => {
++    await initialAccount(app, storage, credentials);
+     await app.close();
+-    app = await buildApp({
+-      config: loadConfig({ LOG_LEVEL: 'fatal', STORAGE: 'memory', ALLOW_REGISTRATION: 'true' }),
+-      storage,
+-    });
+-    await register({ email: 'a@b.example', password: 'Arbeitsblatt-2026', displayName: 'A' });
+-    const second = await register({
+-      email: 'c@d.example',
+-      password: 'Arbeitsblatt-2026',
+-      displayName: 'C',
+-    });
+-    expect(second.statusCode).toBe(201);
++    app = await buildApp({ config: { ...config, ALLOW_REGISTRATION: true }, storage });
++    const response = await register({ ...credentials, email: 'c@d.example' });
++    expect(response.statusCode).toBe(201);
++    expect(response.json()).toMatchObject({ user: { role: 'teacher' } });
++    expect((await register({ ...credentials, password: 'kurz' })).statusCode).toBe(400);
++    expect((await register({ ...credentials, email: 'A@B.example' })).statusCode).toBe(409);
+   });
+-
+-  it('weist kurze Passwörter und doppelte Adressen ab', async () => {
+-    const short = await register({ email: 'a@b.example', password: 'kurz', displayName: 'A' });
+-    expect(short.statusCode).toBe(400);
+-
+-    await register({ email: 'a@b.example', password: 'Arbeitsblatt-2026', displayName: 'A' });
+-    await app.close();
+-    app = await buildApp({
+-      config: loadConfig({ LOG_LEVEL: 'fatal', STORAGE: 'memory', ALLOW_REGISTRATION: 'true' }),
+-      storage,
+-    });
+-    const duplicate = await register({
+-      email: 'A@B.example',
+-      password: 'Arbeitsblatt-2026',
+-      displayName: 'A',
+-    });
+-    expect(duplicate.statusCode).toBe(409);
++  it('meldet an und ab und widerruft ein kopiertes Cookie', async () => {
++    await initialAccount(app, storage, credentials);
++    const cookie = sessionCookie(await login(credentials));
++    expect((await app.inject({ method: 'GET', url: '/api/auth/me', cookies: { [SESSION_COOKIE]: cookie } })).statusCode).toBe(200);
++    await app.inject({ method: 'POST', url: '/api/auth/logout', headers: { 'X-Abgen-Request': '1' }, cookies: { [SESSION_COOKIE]: cookie } });
++    expect((await app.inject({ method: 'GET', url: '/api/auth/me', cookies: { [SESSION_COOKIE]: cookie } })).statusCode).toBe(401);
+   });
+-
+-  it('meldet an und ab', async () => {
+-    await register({ email: 'a@b.example', password: 'Arbeitsblatt-2026', displayName: 'A' });
+-    const response = await login({ email: 'a@b.example', password: 'Arbeitsblatt-2026' });
+-    expect(response.statusCode).toBe(200);
+-    const cookie = sessionCookie(response);
+-
+-    const me = await app.inject({
+-      method: 'GET',
+-      url: '/api/auth/me',
+-      cookies: { [SESSION_COOKIE]: cookie },
+-    });
+-    expect(me.json()).toMatchObject({ user: { email: 'a@b.example' } });
+-
+-    await app.inject({
+-      method: 'POST',
+-      url: '/api/auth/logout',
+-      cookies: { [SESSION_COOKIE]: cookie },
+-    });
+-    const after = await app.inject({
+-      method: 'GET',
+-      url: '/api/auth/me',
+-      cookies: { [SESSION_COOKIE]: cookie },
+-    });
+-    expect(after.statusCode).toBe(401);
+-  });
+-
+   it('weist falsche Zugangsdaten mit derselben Meldung ab', async () => {
+-    await register({ email: 'a@b.example', password: 'Arbeitsblatt-2026', displayName: 'A' });
+-    const wrongPassword = await login({ email: 'a@b.example', password: 'Arbeitsblatt-2027' });
+-    const unknownUser = await login({ email: 'x@b.example', password: 'Arbeitsblatt-2026' });
+-    expect(wrongPassword.statusCode).toBe(401);
+-    expect(unknownUser.statusCode).toBe(401);
+-    expect(wrongPassword.json()).toEqual(unknownUser.json());
++    await initialAccount(app, storage, credentials);
++    const wrong = await login({ ...credentials, password: 'Arbeitsblatt-2027' });
++    const unknown = await login({ ...credentials, email: 'x@b.example' });
++    expect(wrong.statusCode).toBe(401); expect(unknown.statusCode).toBe(401);
++    expect(wrong.json()).toEqual(unknown.json());
++  });
++  it('lehnt mutations ohne Request-Header und mit fremder Origin ab', async () => {
++    expect((await app.inject({ method: 'POST', url: '/api/auth/login', payload: credentials })).statusCode).toBe(403);
++    expect((await app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'X-Abgen-Request': '1', Origin: 'https://foreign.invalid' }, payload: credentials })).statusCode).toBe(403);
+   });
+-
+   it('lässt ohne Anmeldung nicht an Dokumente', async () => {
+-    const response = await app.inject({ method: 'GET', url: '/api/documents' });
+-    expect(response.statusCode).toBe(401);
+-    expect(response.json()).toMatchObject({ error: 'Nicht angemeldet' });
++    expect((await app.inject({ method: 'GET', url: '/api/documents' })).statusCode).toBe(401);
+   });
+ });
+diff --git a/apps/server/src/config.ts b/apps/server/src/config.ts
+index 5dca199..b680093 100644
+--- a/apps/server/src/config.ts
++++ b/apps/server/src/config.ts
+@@ -1,3 +1,4 @@
++import { privateValue } from './platform/private.js';
+ import { z } from 'zod';
+ 
+ const envSchema = z.object({
+@@ -7,23 +8,21 @@ const envSchema = z.object({
+   /** `postgres` im Betrieb, `memory` zum Ausprobieren und für Tests. */
+   STORAGE: z.enum(['postgres', 'memory']).default('postgres'),
+   /** Verbindung zur PostgreSQL-Datenbank. */
+-  DATABASE_URL: z.string().default('postgres://abgen:abgen@localhost:5432/abgen'),
++  DATABASE_URL: z.string().default(''),
+   /** Verzeichnis für Asset-Dateien, adressiert per SHA-256. */
+   ASSET_DIR: z.string().default('./data/assets'),
+   /** Adresse des PDF-Dienstes (eigener Container mit Chromium). */
+   PDF_SERVICE_URL: z.string().default('http://127.0.0.1:3001'),
+   /** Adresse, unter der der Editor erreichbar ist; vom PDF-Dienst geladen. */
+   WEB_ORIGIN: z.string().default('http://127.0.0.1:5173'),
++  INTERNAL_WEB_ORIGIN: z.string().default(''),
+   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+   /** Cookies nur über HTTPS senden (im Betrieb hinter nginx: true). */
+   COOKIE_SECURE: z
+     .union([z.boolean(), z.enum(['true', 'false'])])
+     .default(false)
+     .transform((value) => value === true || value === 'true'),
+-  /**
+-   * Registrierung offen lassen. Unabhängig davon darf immer das erste Konto
+-   * einer Instanz angelegt werden (eine Instanz pro Schule).
+-   */
++  /** Registrierung nach persönlicher lokaler Ersteinrichtung ausdrücklich öffnen. */
+   ALLOW_REGISTRATION: z
+     .union([z.boolean(), z.enum(['true', 'false'])])
+     .default(false)
+@@ -40,13 +39,19 @@ export class ConfigError extends Error {
+ }
+ 
+ /** Liest und prüft die Umgebungsvariablen (siehe .env.example). */
+-export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+-  const result = envSchema.safeParse(env);
++export function loadConfig(env: NodeJS.ProcessEnv = process.env, role: 'server' | 'pdf' = 'server'): Config {
++  const projected = { ...env, DATABASE_URL: role === 'server' ? privateValue(env, 'DATABASE_URL') : '' };
++  const result = envSchema.safeParse(projected);
+   if (!result.success) {
+     const details = result.error.issues
+       .map((issue) => `  • ${issue.path.join('.')}: ${issue.message}`)
+       .join('\n');
+     throw new ConfigError(`Konfiguration ist unvollständig:\n${details}`);
+   }
++  if (role === 'server' && result.data.STORAGE === 'postgres' && !result.data.DATABASE_URL)
++    throw new ConfigError('DATABASE_URL or DATABASE_URL_FILE required for PostgreSQL');
++  const origin = new URL(result.data.WEB_ORIGIN);
++  if (!['http:', 'https:'].includes(origin.protocol) || origin.origin !== result.data.WEB_ORIGIN)
++    throw new ConfigError('WEB_ORIGIN must be an HTTP(S) origin without trailing path');
+   return result.data;
+ }
+diff --git a/apps/server/src/db/client.ts b/apps/server/src/db/client.ts
+index f8098ca..3286b50 100644
+--- a/apps/server/src/db/client.ts
++++ b/apps/server/src/db/client.ts
+@@ -6,7 +6,8 @@ import * as schema from './schema.js';
+ export type Database = ReturnType<typeof createDatabase>['db'];
+ 
+ export function createDatabase(databaseUrl: string) {
+-  const pool = new Pool({ connectionString: databaseUrl, max: 10 });
++  const pool = new Pool({ connectionString: databaseUrl, max: 5, connectionTimeoutMillis: 3000, query_timeout: 10000 });
++  pool.on('error', () => { /* Readiness handles database outages without logging connection data. */ });
+   const db = drizzle(pool, { schema, casing: 'snake_case' });
+   return { db, pool };
+ }
+diff --git a/apps/server/src/db/migrate.ts b/apps/server/src/db/migrate.ts
+index 8a1d552..2d8413e 100644
+--- a/apps/server/src/db/migrate.ts
++++ b/apps/server/src/db/migrate.ts
+@@ -1,29 +1,63 @@
++import { createHash } from 'node:crypto';
++import { readFileSync } from 'node:fs';
+ import { fileURLToPath } from 'node:url';
++import type { Pool, PoolClient } from 'pg';
+ import { migrate } from 'drizzle-orm/node-postgres/migrator';
+ import { loadConfig } from '../config.js';
+ import { createDatabase } from './client.js';
+ 
+-/** Spielt die Migrationen aus `drizzle/` ein (Container-Start und `pnpm db:migrate`). */
++const directory = fileURLToPath(new URL('../../drizzle/', import.meta.url));
++export function migrationInventory(): { hash: string; createdAt: string }[] {
++  const journal = JSON.parse(readFileSync(directory + 'meta/_journal.json', 'utf8')) as {
++    entries: { tag: string; when: number }[];
++  };
++  return journal.entries.map(entry => ({
++    hash: createHash('sha256').update(readFileSync(directory + entry.tag + '.sql')).digest('hex'),
++    createdAt: String(entry.when),
++  }));
++}
++async function history(connection: Pool | PoolClient) {
++  const table = await connection.query("SELECT to_regclass('drizzle.__drizzle_migrations') AS name");
++  if (!table.rows[0]?.name) return [];
++  const result = await connection.query<{ hash: string; created_at: string }>(
++    'SELECT hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at, id',
++  );
++  return result.rows;
++}
++export async function databaseReady(connection: Pool | PoolClient): Promise<boolean> {
++  try {
++    const actual = await history(connection);
++    const expected = migrationInventory();
++    return actual.length === expected.length && actual.every((row, index) =>
++      row.hash === expected[index]?.hash && String(row.created_at) === expected[index]?.createdAt);
++  } catch { return false; }
++}
+ export async function runMigrations(databaseUrl: string): Promise<void> {
+   const { db, pool } = createDatabase(databaseUrl);
++  const lock = await pool.connect();
+   try {
+-    await migrate(db, {
+-      migrationsFolder: fileURLToPath(new URL('../../drizzle', import.meta.url)),
+-    });
++    await lock.query('SELECT pg_advisory_lock($1)', [76401984]);
++    const actual = await history(lock);
++    const expected = migrationInventory();
++    if (actual.length > expected.length || actual.some((row, index) =>
++      row.hash !== expected[index]?.hash || String(row.created_at) !== expected[index]?.createdAt)) {
++      throw new Error('Migration history mismatch');
++    }
++    if (actual.length === 0) {
++      const tables = await lock.query("SELECT count(*)::int AS count FROM pg_tables WHERE schemaname='public'");
++      if (tables.rows[0]?.count) throw new Error('Existing schema needs reviewed adoption');
++    }
++    await migrate(db, { migrationsFolder: directory });
++    if (!(await databaseReady(lock))) throw new Error('Migration verification failed');
+   } finally {
++    await lock.query('SELECT pg_advisory_unlock($1)', [76401984]).catch(() => undefined);
++    lock.release();
+     await pool.end();
+   }
+ }
+-
+-const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
++const isMain = process.argv[1] && import.meta.url === 'file://' + process.argv[1];
+ if (isMain) {
+-  const config = loadConfig();
+-  runMigrations(config.DATABASE_URL)
+-    .then(() => {
+-      console.info('Datenbankmigrationen abgeschlossen.');
+-    })
+-    .catch((error: unknown) => {
+-      console.error('Migration fehlgeschlagen:', error);
+-      process.exit(1);
+-    });
++  runMigrations(loadConfig().DATABASE_URL)
++    .then(() => console.info('Explicit database migration verified; no accounts created.'))
++    .catch(() => { console.error('Migration failed; history and schema require review.'); process.exitCode = 1; });
+ }
+diff --git a/apps/server/src/db/schema.ts b/apps/server/src/db/schema.ts
+index cbf5b9e..4facde2 100644
+--- a/apps/server/src/db/schema.ts
++++ b/apps/server/src/db/schema.ts
+@@ -34,6 +34,7 @@ export const users = pgTable(
+ export const sessions = pgTable(
+   'sessions',
+   {
++    version: text(),
+     tokenHash: text().primaryKey(),
+     userId: uuid()
+       .notNull()
+diff --git a/apps/server/src/documents.test.ts b/apps/server/src/documents.test.ts
+index 3227689..7e87caa 100644
+--- a/apps/server/src/documents.test.ts
++++ b/apps/server/src/documents.test.ts
+@@ -1,3 +1,4 @@
++import { initialAccount } from './testing/fixtures.js';
+ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+ import type { FastifyInstance } from 'fastify';
+ import { createDocument, exampleDocument, type WorksheetDocument } from '@abgen/model';
+@@ -15,7 +16,7 @@ let cookie: string;
+ const auth = () => ({ cookies: { [SESSION_COOKIE]: cookie } });
+ 
+ async function createRemote(document: WorksheetDocument) {
+-  const response = await app.inject({
++  const response = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+     method: 'POST',
+     url: '/api/documents',
+     payload: { document },
+@@ -27,11 +28,7 @@ async function createRemote(document: WorksheetDocument) {
+ beforeEach(async () => {
+   storage = createMemoryStorage();
+   app = await buildApp({ config, storage });
+-  const registered = await app.inject({
+-    method: 'POST',
+-    url: '/api/auth/register',
+-    payload: { email: 'a@b.example', password: 'Arbeitsblatt-2026', displayName: 'A' },
+-  });
++  const registered = await initialAccount(app, storage, { email: 'a@b.example', password: 'Arbeitsblatt-2026', displayName: 'A' });
+   cookie = registered.cookies.find((entry) => entry.name === SESSION_COOKIE)!.value;
+ });
+ 
+@@ -48,7 +45,7 @@ describe('Dokumente speichern und laden', () => {
+     const { id, revision } = created.json() as { id: string; revision: number };
+     expect(revision).toBe(1);
+ 
+-    const loaded = await app.inject({ method: 'GET', url: `/api/documents/${id}`, ...auth() });
++    const loaded = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: `/api/documents/${id}`, ...auth() });
+     expect(loaded.statusCode).toBe(200);
+     const body = loaded.json() as { document: WorksheetDocument };
+     expect(body.document).toStrictEqual(document);
+@@ -69,7 +66,7 @@ describe('Dokumente speichern und laden', () => {
+     const { id } = (await createRemote(document)).json() as { id: string };
+ 
+     for (const title of ['Zweit', 'Dritt']) {
+-      const response = await app.inject({
++      const response = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+         method: 'PUT',
+         url: `/api/documents/${id}`,
+         payload: { document: { ...document, meta: { ...document.meta, title } } },
+@@ -78,7 +75,7 @@ describe('Dokumente speichern und laden', () => {
+       expect(response.statusCode).toBe(200);
+     }
+ 
+-    const revisions = await app.inject({
++    const revisions = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'GET',
+       url: `/api/documents/${id}/revisions`,
+       ...auth(),
+@@ -92,14 +89,14 @@ describe('Dokumente speichern und laden', () => {
+   it('springt auf eine frühere Revision zurück', async () => {
+     const document = createDocument({ title: 'Erst', seed: 1, now: new Date(0) });
+     const { id } = (await createRemote(document)).json() as { id: string };
+-    await app.inject({
++    await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'PUT',
+       url: `/api/documents/${id}`,
+       payload: { document: { ...document, meta: { ...document.meta, title: 'Zweit' } } },
+       ...auth(),
+     });
+ 
+-    const restored = await app.inject({
++    const restored = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: `/api/documents/${id}/revisions/1/restore`,
+       ...auth(),
+@@ -107,13 +104,13 @@ describe('Dokumente speichern und laden', () => {
+     expect(restored.statusCode).toBe(200);
+     expect(restored.json()).toMatchObject({ restoredFrom: 1, revision: 3 });
+ 
+-    const loaded = await app.inject({ method: 'GET', url: `/api/documents/${id}`, ...auth() });
++    const loaded = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: `/api/documents/${id}`, ...auth() });
+     expect((loaded.json() as { document: WorksheetDocument }).document.meta.title).toBe('Erst');
+   });
+ 
+   it('liefert die Dokumentliste mit Vorschaubild', async () => {
+     await createRemote(exampleDocument());
+-    const response = await app.inject({ method: 'GET', url: '/api/documents', ...auth() });
++    const response = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/documents', ...auth() });
+     const documents = (response.json() as { documents: { title: string; preview: string }[] })
+       .documents;
+     expect(documents).toHaveLength(1);
+@@ -128,27 +125,27 @@ describe('Dokumente speichern und laden', () => {
+     withTags.meta.tags = ['Deutsch', 'Silben'];
+     await createRemote(withTags);
+ 
+-    const byTitle = await app.inject({
++    const byTitle = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'GET',
+       url: '/api/documents?q=zahlen',
+       ...auth(),
+     });
+     expect((byTitle.json() as { documents: unknown[] }).documents).toHaveLength(1);
+ 
+-    const byTag = await app.inject({ method: 'GET', url: '/api/documents?q=deutsch', ...auth() });
++    const byTag = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/documents?q=deutsch', ...auth() });
+     const found = (byTag.json() as { documents: { title: string }[] }).documents;
+     expect(found.map((entry) => entry.title)).toEqual(['Silben üben']);
+ 
+-    const nothing = await app.inject({ method: 'GET', url: '/api/documents?q=physik', ...auth() });
++    const nothing = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/documents?q=physik', ...auth() });
+     expect((nothing.json() as { documents: unknown[] }).documents).toHaveLength(0);
+   });
+ 
+   it('zeigt Dokumente anderer Konten nicht', async () => {
+     const { id } = (await createRemote(exampleDocument())).json() as { id: string };
+-    const other = await app.inject({ method: 'GET', url: `/api/documents/${id}` });
++    const other = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: `/api/documents/${id}` });
+     expect(other.statusCode).toBe(401);
+ 
+-    const foreign = await app.inject({
++    const foreign = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'GET',
+       url: `/api/documents/${id}`,
+       cookies: { [SESSION_COOKIE]: 'ungültig' },
+@@ -158,13 +155,13 @@ describe('Dokumente speichern und laden', () => {
+ 
+   it('löscht ein Dokument', async () => {
+     const { id } = (await createRemote(exampleDocument())).json() as { id: string };
+-    const removed = await app.inject({
++    const removed = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'DELETE',
+       url: `/api/documents/${id}`,
+       ...auth(),
+     });
+     expect(removed.statusCode).toBe(200);
+-    const loaded = await app.inject({ method: 'GET', url: `/api/documents/${id}`, ...auth() });
++    const loaded = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: `/api/documents/${id}`, ...auth() });
+     expect(loaded.statusCode).toBe(404);
+   });
+ });
+diff --git a/apps/server/src/index.ts b/apps/server/src/index.ts
+index 5f8f899..947c613 100644
+--- a/apps/server/src/index.ts
++++ b/apps/server/src/index.ts
+@@ -1,18 +1,16 @@
+ import { loadConfig } from './config.js';
+ import { buildApp } from './app.js';
+-import { runMigrations } from './db/migrate.js';
+ 
+ const config = loadConfig();
+ 
+ async function main(): Promise<void> {
+-  if (process.env.RUN_MIGRATIONS === '1') {
+-    await runMigrations(config.DATABASE_URL);
+-  }
+   const app = await buildApp({ config });
++  for (const signal of ['SIGTERM', 'SIGINT'] as const)
++    process.once(signal, () => { void app.close().then(() => process.exit(0)).catch(() => process.exit(1)); });
+   await app.listen({ host: config.HOST, port: config.PORT });
+ }
+ 
+-main().catch((error: unknown) => {
+-  console.error('Server konnte nicht starten:', error);
++main().catch(() => {
++  console.error('Server konnte nicht starten; Konfiguration und Datenbank prüfen.');
+   process.exit(1);
+ });
+diff --git a/apps/server/src/pdf/index.ts b/apps/server/src/pdf/index.ts
+index 0a5e42a..6de0c19 100644
+--- a/apps/server/src/pdf/index.ts
++++ b/apps/server/src/pdf/index.ts
+@@ -1,11 +1,15 @@
+ import { loadConfig } from '../config.js';
+ import { buildPdfService } from './service.js';
+ 
+-const config = loadConfig();
++const config = loadConfig(process.env, 'pdf');
+ 
+ buildPdfService(config)
+-  .then((app) => app.listen({ host: config.HOST, port: config.PORT }))
+-  .catch((error: unknown) => {
+-    console.error('PDF-Dienst konnte nicht starten:', error);
++  .then((app) => {
++    for (const signal of ['SIGTERM', 'SIGINT'] as const)
++      process.once(signal, () => { void app.close().then(() => process.exit(0)).catch(() => process.exit(1)); });
++    return app.listen({ host: config.HOST, port: config.PORT });
++  })
++  .catch(() => {
++    console.error('PDF-Dienst konnte nicht starten; Konfiguration prüfen.');
+     process.exit(1);
+   });
+diff --git a/apps/server/src/pdf/service.ts b/apps/server/src/pdf/service.ts
+index b779b08..1534020 100644
+--- a/apps/server/src/pdf/service.ts
++++ b/apps/server/src/pdf/service.ts
+@@ -1,4 +1,4 @@
+-import Fastify, { type FastifyInstance } from 'fastify';
++import Fastify, { LogController, type FastifyInstance } from 'fastify';
+ import { chromium, type Browser } from 'playwright';
+ import { z } from 'zod';
+ import type { Config } from '../config.js';
+@@ -25,7 +25,7 @@ export const renderRequestSchema = z.object({
+ export type RenderRequest = z.infer<typeof renderRequestSchema>;
+ 
+ /** Wartezeit, bis die Druckansicht fertig gezeichnet ist. */
+-const RENDER_TIMEOUT_MS = 60_000;
++const RENDER_TIMEOUT_MS = 45_000;
+ 
+ /** Baut die Adresse der Druckansicht (Arbeitsauftrag 4.1). */
+ export function printUrl(origin: string, request: RenderRequest): string {
+@@ -53,7 +53,7 @@ function browserPool() {
+   const open = async (): Promise<Browser> => {
+     if (browser?.isConnected()) return browser;
+     starting ??= chromium
+-      .launch({ args: ['--font-render-hinting=none', '--disable-lcd-text'] })
++      .launch({ timeout: 10000, args: ['--font-render-hinting=none', '--disable-lcd-text', '--disable-dev-shm-usage'] })
+       .then((started) => {
+         browser = started;
+         starting = null;
+@@ -81,73 +81,57 @@ function browserPool() {
+  * Editors und druckt sie – gleiche Darstellung wie am Bildschirm (Phase 4.1).
+  */
+ export async function buildPdfService(config: Config): Promise<FastifyInstance> {
+-  const app = Fastify({ logger: { level: config.LOG_LEVEL }, bodyLimit: 1024 * 1024 });
++  const app = Fastify({
++    logController: new LogController({ disableRequestLogging: true }),
++    logger: { level: config.LOG_LEVEL, serializers: { req: request => ({ method: request.method }) } },
++    bodyLimit: 16 * 1024,
++  });
+   const pool = browserPool();
+-
+-  app.get('/health', async () => ({
+-    status: 'ok',
+-    renderer: 'chromium',
+-    ready: pool.ready(),
+-  }));
+-
++  let active = false;
++  app.get('/health', async () => ({ status: 'ok', renderer: 'chromium', ready: pool.ready(), active }));
++  app.get('/health/live', async () => ({ status: 'ok' }));
++  app.get('/health/ready', async () => ({ status: active ? 'busy' : 'ready', renderer: pool.ready() ? 'warm' : 'cold' }));
++  app.setErrorHandler((_error, _request, reply) => reply.code(503).send({ error: 'PDF-Dienst derzeit nicht verfügbar' }));
+   app.post('/render', async (request, reply) => {
+     const parsed = renderRequestSchema.safeParse(request.body);
+-    if (!parsed.success) {
+-      return reply.status(400).send({
+-        error: 'Ungültige Anfrage',
+-        issues: parsed.error.issues.map((issue) => ({
+-          path: issue.path.join('.'),
+-          message: issue.message,
+-        })),
+-      });
+-    }
+-
+-    const browser = await pool.open();
+-    const context = await browser.newContext();
++    if (!parsed.success) return reply.code(400).send({ error: 'Ungültige Anfrage' });
++    if (active) return reply.code(429).send({ error: 'PDF-Dienst belegt; später erneut versuchen' });
++    active = true;
++    let context: Awaited<ReturnType<Browser['newContext']>> | undefined;
++    let timer: ReturnType<typeof setTimeout> | undefined;
+     try {
+-      const page = await context.newPage();
+-      const url = printUrl(config.WEB_ORIGIN, parsed.data);
+-      const response = await page.goto(url, {
+-        waitUntil: 'load',
+-        timeout: RENDER_TIMEOUT_MS,
++      const browser = await pool.open();
++      context = await browser.newContext();
++      const expected = new URL(config.WEB_ORIGIN).origin;
++      await context.route('**/*', async route => {
++        const url = new URL(route.request().url());
++        if (url.origin === expected || url.protocol === 'data:' || url.protocol === 'blob:') await route.continue();
++        else await route.abort();
+       });
+-      if (!response || !response.ok()) {
+-        return reply.status(502).send({
+-          error: 'Druckansicht nicht erreichbar',
+-          message: `Die Seite antwortete mit ${response?.status() ?? 'keiner Antwort'}.`,
+-        });
+-      }
+-
+-      // Die Druckansicht meldet sich, sobald alle Blätter stehen.
+-      await page.waitForSelector('[data-print-ready]', {
+-        state: 'attached',
+-        timeout: RENDER_TIMEOUT_MS,
++      const render = async () => {
++        const page = await context!.newPage();
++        const response = await page.goto(printUrl(config.WEB_ORIGIN, parsed.data), { waitUntil: 'load', timeout: RENDER_TIMEOUT_MS });
++        if (!response?.ok()) throw new Error('Print view unavailable');
++        await page.waitForSelector('[data-print-ready]', { state: 'attached', timeout: RENDER_TIMEOUT_MS });
++        if (await page.locator('[role="alert"]').count()) throw new Error('Print view failed');
++        await page.evaluate('document.fonts.ready');
++        const pdf = await page.pdf({ printBackground: true, preferCSSPageSize: true, displayHeaderFooter: false });
++        if (pdf.byteLength > 64 * 1024 * 1024) throw new Error('Output limit');
++        return pdf;
++      };
++      const deadline = new Promise<never>((_resolve, reject) => {
++        timer = setTimeout(() => { void context?.close(); reject(new Error('Render deadline')); }, RENDER_TIMEOUT_MS);
+       });
+-      const failed = await page.locator('[role="alert"]').count();
+-      if (failed > 0) {
+-        const message = await page.locator('[role="alert"]').first().innerText();
+-        return reply.status(404).send({ error: 'Blatt nicht ladbar', message });
+-      }
+-      await page.evaluate('document.fonts.ready');
+-
+-      const pdf = await page.pdf({
+-        printBackground: true,
+-        preferCSSPageSize: true,
+-        displayHeaderFooter: false,
+-      });
+-
+-      return reply
+-        .header('Content-Type', 'application/pdf')
+-        .header('Content-Length', String(pdf.byteLength))
+-        .send(pdf);
++      const pdf = await Promise.race([render(), deadline]);
++      return reply.type('application/pdf').header('Content-Length', String(pdf.byteLength)).send(pdf);
++    } catch {
++      return reply.code(503).send({ error: 'PDF konnte derzeit nicht erzeugt werden' });
+     } finally {
+-      await context.close().catch(() => undefined);
++      if (timer) clearTimeout(timer);
++      await context?.close().catch(() => undefined);
++      active = false;
+     }
+   });
+-
+-  app.addHook('onClose', async () => {
+-    await pool.close();
+-  });
+-
++  app.addHook('onClose', async () => { await pool.close(); });
+   return app;
+ }
+diff --git a/apps/server/src/phase4.test.ts b/apps/server/src/phase4.test.ts
+index e9c1974..8a0d351 100644
+--- a/apps/server/src/phase4.test.ts
++++ b/apps/server/src/phase4.test.ts
+@@ -1,3 +1,4 @@
++import { initialAccount } from './testing/fixtures.js';
+ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+ import type { FastifyInstance } from 'fastify';
+ import { unzipSync, zipSync } from 'fflate';
+@@ -32,7 +33,7 @@ function upload(file: Uint8Array, name = 'blatt.ablatt') {
+   const tail = Buffer.from(`\r\n--${boundary}--\r\n`);
+   return {
+     payload: Buffer.concat([head, Buffer.from(file), tail]),
+-    headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
++    headers: { 'X-Abgen-Request': '1', 'content-type': `multipart/form-data; boundary=${boundary}` },
+   };
+ }
+ 
+@@ -41,7 +42,7 @@ function upload(file: Uint8Array, name = 'blatt.ablatt') {
+  * registrieren, alle weiteren legt die Betreuung an (Vorgabe V5).
+  */
+ async function addTeacher(email: string): Promise<string> {
+-  const created = await app.inject({
++  const created = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+     method: 'POST',
+     url: '/api/users',
+     payload: { email, displayName: email.split('@')[0] },
+@@ -49,7 +50,7 @@ async function addTeacher(email: string): Promise<string> {
+   });
+   expect(created.statusCode, created.body).toBe(201);
+   const { password } = created.json() as { password: string };
+-  const login = await app.inject({
++  const login = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+     method: 'POST',
+     url: '/api/auth/login',
+     payload: { email, password },
+@@ -58,7 +59,7 @@ async function addTeacher(email: string): Promise<string> {
+ }
+ 
+ async function createDocument(document: WorksheetDocument = exampleDocument()): Promise<string> {
+-  const response = await app.inject({
++  const response = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+     method: 'POST',
+     url: '/api/documents',
+     payload: { document },
+@@ -84,11 +85,7 @@ beforeEach(async () => {
+       return renderResponse();
+     },
+   });
+-  const registered = await app.inject({
+-    method: 'POST',
+-    url: '/api/auth/register',
+-    payload: { email: 'druck@schule.example', password: 'Arbeitsblatt-2026', displayName: 'D' },
+-  });
++  const registered = await initialAccount(app, storage, { email: 'druck@schule.example', password: 'Arbeitsblatt-2026', displayName: 'D' });
+   cookie = registered.cookies.find((entry) => entry.name === SESSION_COOKIE)!.value;
+ });
+ 
+@@ -100,7 +97,7 @@ afterEach(async () => {
+ describe('4.1/4.2 PDF-Druck', () => {
+   it('schickt die Druckeinstellungen an den Dienst und liefert das PDF', async () => {
+     const id = await createDocument();
+-    const response = await app.inject({
++    const response = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: `/api/documents/${id}/pdf`,
+       payload: { mode: 'both', variants: 3, reroll: true, jobSeed: 4711, bleed: true },
+@@ -122,18 +119,18 @@ describe('4.1/4.2 PDF-Druck', () => {
+ 
+   it('druckt ohne „neu würfeln“ das gespeicherte Blatt', async () => {
+     const id = await createDocument();
+-    await app.inject({ method: 'POST', url: `/api/documents/${id}/pdf`, payload: {}, ...auth() });
++    await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'POST', url: `/api/documents/${id}/pdf`, payload: {}, ...auth() });
+     expect(renderCalls[0]!.body.jobSeed).toBe(0);
+     expect(renderCalls[0]!.body.mode).toBe('worksheet');
+   });
+ 
+   it('gibt dem Dienst einen Token, der danach wieder verfällt', async () => {
+     const id = await createDocument();
+-    await app.inject({ method: 'POST', url: `/api/documents/${id}/pdf`, payload: {}, ...auth() });
++    await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'POST', url: `/api/documents/${id}/pdf`, payload: {}, ...auth() });
+     const token = renderCalls[0]!.body.token as string;
+     expect(token).toBeTypeOf('string');
+     // Nach dem Druck ist der Token verbraucht.
+-    const loaded = await app.inject({ method: 'GET', url: `/api/documents/${id}?token=${token}` });
++    const loaded = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: `/api/documents/${id}?token=${token}` });
+     expect(loaded.statusCode).toBe(404);
+   });
+ 
+@@ -144,7 +141,7 @@ describe('4.1/4.2 PDF-Druck', () => {
+         status: 500,
+         headers: { 'Content-Type': 'application/json' },
+       });
+-    const response = await app.inject({
++    const response = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: `/api/documents/${id}/pdf`,
+       payload: {},
+@@ -156,7 +153,7 @@ describe('4.1/4.2 PDF-Druck', () => {
+ 
+   it('lässt Fremde nicht drucken', async () => {
+     const id = await createDocument();
+-    const response = await app.inject({
++    const response = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: `/api/documents/${id}/pdf`,
+       payload: {},
+@@ -197,7 +194,7 @@ describe('4.1/4.2 PDF-Druck', () => {
+ 
+ describe('4.3 Vorlagen', () => {
+   it('listet die mitgelieferten Startvorlagen', async () => {
+-    const response = await app.inject({ method: 'GET', url: '/api/templates', ...auth() });
++    const response = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/templates', ...auth() });
+     expect(response.statusCode).toBe(200);
+     const { templates } = response.json() as { templates: { id: string; builtIn: boolean }[] };
+     expect(templates.filter((template) => template.builtIn)).toHaveLength(9);
+@@ -205,7 +202,7 @@ describe('4.3 Vorlagen', () => {
+   });
+ 
+   it('legt ein Blatt aus einer Startvorlage mit fertigen Aufgaben an', async () => {
+-    const response = await app.inject({
++    const response = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: '/api/documents/from-template',
+       payload: { templateId: 'mathe-uebungsblatt', title: 'Üben bis 20' },
+@@ -213,7 +210,7 @@ describe('4.3 Vorlagen', () => {
+     });
+     expect(response.statusCode).toBe(201);
+     const { id } = response.json() as { id: string };
+-    const loaded = await app.inject({ method: 'GET', url: `/api/documents/${id}`, ...auth() });
++    const loaded = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: `/api/documents/${id}`, ...auth() });
+     const document = (loaded.json() as { document: WorksheetDocument }).document;
+     expect(document.meta.title).toBe('Üben bis 20');
+     const tasks = document.pages[0]!.items.filter((item) => item.type === 'task');
+@@ -226,7 +223,7 @@ describe('4.3 Vorlagen', () => {
+   it('zwei Blätter aus derselben Vorlage haben andere Zahlen', async () => {
+     const ids = await Promise.all(
+       [1, 2].map(async () => {
+-        const response = await app.inject({
++        const response = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+           method: 'POST',
+           url: '/api/documents/from-template',
+           payload: { templateId: 'mathe-uebungsblatt' },
+@@ -237,7 +234,7 @@ describe('4.3 Vorlagen', () => {
+     );
+     const [first, second] = await Promise.all(
+       ids.map(async (id) => {
+-        const loaded = await app.inject({ method: 'GET', url: `/api/documents/${id}`, ...auth() });
++        const loaded = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: `/api/documents/${id}`, ...auth() });
+         return JSON.stringify(
+           (loaded.json() as { document: WorksheetDocument }).document.pages[0]!.items.filter(
+             (item) => item.type === 'task',
+@@ -249,7 +246,7 @@ describe('4.3 Vorlagen', () => {
+   });
+ 
+   it('speichert ein Blatt als eigene Vorlage und legt daraus ein Blatt an', async () => {
+-    const created = await app.inject({
++    const created = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: '/api/templates',
+       payload: {
+@@ -263,11 +260,11 @@ describe('4.3 Vorlagen', () => {
+     expect(created.statusCode).toBe(201);
+     const { id } = created.json() as { id: string };
+ 
+-    const list = await app.inject({ method: 'GET', url: '/api/templates', ...auth() });
++    const list = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/templates', ...auth() });
+     const { templates } = list.json() as { templates: { id: string; title: string }[] };
+     expect(templates.find((template) => template.id === id)?.title).toBe('Mein Kopfrechenblatt');
+ 
+-    const document = await app.inject({
++    const document = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: '/api/documents/from-template',
+       payload: { templateId: id },
+@@ -277,20 +274,20 @@ describe('4.3 Vorlagen', () => {
+   });
+ 
+   it('merkt sich Favoriten und die Standardvorlage', async () => {
+-    await app.inject({
++    await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'PUT',
+       url: '/api/templates/bingo/favorite',
+       payload: { favorite: true },
+       ...auth(),
+     });
+-    await app.inject({
++    await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'PUT',
+       url: '/api/templates/default',
+       payload: { templateId: 'lineaturblatt' },
+       ...auth(),
+     });
+ 
+-    const list = await app.inject({ method: 'GET', url: '/api/templates', ...auth() });
++    const list = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/templates', ...auth() });
+     const body = list.json() as {
+       templates: { id: string; favorite: boolean; isDefault: boolean }[];
+       defaultTemplateId: string | null;
+@@ -303,16 +300,16 @@ describe('4.3 Vorlagen', () => {
+   });
+ 
+   it('löscht eine eigene Vorlage', async () => {
+-    const created = await app.inject({
++    const created = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: '/api/templates',
+       payload: { title: 'Weg damit', document: exampleDocument() },
+       ...auth(),
+     });
+     const { id } = created.json() as { id: string };
+-    const removed = await app.inject({ method: 'DELETE', url: `/api/templates/${id}`, ...auth() });
++    const removed = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'DELETE', url: `/api/templates/${id}`, ...auth() });
+     expect(removed.statusCode).toBe(200);
+-    const list = await app.inject({ method: 'GET', url: '/api/templates', ...auth() });
++    const list = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/templates', ...auth() });
+     const { templates } = list.json() as { templates: { id: string }[] };
+     expect(templates.some((template) => template.id === id)).toBe(false);
+   });
+@@ -321,7 +318,7 @@ describe('4.3 Vorlagen', () => {
+ describe('4.4 Austausch und Freigabe', () => {
+   it('schreibt ein .ablatt mit Manifest und Dokument', async () => {
+     const id = await createDocument();
+-    const response = await app.inject({
++    const response = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'GET',
+       url: `/api/documents/${id}/export`,
+       ...auth(),
+@@ -343,13 +340,13 @@ describe('4.4 Austausch und Freigabe', () => {
+ 
+   it('liest ein .ablatt wieder ein', async () => {
+     const id = await createDocument();
+-    const exported = await app.inject({
++    const exported = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'GET',
+       url: `/api/documents/${id}/export`,
+       ...auth(),
+     });
+ 
+-    const imported = await app.inject({
++    const imported = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: '/api/documents/import',
+       ...upload(new Uint8Array(exported.rawPayload)),
+@@ -357,13 +354,13 @@ describe('4.4 Austausch und Freigabe', () => {
+     });
+     expect(imported.statusCode).toBe(201);
+ 
+-    const list = await app.inject({ method: 'GET', url: '/api/documents', ...auth() });
++    const list = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/documents', ...auth() });
+     const { documents } = list.json() as { documents: { id: string }[] };
+     expect(documents).toHaveLength(2);
+   });
+ 
+   it('weist eine beschädigte Datei verständlich ab', async () => {
+-    const response = await app.inject({
++    const response = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: '/api/documents/import',
+       ...upload(new TextEncoder().encode('kein zip')),
+@@ -375,7 +372,7 @@ describe('4.4 Austausch und Freigabe', () => {
+ 
+   it('weist ein Archiv ohne Arbeitsblatt ab', async () => {
+     const zip = zipSync({ 'manifest.json': new TextEncoder().encode('{}') });
+-    const response = await app.inject({
++    const response = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: '/api/documents/import',
+       ...upload(zip),
+@@ -386,7 +383,7 @@ describe('4.4 Austausch und Freigabe', () => {
+ 
+   it('gibt ein Blatt per Link frei: Lesen und Drucken ohne Anmeldung', async () => {
+     const id = await createDocument();
+-    const created = await app.inject({
++    const created = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: `/api/documents/${id}/shares`,
+       payload: {},
+@@ -396,10 +393,10 @@ describe('4.4 Austausch und Freigabe', () => {
+     const { token, url } = created.json() as { token: string; url: string };
+     expect(url).toContain(token);
+ 
+-    const read = await app.inject({ method: 'GET', url: `/api/documents/${id}?token=${token}` });
++    const read = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: `/api/documents/${id}?token=${token}` });
+     expect(read.statusCode).toBe(200);
+ 
+-    const pdf = await app.inject({
++    const pdf = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: `/api/documents/${id}/pdf`,
+       payload: { token },
+@@ -407,13 +404,13 @@ describe('4.4 Austausch und Freigabe', () => {
+     expect(pdf.statusCode).toBe(200);
+ 
+     // Ohne Token bleibt das Blatt fremd.
+-    const denied = await app.inject({ method: 'GET', url: `/api/documents/${id}` });
++    const denied = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: `/api/documents/${id}` });
+     expect(denied.statusCode).toBe(401);
+   });
+ 
+   it('nimmt eine Freigabe wieder zurück', async () => {
+     const id = await createDocument();
+-    const created = await app.inject({
++    const created = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: `/api/documents/${id}/shares`,
+       payload: {},
+@@ -421,14 +418,14 @@ describe('4.4 Austausch und Freigabe', () => {
+     });
+     const { token, tokenHash } = created.json() as { token: string; tokenHash: string };
+ 
+-    const removed = await app.inject({
++    const removed = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'DELETE',
+       url: `/api/documents/${id}/shares/${tokenHash}`,
+       ...auth(),
+     });
+     expect(removed.statusCode).toBe(200);
+ 
+-    const read = await app.inject({ method: 'GET', url: `/api/documents/${id}?token=${token}` });
++    const read = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: `/api/documents/${id}?token=${token}` });
+     expect(read.statusCode).toBe(404);
+   });
+ 
+@@ -440,7 +437,7 @@ describe('4.4 Austausch und Freigabe', () => {
+ describe('7.1/7.5/7.7 Digitale Blätter', () => {
+   it('legt einen Kurzcode an und gibt das Blatt ohne Anmeldung heraus', async () => {
+     const id = await createDocument();
+-    const created = await app.inject({
++    const created = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: `/api/documents/${id}/play-code`,
+       payload: { collectResults: true },
+@@ -451,17 +448,17 @@ describe('7.1/7.5/7.7 Digitale Blätter', () => {
+     expect(code).toMatch(/^[A-Z2-9]{6}$/);
+ 
+     // Ohne Anmeldung: Der Code genügt.
+-    const play = await app.inject({ method: 'GET', url: `/api/play/${code}` });
++    const play = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: `/api/play/${code}` });
+     expect(play.statusCode).toBe(200);
+     expect(play.json()).toMatchObject({ code, collectResults: true });
+ 
+-    const unknown = await app.inject({ method: 'GET', url: '/api/play/ZZZZZZ' });
++    const unknown = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/play/ZZZZZZ' });
+     expect(unknown.statusCode).toBe(404);
+   });
+ 
+   it('nimmt pseudonyme Abgaben entgegen und zeigt sie der Lehrkraft', async () => {
+     const id = await createDocument();
+-    const created = await app.inject({
++    const created = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: `/api/documents/${id}/play-code`,
+       payload: { collectResults: true },
+@@ -469,7 +466,7 @@ describe('7.1/7.5/7.7 Digitale Blätter', () => {
+     });
+     const { code } = created.json() as { code: string };
+ 
+-    const sent = await app.inject({
++    const sent = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: `/api/play/${code}/submission`,
+       payload: {
+@@ -481,7 +478,7 @@ describe('7.1/7.5/7.7 Digitale Blätter', () => {
+     });
+     expect(sent.statusCode).toBe(201);
+ 
+-    const list = await app.inject({
++    const list = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'GET',
+       url: `/api/documents/${id}/submissions`,
+       ...auth(),
+@@ -515,7 +512,7 @@ describe('7.1/7.5/7.7 Digitale Blätter', () => {
+       { id: 'p2', guides: [], items: [item('b', '4')] },
+     ];
+     const id = await createDocument(document);
+-    const created = await app.inject({
++    const created = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: `/api/documents/${id}/play-code`,
+       payload: { collectResults: true },
+@@ -523,7 +520,7 @@ describe('7.1/7.5/7.7 Digitale Blätter', () => {
+     });
+     const { code } = created.json() as { code: string };
+     const submit = (answers: Record<string, string>, revision = 1) =>
+-      app.inject({
++      app.inject({ headers: { 'X-Abgen-Request': '1' },
+         method: 'POST',
+         url: `/api/play/${code}/submission`,
+         payload: { pseudonymId: 'Hase-7', answers, completed: true, documentRevision: revision },
+@@ -537,14 +534,14 @@ describe('7.1/7.5/7.7 Digitale Blätter', () => {
+ 
+   it('sammelt nur, wenn die Lehrkraft es möchte', async () => {
+     const id = await createDocument();
+-    const created = await app.inject({
++    const created = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: `/api/documents/${id}/play-code`,
+       payload: {},
+       ...auth(),
+     });
+     const { code } = created.json() as { code: string };
+-    const sent = await app.inject({
++    const sent = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: `/api/play/${code}/submission`,
+       payload: { pseudonymId: 'Igel-3', answers: {} },
+@@ -554,20 +551,20 @@ describe('7.1/7.5/7.7 Digitale Blätter', () => {
+ 
+   it('zieht einen Code wieder zurück', async () => {
+     const id = await createDocument();
+-    const created = await app.inject({
++    const created = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: `/api/documents/${id}/play-code`,
+       payload: {},
+       ...auth(),
+     });
+     const { code } = created.json() as { code: string };
+-    const removed = await app.inject({
++    const removed = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'DELETE',
+       url: `/api/play-codes/${code}`,
+       ...auth(),
+     });
+     expect(removed.statusCode).toBe(200);
+-    expect((await app.inject({ method: 'GET', url: `/api/play/${code}` })).statusCode).toBe(404);
++    expect((await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: `/api/play/${code}` })).statusCode).toBe(404);
+   });
+ 
+   it('macht Codes ohne verwechselbare Zeichen', () => {
+@@ -579,7 +576,7 @@ describe('7.1/7.5/7.7 Digitale Blätter', () => {
+ 
+ describe('8.3/8.4 Inhalte und Schulbibliothek', () => {
+   it('filtert Lesetexte und Wörter', async () => {
+-    const texts = await app.inject({
++    const texts = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'GET',
+       url: '/api/library/texts?topic=Tiere',
+       ...auth(),
+@@ -590,7 +587,7 @@ describe('8.3/8.4 Inhalte und Schulbibliothek', () => {
+     for (const entry of body.texts) expect(entry.topic).toBe('Tiere');
+     expect(body.topics).toContain('Schule');
+ 
+-    const words = await app.inject({
++    const words = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'GET',
+       url: '/api/library/words?startsWith=Sch&limit=10',
+       ...auth(),
+@@ -601,7 +598,7 @@ describe('8.3/8.4 Inhalte und Schulbibliothek', () => {
+   });
+ 
+   it('nennt die Bilder der Bibliothek mit Stilvarianten', async () => {
+-    const response = await app.inject({ method: 'GET', url: '/api/library/images', ...auth() });
++    const response = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/library/images', ...auth() });
+     const body = response.json() as {
+       images: { id: string; styles: string[]; urls: Record<string, string> }[];
+       license: string;
+@@ -613,12 +610,12 @@ describe('8.3/8.4 Inhalte und Schulbibliothek', () => {
+   });
+ 
+   it('lässt Bibliotheken nur angemeldet lesen', async () => {
+-    expect((await app.inject({ method: 'GET', url: '/api/library/texts' })).statusCode).toBe(401);
++    expect((await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/library/texts' })).statusCode).toBe(401);
+   });
+ 
+   it('gibt ein Blatt für die Schule frei und kopiert es', async () => {
+     const id = await createDocument();
+-    const shared = await app.inject({
++    const shared = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'PUT',
+       url: `/api/documents/${id}/school`,
+       payload: { shared: true },
+@@ -629,23 +626,23 @@ describe('8.3/8.4 Inhalte und Schulbibliothek', () => {
+     // Eine zweite Lehrkraft sieht das Blatt in der Schulbibliothek.
+     const auth2 = { cookies: { [SESSION_COOKIE]: await addTeacher('zweite@schule.example') } };
+ 
+-    const library = await app.inject({ method: 'GET', url: '/api/documents/school', ...auth2 });
++    const library = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/documents/school', ...auth2 });
+     const { documents } = library.json() as { documents: { id: string; ownerName: string }[] };
+     expect(documents.map((entry) => entry.id)).toContain(id);
+     expect(documents[0]!.ownerName).toBeTruthy();
+ 
+-    const copy = await app.inject({ method: 'POST', url: `/api/documents/${id}/copy`, ...auth2 });
++    const copy = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'POST', url: `/api/documents/${id}/copy`, ...auth2 });
+     expect(copy.statusCode).toBe(201);
+     expect((copy.json() as { title: string }).title).toContain('(Kopie)');
+ 
+     // Eigene Liste der zweiten Lehrkraft enthält nur die Kopie.
+-    const own = await app.inject({ method: 'GET', url: '/api/documents', ...auth2 });
++    const own = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/documents', ...auth2 });
+     expect((own.json() as { documents: unknown[] }).documents).toHaveLength(1);
+   });
+ 
+   it('kopiert nichts Fremdes ohne Freigabe', async () => {
+     const id = await createDocument();
+-    const response = await app.inject({
++    const response = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: `/api/documents/${id}/copy`,
+       cookies: { [SESSION_COOKIE]: await addTeacher('dritte@schule.example') },
+diff --git a/apps/server/src/platform/collab-state.ts b/apps/server/src/platform/collab-state.ts
+new file mode 100644
+index 0000000..73bded3
+--- /dev/null
++++ b/apps/server/src/platform/collab-state.ts
+@@ -0,0 +1,15 @@
++import * as Y from 'yjs';
++import { readCollaborativeDocument, writeCollaborativeDocument, type WorksheetDocument } from '@abgen/model';
++
++export const activeCollaboration = new Set<string>();
++export const closeCollaboration = new Map<string, () => Promise<void>>();
++export function seededDocument(body: WorksheetDocument): Y.Doc {
++  const doc = new Y.Doc();
++  writeCollaborativeDocument(doc, body, 'server-seed');
++  return doc;
++}
++export function snapshotBody(snapshot: Uint8Array): WorksheetDocument | null {
++  const doc = new Y.Doc();
++  try { Y.applyUpdate(doc, snapshot); return readCollaborativeDocument(doc); }
++  finally { doc.destroy(); }
++}
+diff --git a/apps/server/src/platform/private.ts b/apps/server/src/platform/private.ts
+new file mode 100644
+index 0000000..d02b7cb
+--- /dev/null
++++ b/apps/server/src/platform/private.ts
+@@ -0,0 +1,13 @@
++import { readFileSync } from 'node:fs';
++import { createHash } from 'node:crypto';
++import type { UserRecord } from '../repositories/types.js';
++
++export function privateValue(env: NodeJS.ProcessEnv, name: string): string | undefined {
++  const direct = env[name];
++  const file = env[name + '_FILE'];
++  if (direct !== undefined && file) throw new Error('Credential has two sources: ' + name);
++  return file ? readFileSync(file, 'utf8').trim() : direct;
++}
++export function credentialVersion(user: Pick<UserRecord, 'id' | 'role' | 'passwordHash' | 'active'>): string {
++  return createHash('sha256').update(JSON.stringify([user.id, user.role, user.passwordHash, user.active])).digest('hex');
++}
+diff --git a/apps/server/src/repositories/memory.ts b/apps/server/src/repositories/memory.ts
+index 19924e0..2d69147 100644
+--- a/apps/server/src/repositories/memory.ts
++++ b/apps/server/src/repositories/memory.ts
+@@ -1,3 +1,5 @@
++import { activeCollaboration, snapshotBody } from '../platform/collab-state.js';
++import { credentialVersion } from '../platform/private.js';
+ import { newId, type WorksheetDocument } from '@abgen/model';
+ import { pagePreviewSvg } from '@abgen/render';
+ import { createMemoryFileStore } from '../assets/store.js';
+@@ -29,6 +31,7 @@ import type {
+  * Ausprobieren ohne Datenbank. Nach einem Neustart ist alles weg.
+  */
+ export function createMemoryStorage(): Storage {
++  const collabStates = new Map<string, Uint8Array>();
+   const users = new Map<string, UserRecord>();
+   const sessions = new Map<string, SessionRecord>();
+   const documents = new Map<string, DocumentRecord>();
+@@ -83,7 +86,10 @@ export function createMemoryStorage(): Storage {
+       }
+     },
+     createSession: async (session) => {
++      const user = users.get(session.userId);
++      if (!user || !user.active || credentialVersion(user) !== session.version) return false;
+       sessions.set(session.tokenHash, session);
++      return true;
+     },
+     findSession: async (tokenHash) => sessions.get(tokenHash) ?? null,
+     deleteSession: async (tokenHash) => {
+@@ -101,6 +107,12 @@ export function createMemoryStorage(): Storage {
+     },
+   };
+ 
++  const hydrated = (record: DocumentRecord): DocumentRecord => {
++    const snapshot = collabStates.get(record.id);
++    const body = (snapshot ? snapshotBody(snapshot) : null) ?? record.body;
++    return { ...record, body, title: body.meta.title, output: body.setup.output, tags: body.meta.tags };
++  };
++
+   const summarize = (record: DocumentRecord): DocumentSummary => ({
+     id: record.id,
+     title: record.title,
+@@ -130,10 +142,13 @@ export function createMemoryStorage(): Storage {
+ 
+     get: async (ownerId, id) => {
+       const record = documents.get(id);
+-      return record && record.ownerId === ownerId ? record : null;
++      return record && record.ownerId === ownerId ? hydrated(record) : null;
+     },
+ 
+-    getAny: async (id) => documents.get(id) ?? null,
++    getAny: async (id) => {
++      const record = documents.get(id);
++      return record ? hydrated(record) : null;
++    },
+ 
+     create: async (ownerId, body) => {
+       const id = newId();
+@@ -168,6 +183,7 @@ export function createMemoryStorage(): Storage {
+         body,
+       };
+       documents.set(id, record);
++      if (!activeCollaboration.has(id)) collabStates.delete(id);
+       revisions.set(id, [
+         ...(revisions.get(id) ?? []),
+         { revision, createdAt: record.updatedAt, body },
+@@ -205,6 +221,7 @@ export function createMemoryStorage(): Storage {
+       const existing = documents.get(id);
+       if (!existing || existing.ownerId !== ownerId) return false;
+       documents.delete(id);
++      collabStates.delete(id);
+       revisions.delete(id);
+       return true;
+     },
+@@ -399,6 +416,15 @@ export function createMemoryStorage(): Storage {
+   };
+ 
+   return {
++    ready: async () => true,
++    collab: {
++      load: async (id) => collabStates.get(id)?.slice() ?? null,
++      save: async (id, snapshot) => {
++        if (snapshot.byteLength > 4 * 1024 * 1024) throw new Error('Collaboration snapshot too large');
++        if (!documents.has(id)) throw new Error('Document no longer exists');
++        collabStates.set(id, snapshot.slice());
++      },
++    },
+     users: userRepository,
+     documents: documentRepository,
+     shares: shareRepository,
+@@ -409,6 +435,7 @@ export function createMemoryStorage(): Storage {
+     files,
+     ping: async () => true,
+     close: async () => {
++      collabStates.clear();
+       users.clear();
+       sessions.clear();
+       documents.clear();
+diff --git a/apps/server/src/repositories/postgres.ts b/apps/server/src/repositories/postgres.ts
+index cccfbf2..3829d91 100644
+--- a/apps/server/src/repositories/postgres.ts
++++ b/apps/server/src/repositories/postgres.ts
+@@ -1,3 +1,6 @@
++import { activeCollaboration, snapshotBody } from '../platform/collab-state.js';
++import { credentialVersion } from '../platform/private.js';
++import { databaseReady } from '../db/migrate.js';
+ import { and, desc, eq, ilike, lte, or, sql } from 'drizzle-orm';
+ import { newId, type WorksheetDocument } from '@abgen/model';
+ import { pagePreviewSvg } from '@abgen/render';
+@@ -23,6 +26,7 @@ import type {
+   DictionaryRepository,
+   UserDictionary,
+   DocumentRepository,
++  DocumentRecord,
+   DocumentSummary,
+   ListOptions,
+   PlayCodeRecord,
+@@ -100,11 +104,14 @@ function userRepository(db: Database): UserRepository {
+     },
+ 
+     createSession: async (session) => {
+-      await db.insert(sessions).values({
+-        tokenHash: session.tokenHash,
+-        userId: session.userId,
+-        createdAt: session.createdAt,
+-        expiresAt: session.expiresAt,
++      return db.transaction(async (tx) => {
++        const [user] = await tx.select().from(users).where(eq(users.id, session.userId)).for('update');
++        if (!user || !user.active || credentialVersion(toUser(user)) !== session.version) return false;
++        await tx.insert(sessions).values({
++          tokenHash: session.tokenHash, userId: session.userId,
++          createdAt: session.createdAt, expiresAt: session.expiresAt, version: session.version,
++        });
++        return true;
+       });
+     },
+ 
+@@ -113,6 +120,7 @@ function userRepository(db: Database): UserRepository {
+       return row
+         ? {
+             tokenHash: row.tokenHash,
++            version: row.version ?? undefined,
+             userId: row.userId,
+             createdAt: row.createdAt,
+             expiresAt: row.expiresAt,
+@@ -144,6 +152,15 @@ function toUser(row: typeof users.$inferSelect): UserRecord {
+   };
+ }
+ 
++async function hydratedDocument(db: Database, row: typeof documents.$inferSelect): Promise<DocumentRecord> {
++  const result = await db.$client.query<{ snapshot: Buffer }>('SELECT snapshot FROM collab_state WHERE document_id=$1', [row.id]);
++  const snapshot = result.rows[0]?.snapshot;
++  const body = (snapshot ? snapshotBody(snapshot) : null) ?? row.body as WorksheetDocument;
++  return { id: row.id, ownerId: row.ownerId, title: body.meta.title, output: body.setup.output,
++    tags: body.meta.tags, updatedAt: row.updatedAt, revision: row.revision, body,
++    preview: pagePreviewSvg(body), sharedWithSchool: row.sharedWithSchool };
++}
++
+ function documentRepository(db: Database): DocumentRepository {
+   const summarize = (row: typeof documents.$inferSelect): DocumentSummary => ({
+     id: row.id,
+@@ -183,14 +200,12 @@ function documentRepository(db: Database): DocumentRepository {
+         .select()
+         .from(documents)
+         .where(and(eq(documents.id, id), eq(documents.ownerId, ownerId)));
+-      return row ? { ...summarize(row), ownerId, body: row.body as WorksheetDocument } : null;
++      return row ? hydratedDocument(db, row) : null;
+     },
+ 
+     getAny: async (id) => {
+       const [row] = await db.select().from(documents).where(eq(documents.id, id));
+-      return row
+-        ? { ...summarize(row), ownerId: row.ownerId, body: row.body as WorksheetDocument }
+-        : null;
++      return row ? hydratedDocument(db, row) : null;
+     },
+ 
+     create: async (ownerId, body) => {
+@@ -232,6 +247,8 @@ function documentRepository(db: Database): DocumentRepository {
+           })
+           .where(eq(documents.id, id))
+           .returning();
++        if (!activeCollaboration.has(id))
++          await tx.execute(sql`DELETE FROM collab_state WHERE document_id = ${id}`);
+         await tx.insert(documentRevisions).values({ documentId: id, revision, body });
+         return { ...summarize(row!), ownerId, body };
+       });
+@@ -676,6 +693,17 @@ function playRepository(db: Database): PlayRepository {
+ export function createPostgresStorage(databaseUrl: string, assetDir: string): Storage {
+   const { db, pool } = createDatabase(databaseUrl);
+   return {
++    ready: () => databaseReady(pool),
++    collab: {
++      load: async (id) => {
++        const result = await pool.query<{ snapshot: Buffer }>('SELECT snapshot FROM collab_state WHERE document_id=$1', [id]);
++        return result.rows[0]?.snapshot ?? null;
++      },
++      save: async (id, snapshot) => {
++        if (snapshot.byteLength > 4 * 1024 * 1024) throw new Error('Collaboration snapshot too large');
++        await pool.query('INSERT INTO collab_state(document_id,snapshot) VALUES($1,$2) ON CONFLICT(document_id) DO UPDATE SET snapshot=EXCLUDED.snapshot,updated_at=now()', [id, Buffer.from(snapshot)]);
++      },
++    },
+     users: userRepository(db),
+     documents: documentRepository(db),
+     shares: shareRepository(db),
+diff --git a/apps/server/src/repositories/types.ts b/apps/server/src/repositories/types.ts
+index d3ed607..69895e1 100644
+--- a/apps/server/src/repositories/types.ts
++++ b/apps/server/src/repositories/types.ts
+@@ -21,6 +21,7 @@ export interface SessionRecord {
+   userId: string;
+   createdAt: Date;
+   expiresAt: Date;
++  version?: string | undefined;
+ }
+ 
+ export interface AssetRecord {
+@@ -91,7 +92,7 @@ export interface UserRepository {
+   ): Promise<UserRecord | null>;
+   setPassword(id: string, passwordHash: string, mustChangePassword: boolean): Promise<void>;
+   deleteSessionsForUser(userId: string): Promise<void>;
+-  createSession(session: SessionRecord): Promise<void>;
++  createSession(session: SessionRecord): Promise<boolean>;
+   findSession(tokenHash: string): Promise<SessionRecord | null>;
+   deleteSession(tokenHash: string): Promise<void>;
+   deleteExpiredSessions(now: Date): Promise<number>;
+@@ -221,7 +222,13 @@ export interface DictionaryRepository {
+   save(userId: string, dictionary: UserDictionary): Promise<UserDictionary>;
+ }
+ 
++export interface CollabRepository {
++  load(documentId: string): Promise<Uint8Array | null>;
++  save(documentId: string, snapshot: Uint8Array): Promise<void>;
++}
+ export interface Storage {
++  collab: CollabRepository;
++  ready(): Promise<boolean>;
+   users: UserRepository;
+   documents: DocumentRepository;
+   shares: ShareRepository;
+diff --git a/apps/server/src/routes/auth.ts b/apps/server/src/routes/auth.ts
+index 9061f51..6ae895a 100644
+--- a/apps/server/src/routes/auth.ts
++++ b/apps/server/src/routes/auth.ts
+@@ -1,3 +1,4 @@
++import { credentialVersion } from '../platform/private.js';
+ import { newId } from '@abgen/model';
+ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
+ import { z } from 'zod';
+@@ -18,11 +19,11 @@ const credentialsSchema = z.object({
+     .trim()
+     .toLowerCase()
+     .pipe(z.email({ error: 'Bitte eine E-Mail-Adresse angeben.' })),
+-  password: z.string().min(1, { error: 'Bitte ein Passwort angeben.' }),
++  password: z.string().min(1, { error: 'Bitte ein Passwort angeben.' }).max(128),
+ });
+ 
+ const registerSchema = credentialsSchema.extend({
+-  displayName: z.string().trim().min(1, { error: 'Bitte einen Namen angeben.' }),
++  displayName: z.string().trim().min(1, { error: 'Bitte einen Namen angeben.' }).max(120),
+ });
+ 
+ export interface AuthOptions {
+@@ -43,7 +44,8 @@ export async function currentUser(
+     await storage.users.deleteSession(session.tokenHash);
+     return null;
+   }
+-  return storage.users.findUserById(session.userId);
++  const user = await storage.users.findUserById(session.userId);
++  return user?.active && session.version === credentialVersion(user) ? user : null;
+ }
+ 
+ export const publicUser = (user: UserRecord) => ({
+@@ -64,15 +66,17 @@ export const authRoutes =
+   async (app) => {
+     const cookieOptions = sessionCookieOptions(config.COOKIE_SECURE);
+ 
+-    const startSession = async (userId: string): Promise<string> => {
++    const startSession = async (user: UserRecord): Promise<string> => {
+       const { token, hash } = createSessionToken();
+       const now = new Date();
+-      await storage.users.createSession({
++      const created = await storage.users.createSession({
+         tokenHash: hash,
+-        userId,
++        userId: user.id,
++        version: credentialVersion(user),
+         createdAt: now,
+         expiresAt: sessionExpiry(now),
+       });
++      if (!created) throw Object.assign(new Error('Credentials changed'), { statusCode: 401 });
+       return token;
+     };
+ 
+@@ -96,8 +100,8 @@ export const authRoutes =
+         });
+       }
+       const count = await storage.users.countUsers();
+-      // Das erste Konto darf immer angelegt werden; danach nur, wenn erlaubt.
+-      if (count > 0 && !config.ALLOW_REGISTRATION) {
++      // The first administrator is created only by the local terminal command.
++      if (count === 0 || !config.ALLOW_REGISTRATION) {
+         return reply.status(403).send({
+           error: 'Registrierung geschlossen',
+           message: 'Neue Konten legt die Schulverwaltung an.',
+@@ -119,11 +123,11 @@ export const authRoutes =
+         displayName: parsed.data.displayName,
+         passwordHash: await hashPassword(parsed.data.password),
+         // Das erste Konto betreut die Instanz (Vorgabe V5).
+-        role: count === 0 ? 'admin' : 'teacher',
++        role: 'teacher',
+         mustChangePassword: false,
+         active: true,
+       });
+-      const token = await startSession(user.id);
++      const token = await startSession(user);
+       return reply
+         .setCookie(SESSION_COOKIE, token, cookieOptions)
+         .status(201)
+@@ -151,7 +155,7 @@ export const authRoutes =
+           message: 'E-Mail-Adresse oder Passwort stimmt nicht.',
+         });
+       }
+-      const token = await startSession(user.id);
++      const token = await startSession(user);
+       return reply.setCookie(SESSION_COOKIE, token, cookieOptions).send({ user: publicUser(user) });
+     });
+ 
+@@ -166,7 +170,7 @@ export const authRoutes =
+       const user = await currentUser(request, storage);
+       if (!user) return reply.status(401).send({ error: 'Nicht angemeldet' });
+       const parsed = z
+-        .object({ current: z.string().min(1), next: z.string().min(1) })
++        .object({ current: z.string().min(1).max(128), next: z.string().min(1).max(128) })
+         .safeParse(request.body);
+       if (!parsed.success) return reply.status(400).send({ error: 'Angaben unvollständig' });
+       if (!(await verifyPassword(user.passwordHash, parsed.data.current))) {
+@@ -178,12 +182,16 @@ export const authRoutes =
+       const problem = checkPassword(parsed.data.next);
+       if (problem) return reply.status(400).send({ error: 'Passwort zu kurz', message: problem });
+       await storage.users.setPassword(user.id, await hashPassword(parsed.data.next), false);
+-      return { ok: true };
++      const updated = await storage.users.findUserById(user.id);
++      if (!updated?.active) return reply.code(401).send({ error: 'Nicht angemeldet' });
++      const token = await startSession(updated);
++      return reply.setCookie(SESSION_COOKIE, token, cookieOptions).send({ ok: true });
+     });
+ 
+     app.get('/api/auth/state', async () => ({
+       /** Zeigt der Oberfläche, ob ein erstes Konto angelegt werden muss. */
+-      needsFirstAccount: (await storage.users.countUsers()) === 0,
++      needsFirstAccount: false,
++      localSetupRequired: (await storage.users.countUsers()) === 0,
+       registrationOpen: config.ALLOW_REGISTRATION,
+     }));
+   };
+diff --git a/apps/server/src/routes/collab.ts b/apps/server/src/routes/collab.ts
+index 8200e3e..e8c3bf9 100644
+--- a/apps/server/src/routes/collab.ts
++++ b/apps/server/src/routes/collab.ts
+@@ -1,130 +1,174 @@
++import { z } from 'zod';
+ import type { FastifyPluginAsync } from 'fastify';
+ import * as Y from 'yjs';
+-import { z } from 'zod';
++import { parseDocument } from '@abgen/model';
+ import { currentUser } from './auth.js';
+ import type { Storage } from '../repositories/index.js';
+-
+-/**
+- * Gemeinsames Bearbeiten (Phase 8.4). Der Server hält je Blatt ein Yjs-Dokument
+- * im Speicher und verteilt die Änderungen an alle, die daran arbeiten.
+- * Gespeichert wird weiterhin über das normale Autosave der Lehrkräfte – der
+- * Server ist nur die Vermittlung.
+- *
+- * Nachrichtenformat (binär, erstes Byte ist die Art):
+- *   0 = Zustandsvektor („das habe ich schon“)
+- *   1 = Änderung (Yjs-Update)
+- *   2 = Anwesenheit (JSON: Name, Farbe, ausgewähltes Feld)
+- */
++import { activeCollaboration, closeCollaboration, seededDocument, snapshotBody } from '../platform/collab-state.js';
+ 
+ export const MESSAGE_STATE = 0;
+ export const MESSAGE_UPDATE = 1;
+ export const MESSAGE_PRESENCE = 2;
+-
+ export function frame(type: number, payload: Uint8Array): Uint8Array {
+-  const out = new Uint8Array(payload.length + 1);
+-  out[0] = type;
+-  out.set(payload, 1);
+-  return out;
++  const out = new Uint8Array(payload.length + 1); out[0] = type; out.set(payload, 1); return out;
+ }
+-
+-/** Die Teilmenge der WebSocket-Schnittstelle, die hier gebraucht wird. */
+ interface Peer {
+-  readonly readyState: number;
+-  readonly OPEN: number;
++  readonly readyState: number; readonly OPEN: number;
+   send(data: Uint8Array): void;
+   close(code?: number, reason?: string): void;
+   on(event: 'message', handler: (raw: Buffer) => void): void;
+   on(event: 'close', handler: () => void): void;
+ }
+-
+-interface Room {
+-  doc: Y.Doc;
+-  sockets: Set<Peer>;
+-}
+-
++interface Room { doc: Y.Doc; sockets: Set<Peer>; tail: Promise<void>; closed: boolean; closing: boolean }
++const presenceSchema = z.object({
++  id: z.string().min(1).max(64), name: z.string().max(120),
++  color: z.string().regex(/^#[0-9a-fA-F]{6}$/), itemId: z.string().max(128).optional(),
++});
+ const rooms = new Map<string, Room>();
+-
+-/** Raum eines Blattes; wird beim ersten Zugriff angelegt. */
+-export function roomFor(documentId: string): Room {
+-  const existing = rooms.get(documentId);
+-  if (existing) return existing;
+-  const room: Room = { doc: new Y.Doc(), sockets: new Set() };
+-  rooms.set(documentId, room);
+-  return room;
++const loads = new Map<string, Promise<Room>>();
++let draining = false;
++let pendingBytes = 0;
++let pendingUpdates = 0;
++
++async function roomFor(id: string, storage: Storage): Promise<Room> {
++  const existing = rooms.get(id); if (existing) return existing;
++  const loading = loads.get(id); if (loading) return loading;
++  if (rooms.size + loads.size >= 32) throw new Error('Collaboration room limit');
++  const promise = (async () => {
++    const record = await storage.documents.getAny(id);
++    if (!record) throw new Error('Document missing');
++    const snapshot = await storage.collab.load(id);
++    const doc = snapshot ? new Y.Doc() : seededDocument(record.body);
++    if (snapshot) Y.applyUpdate(doc, snapshot);
++    const room: Room = { doc, sockets: new Set(), tail: Promise.resolve(), closed: false, closing: false };
++    rooms.set(id, room); activeCollaboration.add(id);
++    closeCollaboration.set(id, async () => {
++      room.closing = true;
++      for (const socket of room.sockets) socket.close(1001, 'Dokument wird neu geladen');
++      await room.tail;
++      room.closed = true;
++      room.doc.destroy(); rooms.delete(id); activeCollaboration.delete(id); closeCollaboration.delete(id);
++    });
++    return room;
++  })();
++  loads.set(id, promise);
++  try { return await promise; } finally { loads.delete(id); }
+ }
+-
+-/** Nur für Tests: alle Räume vergessen. */
+-export function clearRooms(): void {
+-  rooms.clear();
++export async function drainCollaboration(): Promise<void> {
++  draining = true;
++  await Promise.all([...loads.values()].map(promise => promise.catch(() => undefined)));
++  await Promise.all([...closeCollaboration.values()].map(close => close()));
+ }
+-
+-export interface CollabRoutesOptions {
+-  storage: Storage;
++export function clearRooms(): void {
++  for (const room of rooms.values()) { room.closed = true; room.doc.destroy(); }
++  rooms.clear(); loads.clear(); activeCollaboration.clear(); closeCollaboration.clear();
++  draining = false;
+ }
+-
+ export const collabRoutes =
+-  ({ storage }: CollabRoutesOptions): FastifyPluginAsync =>
++  ({ storage }: { storage: Storage }): FastifyPluginAsync =>
+   async (app) => {
+-    app.get('/api/collab/:id', { websocket: true }, async (connection, request) => {
++    if (rooms.size === 0 && loads.size === 0) draining = false;
++    app.addHook('preClose', async () => { await drainCollaboration(); });
++    app.get('/_platform/collab-status', async (request, reply) => {
++      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(request.raw.socket.remoteAddress ?? ''))
++        return reply.code(404).send();
++      return { pendingUpdates, pendingBytes, rooms: rooms.size, draining };
++    });
++    app.post('/_platform/prepare-stop', async (request, reply) => {
++      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(request.raw.socket.remoteAddress ?? ''))
++        return reply.code(404).send();
++      await drainCollaboration();
++      return { pendingUpdates, pendingBytes, draining };
++    });
++    app.post('/_platform/cancel-stop', async (request, reply) => {
++      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(request.raw.socket.remoteAddress ?? ''))
++        return reply.code(404).send();
++      draining = false;
++      return { draining };
++    });
++    app.get('/api/collab/:id', { websocket: true }, (connection, request) => {
+       const socket = connection as unknown as Peer;
+-      const params = z.object({ id: z.string().min(1) }).safeParse(request.params);
+-      if (!params.success) {
+-        socket.close(1008, 'Ungültige Adresse');
+-        return;
+-      }
+-
+-      // Mitarbeiten darf, wer das Blatt öffnen darf: Besitzerin oder Schule.
+-      const user = await currentUser(request, storage);
+-      const record = user ? await storage.documents.getAny(params.data.id) : null;
+-      const allowed =
+-        !!user && !!record && (record.ownerId === user.id || record.sharedWithSchool === true);
+-      if (!allowed) {
+-        socket.close(1008, 'Kein Zugriff');
+-        return;
+-      }
+-
+-      const room = roomFor(params.data.id);
+-      room.sockets.add(socket);
+-
+-      const onUpdate = (update: Uint8Array, origin: unknown) => {
+-        for (const peer of room.sockets) {
+-          if (peer === origin || peer.readyState !== peer.OPEN) continue;
+-          peer.send(frame(MESSAGE_UPDATE, update));
+-        }
+-      };
+-      room.doc.on('update', onUpdate);
+-
+-      // Erst den eigenen Zustand anbieten, dann den des Gegenübers erfragen.
+-      socket.send(frame(MESSAGE_UPDATE, Y.encodeStateAsUpdate(room.doc)));
+-      socket.send(frame(MESSAGE_STATE, Y.encodeStateVector(room.doc)));
+-
+-      socket.on('message', (raw: Buffer) => {
+-        const data = new Uint8Array(raw);
+-        if (data.length < 1) return;
+-        const type = data[0];
+-        const payload = data.subarray(1);
+-
+-        if (type === MESSAGE_STATE) {
+-          socket.send(frame(MESSAGE_UPDATE, Y.encodeStateAsUpdate(room.doc, payload)));
+-          return;
++      const id = (request.params as { id: string }).id;
++      let closed = false;
++      const timer = setInterval(() => {
++        void currentUser(request, storage).then(user => {
++          if (!user) socket.close(1008, 'Anmeldung abgelaufen');
++        }).catch(() => socket.close(1013, 'Dienst derzeit nicht bereit'));
++      }, 15000);
++      timer.unref();
++      const joined = (async (): Promise<Room | null> => {
++        if (draining || !id || id.length > 128) { socket.close(1013, 'Wartung'); return null; }
++        const user = await currentUser(request, storage);
++        const record = user ? await storage.documents.getAny(id) : null;
++        if (!user || !record || (record.ownerId !== user.id && !record.sharedWithSchool)) {
++          socket.close(1008, 'Kein Zugriff'); return null;
+         }
+-        if (type === MESSAGE_UPDATE) {
+-          Y.applyUpdate(room.doc, payload, socket);
+-          return;
+-        }
+-        if (type === MESSAGE_PRESENCE) {
+-          for (const peer of room.sockets) {
+-            if (peer === socket || peer.readyState !== peer.OPEN) continue;
+-            peer.send(frame(MESSAGE_PRESENCE, payload));
+-          }
++        const room = await roomFor(id, storage);
++        if (closed || room.closed || room.closing || room.sockets.size >= 16) { socket.close(1013, 'Raum belegt'); return null; }
++        room.sockets.add(socket);
++        socket.send(frame(MESSAGE_UPDATE, Y.encodeStateAsUpdate(room.doc)));
++        socket.send(frame(MESSAGE_STATE, Y.encodeStateVector(room.doc)));
++        return room;
++      })().catch(() => { socket.close(1013, 'Dienst derzeit nicht bereit'); return null; });
++      socket.on('message', (raw) => {
++        if (closed || draining || raw.length === 0 || raw.length > 1024 * 1024 ||
++          pendingUpdates >= 64 || pendingBytes + raw.length > 16 * 1024 * 1024) {
++          socket.close(1013, 'Anfrage derzeit nicht möglich'); return;
+         }
++        pendingUpdates++; pendingBytes += raw.length;
++        void joined.then(room => {
++          if (!room) return;
++          room.tail = room.tail.then(async () => {
++            if (room.closed) return;
++            const user = await currentUser(request, storage);
++            const record = user ? await storage.documents.getAny(id) : null;
++            if (!user || !record || (record.ownerId !== user.id && !record.sharedWithSchool)) {
++              socket.close(1008, 'Kein Zugriff'); return;
++            }
++            const data = new Uint8Array(raw); const type = data[0]; const payload = data.subarray(1);
++            if (type === MESSAGE_STATE) {
++              if (socket.readyState === socket.OPEN) socket.send(frame(MESSAGE_UPDATE, Y.encodeStateAsUpdate(room.doc, payload)));
++              return;
++            }
++            if (type === MESSAGE_UPDATE) {
++              const candidate = new Y.Doc();
++              try {
++                Y.applyUpdate(candidate, Y.encodeStateAsUpdate(room.doc));
++                Y.applyUpdate(candidate, payload);
++                const snapshot = Y.encodeStateAsUpdate(candidate);
++                if (snapshot.byteLength > 4 * 1024 * 1024) throw new Error('Snapshot limit');
++                const body = snapshotBody(snapshot);
++                if (!body) throw new Error('Document missing from snapshot');
++                parseDocument(body);
++                await storage.collab.save(id, snapshot);
++                Y.applyUpdate(room.doc, payload);
++              } finally { candidate.destroy(); }
++              // Peers only see an update after its durable commit.
++              for (const peer of room.sockets)
++                if (peer !== socket && peer.readyState === peer.OPEN) peer.send(frame(MESSAGE_UPDATE, payload));
++              return;
++            }
++            if (type === MESSAGE_PRESENCE && payload.length <= 4096) {
++              const presence = presenceSchema.parse(JSON.parse(new TextDecoder().decode(payload)));
++              const sanitized = new TextEncoder().encode(JSON.stringify(presence));
++              for (const peer of room.sockets)
++                if (peer !== socket && peer.readyState === peer.OPEN) peer.send(frame(MESSAGE_PRESENCE, sanitized));
++            }
++          }).catch(() => { socket.close(1013, 'Änderung nicht übernommen'); });
++          return room.tail;
++        }).finally(() => { pendingUpdates--; pendingBytes -= raw.length; }).catch(() => undefined);
+       });
+-
+       socket.on('close', () => {
+-        room.doc.off('update', onUpdate);
+-        room.sockets.delete(socket);
+-        // Leere Räume geben ihren Speicher wieder frei.
+-        if (room.sockets.size === 0) rooms.delete(params.data.id);
++        closed = true; clearInterval(timer);
++        void joined.then(async room => {
++          if (!room) return;
++          room.sockets.delete(socket);
++          await room.tail;
++          if (room.sockets.size === 0 && rooms.get(id) === room) {
++            room.closed = true; room.doc.destroy(); rooms.delete(id);
++            activeCollaboration.delete(id); closeCollaboration.delete(id);
++          }
++        });
+       });
+     });
+   };
+diff --git a/apps/server/src/routes/documents.ts b/apps/server/src/routes/documents.ts
+index 26731f6..6ba47f7 100644
+--- a/apps/server/src/routes/documents.ts
++++ b/apps/server/src/routes/documents.ts
+@@ -1,3 +1,4 @@
++import { closeCollaboration } from '../platform/collab-state.js';
+ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
+ import { z } from 'zod';
+ import { documentSchema, formatIssues, checkReferences, migrate } from '@abgen/model';
+@@ -193,6 +194,7 @@ export const documentRoutes =
+       const params = revisionParamsSchema.parse(request.params);
+       const body = await storage.documents.revision(user.id, params.id, params.revision);
+       if (!body) return reply.status(404).send({ error: 'Revision nicht gefunden' });
++      await closeCollaboration.get(params.id)?.();
+       const record = await storage.documents.update(user.id, params.id, body);
+       if (!record) return reply.status(404).send({ error: 'Dokument nicht gefunden' });
+       return {
+diff --git a/apps/server/src/routes/health.ts b/apps/server/src/routes/health.ts
+index ed9725a..620c1a6 100644
+--- a/apps/server/src/routes/health.ts
++++ b/apps/server/src/routes/health.ts
+@@ -4,18 +4,21 @@ import type { Storage } from '../repositories/index.js';
+ export interface HealthOptions {
+   storage: Storage | null;
+   version: string;
++  pdf?: () => Promise<boolean>;
+ }
+ 
+ /** `GET /api/health` – Zustand von Server und Speicher. */
+ export const healthRoutes =
+-  ({ storage, version }: HealthOptions): FastifyPluginAsync =>
++  ({ storage, version, pdf }: HealthOptions): FastifyPluginAsync =>
+   async (app) => {
+     app.get('/api/health', async () => {
+       const database = storage && (await storage.ping()) ? 'ok' : 'nicht erreichbar';
++      const renderer = pdf ? await pdf().catch(() => false) : null;
+       return {
+-        status: database === 'ok' ? 'ok' : 'degraded',
++        status: database === 'ok' && renderer !== false ? 'ok' : 'degraded',
+         version,
+         database,
++        ...(renderer === null ? {} : { pdf: renderer ? 'ok' : 'nicht erreichbar' }),
+       };
+     });
+   };
+diff --git a/apps/server/src/routes/print.ts b/apps/server/src/routes/print.ts
+index 0995410..1e5b6e5 100644
+--- a/apps/server/src/routes/print.ts
++++ b/apps/server/src/routes/print.ts
+@@ -92,6 +92,9 @@ export const printRoutes =
+       const record = await storage.documents.getAny(params.id);
+       if (!record) return reply.status(404).send({ error: 'Dokument nicht gefunden' });
+ 
++      const pages = record.body.pages.length * options.data.variants * (options.data.mode === 'both' ? 2 : 1);
++      if (pages > 80) return reply.code(413).send({ error: 'Druckauftrag umfasst zu viele Seiten' });
++
+       const token = createShareToken();
+       await storage.shares.create({
+         tokenHash: token.hash,
+@@ -114,7 +117,7 @@ export const printRoutes =
+ 
+         if (!response.ok) {
+           const detail = (await response.json().catch(() => ({}))) as { message?: string };
+-          return reply.status(502).send({
++          return reply.status(response.status === 429 ? 429 : response.status === 503 ? 503 : 502).send({
+             error: 'PDF konnte nicht erzeugt werden',
+             message: detail.message ?? 'Der PDF-Dienst antwortete nicht wie erwartet.',
+           });
+@@ -197,6 +200,7 @@ export const printRoutes =
+ async function fetchPdf(url: string, body: unknown): Promise<Response> {
+   return fetch(url, {
+     method: 'POST',
++    signal: AbortSignal.timeout(50000),
+     headers: { 'Content-Type': 'application/json' },
+     body: JSON.stringify(body),
+   });
+diff --git a/apps/server/src/routes/users.ts b/apps/server/src/routes/users.ts
+index bc6ce6f..8dc3deb 100644
+--- a/apps/server/src/routes/users.ts
++++ b/apps/server/src/routes/users.ts
+@@ -128,7 +128,7 @@ export const userRoutes =
+         ...(parsed.data.active !== undefined ? { active: parsed.data.active } : {}),
+       });
+       if (!user) return reply.status(404).send({ error: 'Konto nicht gefunden' });
+-      if (parsed.data.active === false) await storage.users.deleteSessionsForUser(id);
++      if (parsed.data.active === false || parsed.data.role !== undefined) await storage.users.deleteSessionsForUser(id);
+       return { user: publicUser(user) };
+     });
+ 
+diff --git a/apps/server/src/setup.ts b/apps/server/src/setup.ts
+new file mode 100644
+index 0000000..caf88f3
+--- /dev/null
++++ b/apps/server/src/setup.ts
+@@ -0,0 +1,58 @@
++import fs from 'node:fs';
++import tty from 'node:tty';
++import { randomUUID } from 'node:crypto';
++import { Pool } from 'pg';
++import { hashPassword } from './auth/password.js';
++import { loadConfig } from './config.js';
++import { databaseReady } from './db/migrate.js';
++
++async function hidden(fd: number, label: string): Promise<string> {
++  const input = new tty.ReadStream(fd);
++  input.setRawMode(true); input.resume();
++  fs.writeSync(fd, label);
++  let value = '';
++  return new Promise((resolve, reject) => {
++    const finish = () => { input.off('data', receive); input.setRawMode(false); input.pause(); input.unref(); fs.writeSync(fd, '\n'); };
++    const receive = (chunk: Buffer) => {
++      for (const character of chunk.toString()) {
++        if (character === '\u0003') { finish(); reject(new Error('Cancelled')); return; }
++        if (character === '\r' || character === '\n') { finish(); resolve(value); return; }
++        if (character === '\u007f' || character === '\b') value = value.slice(0, -1);
++        else if (value.length < 128 && character >= ' ') value += character;
++      }
++    };
++    input.on('data', receive);
++  });
++}
++async function main(): Promise<void> {
++  const fd = fs.openSync('/dev/tty', 'r+');
++  try {
++    const email = process.argv[2]?.trim().toLowerCase();
++    const name = process.argv[3]?.trim();
++    if (!email || email.length > 254 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !name || name.length > 120)
++      throw new Error('Personal identity required');
++    const password = await hidden(fd, 'Persönliches Passwort (mindestens 12 Zeichen): ');
++    const confirmation = await hidden(fd, 'Wiederholen: ');
++    if (password.length < 12 || password !== confirmation) throw new Error('Password mismatch');
++    const config = loadConfig();
++    if (config.STORAGE !== 'postgres') throw new Error('Persistent storage required');
++    const pool = new Pool({ connectionString: config.DATABASE_URL, max: 1, connectionTimeoutMillis: 3000 });
++    try {
++      if (!(await databaseReady(pool))) throw new Error('Explicit migration required');
++      const hash = await hashPassword(password);
++      const client = await pool.connect();
++      try {
++        await client.query('BEGIN');
++        await client.query('SELECT pg_advisory_xact_lock($1)', [76401985]);
++        const count = await client.query('SELECT count(*)::int AS count FROM users');
++        if (count.rows[0]?.count !== 0) throw new Error('Existing accounts preserved');
++        await client.query('INSERT INTO users(id,email,display_name,password_hash,role,must_change_password,active) VALUES($1,$2,$3,$4,$5,false,true)',
++          [randomUUID(), email, name, hash, 'admin']);
++        await client.query('COMMIT');
++        fs.writeSync(fd, 'Persönliche Erstadministration angelegt.\n');
++      } catch (error) { await client.query('ROLLBACK'); throw error; }
++      finally { client.release(); }
++    } finally { await pool.end(); }
++  } finally { fs.closeSync(fd); }
++}
++void main().catch(() => { console.error('Lokale Einrichtung fehlgeschlagen; Terminal, Migration und vorhandene Konten prüfen.'); process.exitCode = 1; });
+diff --git a/apps/server/src/testing/fixtures.ts b/apps/server/src/testing/fixtures.ts
+new file mode 100644
+index 0000000..ad28df6
+--- /dev/null
++++ b/apps/server/src/testing/fixtures.ts
+@@ -0,0 +1,19 @@
++/** Explicit synthetic setup for unit tests; never used by a production entry point. */
++import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
++import { newId } from '@abgen/model';
++import type { Storage } from '../repositories/index.js';
++import { hashPassword } from '../auth/password.js';
++
++export async function initialAccount(app: FastifyInstance, storage: Storage, input: {
++  email: string; password: string; displayName: string;
++}): Promise<LightMyRequestResponse> {
++  if (await storage.users.countUsers()) throw new Error('Synthetic initial account requires empty storage');
++  await storage.users.createUser({
++    id: newId(), email: input.email, displayName: input.displayName,
++    passwordHash: await hashPassword(input.password), role: 'admin', active: true, mustChangePassword: false,
++  });
++  return app.inject({
++    method: 'POST', url: '/api/auth/login', headers: { 'X-Abgen-Request': '1' },
++    payload: { email: input.email, password: input.password },
++  });
++}
+diff --git a/apps/server/src/testing/server.ts b/apps/server/src/testing/server.ts
+new file mode 100644
+index 0000000..83c86c5
+--- /dev/null
++++ b/apps/server/src/testing/server.ts
+@@ -0,0 +1,21 @@
++import { newId } from '@abgen/model';
++import { buildApp } from '../app.js';
++import { loadConfig } from '../config.js';
++import { createMemoryStorage } from '../repositories/index.js';
++import { hashPassword } from '../auth/password.js';
++
++async function main(): Promise<void> {
++  if (process.env.NODE_ENV !== 'test') throw new Error('Synthetic fixture entry only');
++  const email = process.env.ABGEN_FIXTURE_EMAIL;
++  const password = process.env.ABGEN_FIXTURE_PASSWORD;
++  if (!email || !password) throw new Error('Explicit synthetic credentials required');
++  const config = loadConfig({ ...process.env, STORAGE: 'memory', ALLOW_REGISTRATION: 'true' });
++  const storage = createMemoryStorage();
++  await storage.users.createUser({ id: newId(), email, displayName: 'Synthetic instance operator',
++    passwordHash: await hashPassword(password), role: 'admin', active: true, mustChangePassword: false });
++  const app = await buildApp({ config, storage });
++  for (const signal of ['SIGINT', 'SIGTERM'] as const)
++    process.once(signal, () => { void app.close().then(() => process.exit(0)); });
++  await app.listen({ host: config.HOST, port: config.PORT });
++}
++void main().catch(() => { console.error('Explicit synthetic test fixture could not start.'); process.exitCode = 1; });
+diff --git a/apps/server/src/users.test.ts b/apps/server/src/users.test.ts
+index 3002d02..a571ada 100644
+--- a/apps/server/src/users.test.ts
++++ b/apps/server/src/users.test.ts
+@@ -1,3 +1,4 @@
++import { initialAccount } from './testing/fixtures.js';
+ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+ import type { FastifyInstance } from 'fastify';
+ import { buildApp } from './app.js';
+@@ -17,15 +18,11 @@ const auth = (cookie = adminCookie) => ({ cookies: { [SESSION_COOKIE]: cookie }
+ beforeEach(async () => {
+   storage = createMemoryStorage();
+   app = await buildApp({ config, storage });
+-  const registered = await app.inject({
+-    method: 'POST',
+-    url: '/api/auth/register',
+-    payload: {
++  const registered = await initialAccount(app, storage, {
+       email: 'leitung@schule.example',
+       password: 'Arbeitsblatt-2026',
+       displayName: 'Leitung',
+-    },
+-  });
++    });
+   adminCookie = registered.cookies.find((entry) => entry.name === SESSION_COOKIE)!.value;
+ });
+ 
+@@ -36,12 +33,12 @@ afterEach(async () => {
+ 
+ describe('Kontoverwaltung (V5)', () => {
+   it('macht das erste Konto zur Betreuung', async () => {
+-    const me = await app.inject({ method: 'GET', url: '/api/auth/me', ...auth() });
++    const me = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/auth/me', ...auth() });
+     expect(me.json()).toMatchObject({ user: { role: 'admin', displayName: 'Leitung' } });
+   });
+ 
+   it('legt Konten mit Einmal-Passwort an', async () => {
+-    const response = await app.inject({
++    const response = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: '/api/users',
+       payload: { email: 'berger@schule.example', displayName: 'Frau Berger' },
+@@ -56,7 +53,7 @@ describe('Kontoverwaltung (V5)', () => {
+     expect(body.password.length).toBeGreaterThan(9);
+ 
+     // Mit dem Einmal-Passwort anmelden und es ändern.
+-    const login = await app.inject({
++    const login = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: '/api/auth/login',
+       payload: { email: 'berger@schule.example', password: body.password },
+@@ -65,20 +62,23 @@ describe('Kontoverwaltung (V5)', () => {
+     expect(login.json()).toMatchObject({ user: { mustChangePassword: true } });
+     const cookie = login.cookies.find((entry) => entry.name === SESSION_COOKIE)!.value;
+ 
+-    const changed = await app.inject({
++    const changed = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: '/api/auth/password',
+       payload: { current: body.password, next: 'Silben-ueben-2026' },
+       ...auth(cookie),
+     });
+     expect(changed.statusCode).toBe(200);
+-    const me = await app.inject({ method: 'GET', url: '/api/auth/me', ...auth(cookie) });
++    const rotated = changed.cookies.find(entry => entry.name === SESSION_COOKIE)!.value;
++    expect(rotated).not.toBe(cookie);
++    expect((await app.inject({ method: 'GET', url: '/api/auth/me', ...auth(cookie) })).statusCode).toBe(401);
++    const me = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/auth/me', ...auth(rotated) });
+     expect(me.json()).toMatchObject({ user: { mustChangePassword: false } });
+   });
+ 
+   it('setzt Passwörter zurück und beendet die Sitzungen', async () => {
+     const created = (
+-      await app.inject({
++      await app.inject({ headers: { 'X-Abgen-Request': '1' },
+         method: 'POST',
+         url: '/api/users',
+         payload: { email: 'berger@schule.example', displayName: 'Frau Berger' },
+@@ -86,14 +86,14 @@ describe('Kontoverwaltung (V5)', () => {
+       })
+     ).json() as { user: { id: string }; password: string };
+ 
+-    const login = await app.inject({
++    const login = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: '/api/auth/login',
+       payload: { email: 'berger@schule.example', password: created.password },
+     });
+     const cookie = login.cookies.find((entry) => entry.name === SESSION_COOKIE)!.value;
+ 
+-    const reset = await app.inject({
++    const reset = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: `/api/users/${created.user.id}/password`,
+       ...auth(),
+@@ -103,10 +103,10 @@ describe('Kontoverwaltung (V5)', () => {
+     expect(next).not.toBe(created.password);
+ 
+     // Die alte Sitzung gilt nicht mehr.
+-    const me = await app.inject({ method: 'GET', url: '/api/auth/me', ...auth(cookie) });
++    const me = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/auth/me', ...auth(cookie) });
+     expect(me.statusCode).toBe(401);
+ 
+-    const again = await app.inject({
++    const again = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: '/api/auth/login',
+       payload: { email: 'berger@schule.example', password: next },
+@@ -116,7 +116,7 @@ describe('Kontoverwaltung (V5)', () => {
+ 
+   it('sperrt Konten und lässt sie nicht mehr anmelden', async () => {
+     const created = (
+-      await app.inject({
++      await app.inject({ headers: { 'X-Abgen-Request': '1' },
+         method: 'POST',
+         url: '/api/users',
+         payload: { email: 'berger@schule.example', displayName: 'Frau Berger' },
+@@ -124,14 +124,14 @@ describe('Kontoverwaltung (V5)', () => {
+       })
+     ).json() as { user: { id: string }; password: string };
+ 
+-    await app.inject({
++    await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'PATCH',
+       url: `/api/users/${created.user.id}`,
+       payload: { active: false },
+       ...auth(),
+     });
+ 
+-    const login = await app.inject({
++    const login = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: '/api/auth/login',
+       payload: { email: 'berger@schule.example', password: created.password },
+@@ -142,21 +142,21 @@ describe('Kontoverwaltung (V5)', () => {
+ 
+   it('lässt Lehrkräfte nicht an die Kontoverwaltung', async () => {
+     const created = (
+-      await app.inject({
++      await app.inject({ headers: { 'X-Abgen-Request': '1' },
+         method: 'POST',
+         url: '/api/users',
+         payload: { email: 'berger@schule.example', displayName: 'Frau Berger' },
+         ...auth(),
+       })
+     ).json() as { password: string };
+-    const login = await app.inject({
++    const login = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       url: '/api/auth/login',
+       payload: { email: 'berger@schule.example', password: created.password },
+     });
+     const cookie = login.cookies.find((entry) => entry.name === SESSION_COOKIE)!.value;
+ 
+-    const list = await app.inject({ method: 'GET', url: '/api/users', ...auth(cookie) });
++    const list = await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/users', ...auth(cookie) });
+     expect(list.statusCode).toBe(403);
+     expect(list.json()).toMatchObject({
+       message: 'Konten verwaltet die Person, die die Instanz betreut.',
+@@ -164,10 +164,10 @@ describe('Kontoverwaltung (V5)', () => {
+   });
+ 
+   it('verhindert, dass die Betreuung sich selbst entrechtet', async () => {
+-    const me = (await app.inject({ method: 'GET', url: '/api/auth/me', ...auth() })).json() as {
++    const me = (await app.inject({ headers: { 'X-Abgen-Request': '1' }, method: 'GET', url: '/api/auth/me', ...auth() })).json() as {
+       user: { id: string };
+     };
+-    const response = await app.inject({
++    const response = await app.inject({ headers: { 'X-Abgen-Request': '1' },
+       method: 'PATCH',
+       url: `/api/users/${me.user.id}`,
+       payload: { role: 'teacher' },
+diff --git a/apps/web/src/api/assets.ts b/apps/web/src/api/assets.ts
+index 7a6315a..b6b513f 100644
+--- a/apps/web/src/api/assets.ts
++++ b/apps/web/src/api/assets.ts
+@@ -29,7 +29,7 @@ export async function uploadImage(file: File, fields: UploadFields): Promise<Upl
+   }
+   body.append('file', file);
+ 
+-  const response = await fetch('/api/assets', { method: 'POST', body, credentials: 'same-origin' });
++  const response = await fetch('/api/assets', { headers: { 'X-Abgen-Request': '1' }, method: 'POST', body, credentials: 'same-origin' });
+   if (!response.ok) {
+     const problem = (await response.json().catch(() => ({}))) as {
+       message?: string;
+diff --git a/apps/web/src/api/client.ts b/apps/web/src/api/client.ts
+index 1203e62..52747d0 100644
+--- a/apps/web/src/api/client.ts
++++ b/apps/web/src/api/client.ts
+@@ -12,6 +12,7 @@ export interface ApiUser {
+ 
+ export interface AuthState {
+   needsFirstAccount: boolean;
++  localSetupRequired?: boolean;
+   registrationOpen: boolean;
+ }
+ 
+@@ -114,7 +115,7 @@ export class ApiError extends Error {
+ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+   const response = await fetch(`/api${path}`, {
+     credentials: 'same-origin',
+-    headers: init.body ? { 'Content-Type': 'application/json' } : {},
++    headers: { 'X-Abgen-Request': '1', ...(init.body ? { 'Content-Type': 'application/json' } : {}) },
+     ...init,
+   });
+   if (!response.ok) {
+@@ -139,7 +140,7 @@ async function download(
+ ): Promise<{ blob: Blob; fileName: string }> {
+   const response = await fetch(`/api${path}`, {
+     credentials: 'same-origin',
+-    headers: init.body ? { 'Content-Type': 'application/json' } : {},
++    headers: { 'X-Abgen-Request': '1', ...(init.body ? { 'Content-Type': 'application/json' } : {}) },
+     ...init,
+   });
+   if (!response.ok) {
+@@ -273,6 +274,7 @@ export const api = {
+     const response = await fetch('/api/documents/import', {
+       method: 'POST',
+       credentials: 'same-origin',
++      headers: { 'X-Abgen-Request': '1' },
+       body,
+     });
+     if (!response.ok) {
+diff --git a/apps/web/src/api/submissions.ts b/apps/web/src/api/submissions.ts
+index beb7025..16e8068 100644
+--- a/apps/web/src/api/submissions.ts
++++ b/apps/web/src/api/submissions.ts
+@@ -39,7 +39,7 @@ export function flushSubmissions(): Promise<void> {
+     for (const entry of pendingSubmissions()) {
+       const response = await fetch(`/api/play/${encodeURIComponent(entry.code)}/submission`, {
+         method: 'POST',
+-        headers: { 'Content-Type': 'application/json' },
++        headers: { 'X-Abgen-Request': '1', 'Content-Type': 'application/json' },
+         body: JSON.stringify(entry),
+       });
+       if (!response.ok) {
+diff --git a/apps/web/src/components/LibraryDialog.tsx b/apps/web/src/components/LibraryDialog.tsx
+index a8a9cb8..06023b7 100644
+--- a/apps/web/src/components/LibraryDialog.tsx
++++ b/apps/web/src/components/LibraryDialog.tsx
+@@ -148,7 +148,7 @@ export function LibraryDialog({ open, onClose }: LibraryDialogProps) {
+     body.set('license.spdx', 'CC0-1.0');
+     body.set('license.author', 'Bildbibliothek');
+     body.set('license.attributionRequired', 'false');
+-    const response = await fetch('/api/assets', {
++    const response = await fetch('/api/assets', { headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       credentials: 'same-origin',
+       body,
+diff --git a/apps/web/src/components/properties/media.tsx b/apps/web/src/components/properties/media.tsx
+index b524f99..5213895 100644
+--- a/apps/web/src/components/properties/media.tsx
++++ b/apps/web/src/components/properties/media.tsx
+@@ -85,7 +85,7 @@ export function AudioProperties({ item }: { item: AudioItem }) {
+     body.set('license.spdx', 'own');
+     body.set('license.author', 'Aufnahme im Unterricht');
+     body.set('license.attributionRequired', 'false');
+-    const response = await fetch('/api/assets', {
++    const response = await fetch('/api/assets', { headers: { 'X-Abgen-Request': '1' },
+       method: 'POST',
+       credentials: 'same-origin',
+       body,
+diff --git a/apps/web/src/state/collab.ts b/apps/web/src/state/collab.ts
+index d818f5c..166996e 100644
+--- a/apps/web/src/state/collab.ts
++++ b/apps/web/src/state/collab.ts
+@@ -1,5 +1,5 @@
+ import * as Y from 'yjs';
+-import type { Item, Page, WorksheetDocument } from '@abgen/model';
++import { readCollaborativeDocument, writeCollaborativeDocument, type WorksheetDocument } from '@abgen/model';
+ import { useEditorStore } from './editorStore.js';
+ 
+ /**
+@@ -40,61 +40,8 @@ function frame(type: number, payload: Uint8Array): ArrayBuffer {
+   return out.buffer;
+ }
+ 
+-/** Dokument in das Yjs-Dokument schreiben (nur geänderte Felder). */
+-export function writeDocument(doc: Y.Doc, document_: WorksheetDocument, origin: unknown): void {
+-  const items = doc.getMap<string>('items');
+-  const order = doc.getMap<string>('order');
+-  const meta = doc.getMap<string>('meta');
+-
+-  doc.transact(() => {
+-    const seen = new Set<string>();
+-    for (const page of document_.pages) {
+-      for (const item of page.items) {
+-        seen.add(item.id);
+-        const json = JSON.stringify(item);
+-        if (items.get(item.id) !== json) items.set(item.id, json);
+-      }
+-      const ids = JSON.stringify(page.items.map((item) => item.id));
+-      if (order.get(page.id) !== ids) order.set(page.id, ids);
+-    }
+-    for (const key of [...items.keys()]) {
+-      if (!seen.has(key)) items.delete(key);
+-    }
+-
+-    // Alles, was nicht Feld ist: Seiten (ohne Felder), Einrichtung, Stile …
+-    const rest = {
+-      ...document_,
+-      pages: document_.pages.map((page) => ({ ...page, items: [] })),
+-    };
+-    const json = JSON.stringify(rest);
+-    if (meta.get('document') !== json) meta.set('document', json);
+-  }, origin);
+-}
+-
+-/** Dokument aus dem Yjs-Dokument zusammensetzen. */
+-export function readDocument(doc: Y.Doc): WorksheetDocument | null {
+-  const meta = doc.getMap<string>('meta');
+-  const raw = meta.get('document');
+-  if (!raw) return null;
+-
+-  const base = JSON.parse(raw) as WorksheetDocument;
+-  const items = doc.getMap<string>('items');
+-  const order = doc.getMap<string>('order');
+-
+-  const pages: Page[] = base.pages.map((page) => {
+-    const ids = order.get(page.id);
+-    const list: string[] = ids ? (JSON.parse(ids) as string[]) : [];
+-    return {
+-      ...page,
+-      items: list
+-        .map((id) => items.get(id))
+-        .filter((entry): entry is string => typeof entry === 'string')
+-        .map((entry) => JSON.parse(entry) as Item),
+-    };
+-  });
+-
+-  return { ...base, pages };
+-}
++export const writeDocument = writeCollaborativeDocument;
++export const readDocument = readCollaborativeDocument;
+ 
+ export interface StartCollabOptions {
+   documentId: string;
+@@ -125,6 +72,9 @@ export function startCollaboration(options: StartCollabOptions): CollabHandle {
+   const socket = new WebSocket(address);
+   socket.binaryType = 'arraybuffer';
+ 
++  const initialDocument = useEditorStore.getState().document;
++  let pendingDocument: WorksheetDocument | null = null;
++  let synchronized = false;
+   let applyingRemote = false;
+   let stopped = false;
+ 
+@@ -133,7 +83,6 @@ export function startCollaboration(options: StartCollabOptions): CollabHandle {
+   };
+ 
+   socket.addEventListener('open', () => {
+-    options.onStatus?.('verbunden');
+     send(MESSAGE_STATE, Y.encodeStateVector(doc));
+     // Eigenen Stand anbieten und sich vorstellen.
+     send(MESSAGE_UPDATE, Y.encodeStateAsUpdate(doc));
+@@ -156,6 +105,35 @@ export function startCollaboration(options: StartCollabOptions): CollabHandle {
+     }
+     if (type === MESSAGE_UPDATE) {
+       Y.applyUpdate(doc, payload, 'remote');
++      if (!synchronized) {
++        synchronized = true;
++        const pending = pendingDocument;
++        if (pending) {
++          const before = new Y.Doc(); const desired = new Y.Doc();
++          try {
++            writeDocument(before, initialDocument, 'initial');
++            writeDocument(desired, pending, 'pending');
++            doc.transact(() => {
++              for (const name of ['items', 'order', 'meta']) {
++                const old = before.getMap<string>(name), next = desired.getMap<string>(name), target = doc.getMap<string>(name);
++                for (const key of new Set([...old.keys(), ...next.keys()])) {
++                  if (old.get(key) === next.get(key)) continue;
++                  const value = next.get(key);
++                  if (value === undefined) target.delete(key); else target.set(key, value);
++                }
++              }
++            }, 'local');
++            const merged = readDocument(doc);
++            if (merged) {
++              applyingRemote = true;
++              try { useEditorStore.getState().load(merged, useEditorStore.getState().remoteId); }
++              finally { applyingRemote = false; }
++            }
++          } finally { before.destroy(); desired.destroy(); }
++          pendingDocument = null;
++        }
++        options.onStatus?.('verbunden');
++      }
+       return;
+     }
+     if (type === MESSAGE_PRESENCE) {
+@@ -183,10 +161,11 @@ export function startCollaboration(options: StartCollabOptions): CollabHandle {
+   });
+ 
+   // Den eigenen Stand hineinschreiben und auf Änderungen hören.
+-  writeDocument(doc, useEditorStore.getState().document, 'local');
++  // Initial content arrives from the durable server room before local edits are sent.
+   const unsubscribe = useEditorStore.subscribe((state, previous) => {
+     if (stopped || applyingRemote) return;
+     if (state.document === previous.document) return;
++    if (!synchronized) { pendingDocument = state.document; return; }
+     writeDocument(doc, state.document, 'local');
+   });
+ 
+diff --git a/apps/web/src/state/spellStore.ts b/apps/web/src/state/spellStore.ts
+index 9a2d935..9c8724a 100644
+--- a/apps/web/src/state/spellStore.ts
++++ b/apps/web/src/state/spellStore.ts
+@@ -40,7 +40,7 @@ export const useSpellStore = create<SpellState>((set, get) => ({
+     try {
+       await fetch('/api/dictionary', {
+         method: 'PUT',
+-        headers: { 'Content-Type': 'application/json' },
++        headers: { 'X-Abgen-Request': '1', 'Content-Type': 'application/json' },
+         credentials: 'same-origin',
+         body: JSON.stringify({ spelling: [...next] }),
+       });
+diff --git a/apps/web/src/views/LoginView.tsx b/apps/web/src/views/LoginView.tsx
+index 8f618f2..070d90a 100644
+--- a/apps/web/src/views/LoginView.tsx
++++ b/apps/web/src/views/LoginView.tsx
+@@ -12,7 +12,7 @@ export interface LoginViewProps {
+   onSignedIn(user: ApiUser): void;
+ }
+ 
+-/** Anmeldung mit E-Mail und Passwort; das erste Konto wird hier angelegt. */
++/** Lokale Anmeldung; die erste Betreuung richtet ihren Zugang am Server ein. */
+ export function LoginView({ onSignedIn }: LoginViewProps) {
+   const [mode, setMode] = useState<'login' | 'register'>('login');
+   const [email, setEmail] = useState('');
+@@ -20,17 +20,17 @@ export function LoginView({ onSignedIn }: LoginViewProps) {
+   const [displayName, setDisplayName] = useState('');
+   const [error, setError] = useState<string | null>(null);
+   const [busy, setBusy] = useState(false);
+-  const [first, setFirst] = useState(false);
+-  // Das Formular erscheint erst, wenn klar ist, ob ein erstes Konto fehlt –
+-  // sonst würde es unter der Hand von „Anmelden“ auf „Konto anlegen“ springen.
++  const [registrationOpen, setRegistrationOpen] = useState(false);
++  const [localSetup, setLocalSetup] = useState(false);
++  // Den ausdrücklich freigegebenen Registrierungszustand zuerst laden.
+   const [ready, setReady] = useState(false);
+ 
+   useEffect(() => {
+     void api
+       .authState()
+       .then((state) => {
+-        setFirst(state.needsFirstAccount);
+-        if (state.needsFirstAccount) setMode('register');
++        setRegistrationOpen(state.registrationOpen && !state.localSetupRequired);
++        setLocalSetup(state.localSetupRequired === true);
+       })
+       .catch(() => setError('Der Server ist nicht erreichbar.'))
+       .finally(() => setReady(true));
+@@ -99,11 +99,8 @@ export function LoginView({ onSignedIn }: LoginViewProps) {
+             ? 'Ein eigener Zugang für deine Unterrichtsideen.'
+             : 'Schön, dass du da bist. Lass uns etwas gestalten.'}
+         </p>
+-        {first ? (
+-          <p className="hint">
+-            Diese Instanz ist neu. Das erste Konto gehört der Person, die sie betreut.
+-          </p>
+-        ) : null}
++        {localSetup ? <p className="hint" role="status">Die Schulverwaltung richtet den ersten Zugang lokal ein.</p> : null}
++
+ 
+         {mode === 'register' ? (
+           <label className="field">
+@@ -152,7 +149,7 @@ export function LoginView({ onSignedIn }: LoginViewProps) {
+           <ArrowRightIcon size={19} aria-hidden="true" />
+         </button>
+ 
+-        {!first ? (
++        {registrationOpen ? (
+           <button
+             type="button"
+             className="link"
+diff --git a/contract_tests/browser.mjs b/contract_tests/browser.mjs
+new file mode 100644
+index 0000000..0f2ab45
+--- /dev/null
++++ b/contract_tests/browser.mjs
+@@ -0,0 +1,49 @@
++// Local browser acceptance against the accepted standalone fixture.
++import assert from 'node:assert/strict';
++import { createRequire } from 'node:module';
++const require=createRequire('/app/apps/server/package.json');
++const {chromium,webkit}=require('playwright');
++async function signedIn(browser) {
++ const context=await browser.newContext();
++ const page=await context.newPage();
++ await page.goto(fixture.origin);
++ await page.getByLabel('E-Mail',{exact:true}).fill(fixture.email);
++ await page.getByLabel('Passwort',{exact:true}).fill(fixture.password);
++ assert.equal(await page.getByRole('button',{name:'Neues Konto anlegen',exact:true}).count(),0,'closed registration absent in UI');
++ await page.getByRole('button',{name:'Anmelden',exact:true}).click();
++ await page.locator('.document-card').first().waitFor();
++ return {context,page};
++}
++const browser=await chromium.launch({args:['--disable-dev-shm-usage']});
++try{
++ const a=await signedIn(browser),b=await signedIn(browser);
++ for(const client of [a,b]){
++  await client.page.locator('.document-card').first().click();
++  await client.page.getByLabel('Gemeinsam bearbeiten',{exact:true}).check();
++  await client.page.locator('.collab-bar[data-status="verbunden"]').waitFor();
++ }
++ const title='Synthetic browser collaboration';
++ await a.page.getByLabel('Titel',{exact:true}).fill(title);
++ await b.page.waitForFunction(expected=>document.querySelector('input[aria-label="Titel"]')?.value===expected,title);
++ console.log('PASS Chromium personal login and two real editor peers synchronize after server handshake');
++ await a.page.getByLabel('Titel',{exact:true}).fill('Synthetic restart durable');
++ await b.page.waitForFunction(()=>document.querySelector('input[aria-label="Titel"]')?.value==='Synthetic restart durable');
++ await a.page.waitForTimeout(2500);
++ await a.context.close();await b.context.close();
++ const c=await signedIn(browser);
++ await c.page.locator('.document-card').first().click();
++ await c.page.getByLabel('Gemeinsam bearbeiten',{exact:true}).check();
++ await c.page.locator('.collab-bar[data-status="verbunden"]').waitFor();
++ assert.equal(await c.page.getByLabel('Titel',{exact:true}).inputValue(),'Synthetic restart durable');
++ console.log('PASS new browser session loads committed document after previous peers depart');
++ await c.context.close();
++}finally{await browser.close();}
++const safari=await webkit.launch();
++try{
++ const client=await signedIn(safari);
++ await client.page.locator('.document-card').first().click();
++ await client.page.getByLabel('Gemeinsam bearbeiten',{exact:true}).check();
++ await client.page.locator('.collab-bar[data-status="verbunden"]').waitFor();
++ console.log('PASS WebKit personal login and native editor collaboration handshake');
++ await client.context.close();
++}finally{await safari.close();}
+diff --git a/contract_tests/runtime.mjs b/contract_tests/runtime.mjs
+new file mode 100644
+index 0000000..8640990
+--- /dev/null
++++ b/contract_tests/runtime.mjs
+@@ -0,0 +1,189 @@
++// Executed only by the standalone acceptance runner with synthetic fixture input.
++import assert from 'node:assert/strict';
++import { createRequire } from 'node:module';
++import { readFileSync } from 'node:fs';
++import { exampleDocument, readCollaborativeDocument } from '/app/packages/model/dist/index.js';
++const require = createRequire('/app/apps/server/package.json');
++const { Pool } = require('pg');
++const Y = require('yjs');
++const WebSocket = createRequire(require.resolve("@fastify/websocket"))('ws');
++const pool = new Pool({connectionString:readFileSync('/run/secrets/database_url','utf8'),max:2});
++const origin = fixture.origin;
++let cookie = '';
++const sleep = ms => new Promise(resolve=>setTimeout(resolve,ms));
++function check(value,label) { assert.ok(value,label); console.log('PASS '+label); }
++async function request(path,method='GET',body,auth=true,extra={}) {
++ return fetch('http://app:3000'+path,{method,headers:{origin,'X-Abgen-Request':'1',
++  ...(body!==undefined?{'content-type':'application/json'}:{}),...(auth&&cookie?{cookie}:{}),...extra},
++  ...(body!==undefined?{body:JSON.stringify(body)}:{})});
++}
++async function login() {
++ const response=await request('/api/auth/login','POST',{email:fixture.email,password:fixture.password},false);
++ assert.equal(response.status,200,'personal login');
++ cookie=response.headers.get('set-cookie').split(';')[0];
++}
++async function load(id) {const response=await request('/api/documents/'+id);assert.equal(response.status,200);return (await response.json()).document;}
++async function socket(id,{originOverride=origin,cookieOverride=cookie}={}) {
++ const ws=new WebSocket('ws://app:3000/api/collab/'+id,{headers:{Origin:originOverride,...(cookieOverride?{Cookie:cookieOverride}:{})}});
++ ws.on('error',()=>{});
++ const doc=new Y.Doc();
++ const ready=new Promise((resolve,reject)=>{
++  const timer=setTimeout(()=>reject(new Error('initial collaboration timeout')),8000);
++  ws.on('message',raw=>{if(raw[0]===1){Y.applyUpdate(doc,raw.subarray(1));clearTimeout(timer);resolve();}});
++  ws.once('close',()=>{clearTimeout(timer);reject(new Error('collaboration closed before handshake'));});
++ });
++ await ready;return {ws,doc};
++}
++function update(client,title) {
++ const vector=Y.encodeStateVector(client.doc);
++ const raw=JSON.parse(client.doc.getMap('meta').get('document'));
++ raw.meta.title=title;
++ client.doc.getMap('meta').set('document',JSON.stringify(raw));
++ const payload=Y.encodeStateAsUpdate(client.doc,vector);
++ client.ws.send(Buffer.concat([Buffer.from([1]),Buffer.from(payload)]));
++}
++async function until(test,label) {
++ for(let i=0;i<100;i++){if(await test())return;await sleep(50);}
++ throw new Error(label);
++}
++async function denySocket(id,headers,label) {
++ const ws=new WebSocket('ws://app:3000/api/collab/'+id,{headers});
++ let sawData=false;ws.on('message',()=>{sawData=true;});ws.on('error',()=>{});
++ await Promise.race([new Promise(resolve=>ws.once('close',resolve)),sleep(3000).then(()=>{ws.terminate();throw new Error(label+' timeout');})]);
++ check(!sawData,label);
++}
++try {
++ await login();
++ if(fixture.phase==='contracts'){
++  check((await request('/api/auth/register','POST',{email:'forbidden@example.invalid',password:fixture.password,displayName:'Forbidden'},false)).status===403,'registration remains explicitly closed');
++  check((await request('/api/auth/logout','POST',{},true,{origin:'https://foreign.invalid'})).status===403,'foreign write origin denied');
++  check((await fetch('http://app:3000/api/auth/logout',{method:'POST',headers:{cookie}})).status===403,'mutation without request header denied');
++  check((await request('/api/documents', 'GET',undefined,false)).status===401,'anonymous document list denied');
++  const created=await request('/api/documents','POST',{document:exampleDocument()});
++  assert.equal(created.status,201,'create native worksheet');const {id}=await created.json();
++  const first=await socket(id),second=await socket(id);
++  check(readCollaborativeDocument(first.doc).pages.length>0,'server seeds native document on initial join');
++  await denySocket(id,{Origin:origin},'anonymous collaboration denied');
++  await denySocket(id,{Origin:'https://foreign.invalid',Cookie:cookie},'foreign collaboration origin denied');
++  const durable='Synthetic collaboration durable';
++  let broadcastAfterCommit=false;
++  const received=new Promise(resolve=>second.ws.once('message',async raw=>{
++   if(raw[0]!==1)return;
++   const row=await pool.query('SELECT snapshot FROM collab_state WHERE document_id=$1',[id]);
++   const persisted=new Y.Doc();Y.applyUpdate(persisted,row.rows[0].snapshot);
++   broadcastAfterCommit=readCollaborativeDocument(persisted).meta.title===durable;
++   persisted.destroy();resolve();
++  }));
++  update(first,durable);
++  await Promise.race([received,sleep(8000).then(()=>{throw new Error('durable broadcast timeout');})]);
++  check(broadcastAfterCommit,'peer update follows durable PostgreSQL commit');
++  await until(async()=> (await load(id)).meta.title===durable,'hydrated document timeout');
++  check(true,'HTTP document includes latest committed collaborative state');
++  const row=await pool.query('SELECT count(*)::int AS count FROM collab_state WHERE document_id=$1',[id]);
++  check(row.rows[0].count===1,'durable Yjs snapshot retained');
++  first.ws.close();second.ws.close();
++  await sleep(200);
++  check((await load(id)).meta.title===durable,'last peer departure preserves document');
++  const saved=await load(id);saved.meta.title='Synthetic explicit replacement';
++  assert.equal((await request('/api/documents/'+id,'PUT',{document:saved})).status,200);
++  check((await pool.query('SELECT count(*)::int AS count FROM collab_state WHERE document_id=$1',[id])).rows[0].count===0,'explicit save outside room supersedes old snapshot');
++  const third=await socket(id),fourth=await socket(id);
++  update(third,'Synthetic restart durable');
++  await until(async()=> (await load(id)).meta.title==='Synthetic restart durable','second persistence timeout');
++  third.ws.close();fourth.ws.close();await sleep(200);
++  const shared=await request('/api/documents/'+id+'/shares','POST',{});
++  assert.equal(shared.status,201);const share=await shared.json();
++  check((await request('/api/documents/'+id+'?token='+encodeURIComponent(share.token),'GET',undefined,false)).status===200,'private native share grants anonymous read');
++  check((await request('/api/documents/'+id+'?token=invalid','GET',undefined,false)).status===404,'invalid share denied');
++  const pdf=await request('/api/documents/'+id+'/pdf','POST',{});
++  assert.equal(pdf.status,200,'real PDF render');
++  const bytes=new Uint8Array(await pdf.arrayBuffer());
++  check(Buffer.from(bytes).subarray(0,5).toString()==='%PDF-'&&bytes.length>1000,'rootless Chromium renders native worksheet PDF');
++  const concurrent=await Promise.all([request('/api/documents/'+id+'/pdf','POST',{}),request('/api/documents/'+id+'/pdf','POST',{})]);
++  check(concurrent.map(r=>r.status).sort().join(',')==='200,429','one PDF slot rejects concurrent work without queue');
++  await Promise.all(concurrent.map(r=>r.arrayBuffer()));
++  check((await request('/api/health/ready')).status===200,'API remains ready after PDF concurrency');
++  await until(async()=> (await pool.query("SELECT count(*)::int AS count FROM shares WHERE kind='render'")).rows[0].count===0,'render capability cleanup');
++  check(true,'temporary render capabilities removed after PDF jobs');
++  const play=await request('/api/documents/'+id+'/play-code','POST',{collectResults:true});
++  assert.equal(play.status,201);const {code}=await play.json();
++  check((await request('/api/play/'+code,'GET',undefined,false)).status===200,'native child play code needs no account');
++  check((await request('/api/play/'+code+'/submission','POST',{pseudonymId:'synthetic-child',answers:{},attempts:{}},false)).status===201,'native pseudonymous child submission retained');
++  check((await request('/api/documents/'+id+'/submissions','GET',undefined,false)).status===401,'anonymous child access does not grant teacher results');
++  const image='<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12"><rect width="12" height="12" fill="blue"/></svg>';
++  const form=new FormData();form.set('name','Synthetic fixture');form.set('license.spdx','CC0-1.0');form.set('file',new Blob([image],{type:'image/svg+xml'}),'synthetic.svg');
++  const upload=await fetch('http://app:3000/api/assets',{method:'POST',headers:{cookie,origin,'X-Abgen-Request':'1'},body:form});
++  check(upload.status===201||upload.status===200,'native licensed asset upload persists bytes');
++  const {rows:files}=await pool.query('SELECT hash FROM assets');
++  check(files.length>0,'asset metadata stored for restore');
++  const failed=await socket(id),observer=await socket(id);
++  let broadcast=false;observer.ws.on('message',raw=>{if(raw[0]===1)broadcast=true;});
++  await pool.query("CREATE FUNCTION contract_reject_collab() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Synthetic storage failure'; END $$");
++  await pool.query('CREATE TRIGGER contract_reject_collab BEFORE INSERT OR UPDATE ON collab_state FOR EACH ROW EXECUTE FUNCTION contract_reject_collab()');
++  try {
++   const closed=new Promise(resolve=>failed.ws.once('close',resolve));
++   update(failed,'Synthetic must not commit');
++   await Promise.race([closed,sleep(8000).then(()=>{throw new Error('failed write timeout');})]);
++   check(!broadcast&&(await load(id)).meta.title==='Synthetic restart durable','failed durable write closes sender without broadcast or data change');
++  } finally {
++   await pool.query('DROP TRIGGER contract_reject_collab ON collab_state');
++   await pool.query('DROP FUNCTION contract_reject_collab()');
++   failed.ws.close();observer.ws.close();
++  }
++  await sleep(200);
++  const malformed=await socket(id);
++  const closed=new Promise(resolve=>malformed.ws.once('close',resolve));
++  const vector=Y.encodeStateVector(malformed.doc);
++  malformed.doc.getMap('meta').set('document','malformed');
++  const invalid=Y.encodeStateAsUpdate(malformed.doc,vector);
++  malformed.ws.send(Buffer.concat([Buffer.from([1]),Buffer.from(invalid)]));
++  await Promise.race([closed,sleep(8000).then(()=>{throw new Error('malformed update timeout');})]);
++  check((await load(id)).meta.title==='Synthetic restart durable','malformed collaborative body does not overwrite durable document');
++  const adminCookie=cookie;
++  const teacherEmail='synthetic-'+require('node:crypto').randomUUID()+'@example.invalid';
++  const teacherResponse=await request('/api/users','POST',{email:teacherEmail,displayName:'Synthetic Teacher',password:fixture.password,role:'teacher'});
++  assert.equal(teacherResponse.status,201);const teacher=(await teacherResponse.json()).user;
++  const teacherLogin=await request('/api/auth/login','POST',{email:teacherEmail,password:fixture.password},false);
++  assert.equal(teacherLogin.status,200);const teacherCookie=teacherLogin.headers.get('set-cookie').split(';')[0];
++  cookie=teacherCookie;
++  check((await request('/api/users')).status===403,'teacher cannot administer accounts');
++  check((await request('/api/documents/'+id)).status===404,'teacher cannot read private document of another owner');
++  await denySocket(id,{Origin:origin,Cookie:cookie},'teacher cannot join private collaboration');
++  cookie=adminCookie;
++  assert.equal((await request('/api/documents/'+id+'/school','PUT',{shared:true})).status,200);
++  cookie=teacherCookie;const schoolPeer=await socket(id);
++  check(readCollaborativeDocument(schoolPeer.doc).meta.title==='Synthetic restart durable','school share explicitly grants authenticated collaboration');
++  cookie=adminCookie;
++  assert.equal((await request('/api/users/'+teacher.id,'PATCH',{active:false})).status,200);
++  cookie=teacherCookie;
++  check((await request('/api/auth/me')).status===401,'deactivation immediately revokes copied HTTP session');
++  const revoked=new Promise(resolve=>schoolPeer.ws.once('close',resolve));
++  schoolPeer.ws.send(Buffer.from([0,0]));
++  await Promise.race([revoked,sleep(5000).then(()=>{throw new Error('revocation timeout');})]);
++  check(true,'existing collaborative socket rechecks deactivation on each frame');
++  cookie=adminCookie;
++  const role=await pool.query('SELECT rolsuper,rolcreatedb,rolcreaterole FROM pg_roles WHERE rolname=current_user');
++  check(!role.rows[0].rolsuper&&!role.rows[0].rolcreatedb&&!role.rows[0].rolcreaterole,'database role has no cluster administration');
++  console.log('FIXTURE_PRIVATE='+JSON.stringify({documentId:id,shareToken:share.token,playCode:code,assetHash:files[0].hash,teacherCookie}));
++ }else if(fixture.phase==='restart'||fixture.phase==='restore'){
++  const rows=await pool.query("SELECT id FROM documents WHERE id IN (SELECT document_id FROM collab_state)");
++  check(rows.rows.length>0,'snapshot survives abrupt API restart');
++  const id=rows.rows[0].id;
++  check((await load(id)).meta.title==='Synthetic restart durable','HTTP reload restores durable Yjs content after restart');
++  const client=await socket(id);
++  check(readCollaborativeDocument(client.doc).meta.title==='Synthetic restart durable','new peer restores durable Yjs content after restart');
++  client.ws.close();
++  if(fixture.phase==='restore'){
++   const saved=fixture.saved;
++   check((await request('/api/documents/'+saved.documentId+'?token='+saved.shareToken,'GET',undefined,false)).status===200,'original private share remains valid after empty restore');
++   check((await request('/api/play/'+saved.playCode,'GET',undefined,false)).status===200,'original native child play code remains valid after empty restore');
++   check((await request('/api/documents/'+saved.documentId+'/submissions','GET',undefined,false)).status===401,'anonymous restored child access cannot read teacher results');
++   const asset=await request('/api/assets/'+saved.assetHash,'GET',undefined,false);
++   const data=Buffer.from(await asset.arrayBuffer());
++   check(require('node:crypto').createHash('sha256').update(data).digest('hex')===saved.assetHash,'restored native asset bytes match original content hash');
++   check((await request('/api/auth/me','GET',undefined,false,{cookie:saved.teacherCookie})).status===401,'deactivated copied session remains revoked after restore');
++   const pdf=await request('/api/documents/'+saved.documentId+'/pdf','POST',{});
++   check(pdf.status===200&&Buffer.from(await pdf.arrayBuffer()).subarray(0,5).toString()==='%PDF-','real PDF renders restored collaborative document');
++  }
++ }
++} finally {await pool.end();}
+diff --git a/docker-compose.yml b/docker-compose.yml
+index debd19f..ba2fc28 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -1,106 +1,95 @@
+-# Selbst gehosteter Betrieb: Editor, API, Datenbank und PDF-Dienst.
+-# Start:  cp .env.example .env && docker compose up --build
+-name: abgen
+-
+ services:
+-  web:
+-    build:
+-      context: .
+-      dockerfile: docker/web.Dockerfile
+-    restart: unless-stopped
+-    ports:
+-      - '${WEB_PORT:-8080}:80'
+-    depends_on:
+-      server:
+-        condition: service_healthy
+-    healthcheck:
+-      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1/']
+-      interval: 30s
+-      timeout: 5s
+-      retries: 5
+-
+-  server:
+-    build:
+-      context: .
+-      dockerfile: docker/server.Dockerfile
+-    restart: unless-stopped
++  app:
++    image: abgen:0.1.0-dev
++    build: {context: ., target: runtime}
++    user: "10001:10001"
++    read_only: true
++    init: true
++    cap_drop: [ALL]
++    security_opt: [no-new-privileges:true]
++    tmpfs: ["/tmp:size=64m,mode=1777"]
++    mem_limit: 1024m
++    cpus: 1
++    pids_limit: 128
++    stop_grace_period: 45s
++    networks:
++      default:
++        aliases: [abgen-web]
++    ports: ["127.0.0.1:${WEB_PORT:-8080}:3000"]
+     environment:
+       NODE_ENV: production
+       HOST: 0.0.0.0
+-      PORT: '3000'
+-      STORAGE: ${STORAGE:-postgres}
+-      DATABASE_URL: ${DATABASE_URL:-postgres://abgen:abgen@postgres:5432/abgen}
++      PORT: "3000"
++      STORAGE: postgres
++      DATABASE_URL_FILE: /run/secrets/database_url
+       ASSET_DIR: /app/data/assets
+-      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:8080}
+-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+-      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
+-      PDF_SERVICE_URL: ${PDF_SERVICE_URL:-http://pdf:3001}
+-      LOG_LEVEL: ${LOG_LEVEL:-info}
+-      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-1}
+-    volumes:
+-      - assets:/app/data/assets
+-    depends_on:
+-      postgres:
+-        condition: service_healthy
++      WEB_ORIGIN: "${WEB_ORIGIN:-http://localhost:8080}"
++      COOKIE_SECURE: "${COOKIE_SECURE:-false}"
++      ALLOW_REGISTRATION: "${ALLOW_REGISTRATION:-false}"
++      INTERNAL_WEB_ORIGIN: http://abgen-web:3000
++      PDF_SERVICE_URL: http://pdf:3001
++      LOG_LEVEL: warn
++    secrets: [database_url]
++    volumes: [assets:/app/data/assets]
+     healthcheck:
+-      test:
+-        [
+-          'CMD',
+-          'node',
+-          '-e',
+-          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+-        ]
+-      interval: 10s
++      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
++      interval: 5s
+       timeout: 5s
+       retries: 12
+-      start_period: 40s
+-
++    logging: &logging
++      driver: json-file
++      options: {max-size: "10m", max-file: "3"}
+   pdf:
+-    build:
+-      context: .
+-      dockerfile: docker/pdf.Dockerfile
+-    restart: unless-stopped
++    image: abgen-pdf:0.1.0-dev
++    build: {context: ., target: pdf}
++    user: "10001:10001"
++    read_only: true
++    init: true
++    cap_drop: [ALL]
++    security_opt: [no-new-privileges:true]
++    tmpfs: ["/tmp:size=256m,mode=1777", "/home/abgen:size=32m,uid=10001,gid=10001,mode=700"]
++    mem_limit: 1536m
++    cpus: 2
++    pids_limit: 384
++    stop_grace_period: 55s
+     environment:
+       NODE_ENV: production
+       HOST: 0.0.0.0
+-      PORT: '3001'
+-      # Der Dienst lädt die Druckansicht aus dem web-Container; eine Datenbank
+-      # oder Zugangsdaten braucht er nicht (siehe docs/entscheidungen.md, E37).
+-      WEB_ORIGIN: http://web
+-      LOG_LEVEL: ${LOG_LEVEL:-info}
+-    depends_on:
+-      web:
+-        condition: service_healthy
++      PORT: "3001"
++      WEB_ORIGIN: http://abgen-web:3000
++      LOG_LEVEL: warn
++      XDG_CACHE_HOME: /tmp/cache
++      XDG_CONFIG_HOME: /tmp/config
+     healthcheck:
+-      test:
+-        [
+-          'CMD',
+-          'node',
+-          '-e',
+-          "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+-        ]
+-      interval: 15s
+-      timeout: 5s
+-      retries: 8
+-      start_period: 30s
+-
++      test: [CMD, node, -e, "fetch('http://127.0.0.1:3001/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
++      interval: 5s
++      timeout: 3s
++      retries: 12
++    logging: *logging
+   postgres:
+-    image: postgres:18-alpine
+-    restart: unless-stopped
++    image: postgres:18.6-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
+     environment:
+-      POSTGRES_USER: ${POSTGRES_USER:-abgen}
+-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-abgen}
+-      POSTGRES_DB: ${POSTGRES_DB:-abgen}
+-    volumes:
+-      # PostgreSQL 18 legt die Daten in ein Unterverzeichnis; deshalb wird
+-      # /var/lib/postgresql eingehängt (erlaubt später pg_upgrade --link).
+-      - postgres:/var/lib/postgresql
++      POSTGRES_USER: postgres
++      POSTGRES_DB: postgres
++      POSTGRES_PASSWORD_FILE: /run/secrets/db_admin
++    secrets: [db_admin, db_app]
++    volumes: [postgres:/var/lib/postgresql, ./docker/init-postgres.sh:/docker-entrypoint-initdb.d/01-app.sh:ro]
++    mem_limit: 512m
++    cpus: 1
++    pids_limit: 128
+     healthcheck:
+-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-abgen} -d ${POSTGRES_DB:-abgen}']
++      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U postgres -d postgres"]
+       interval: 5s
+-      timeout: 5s
+-      retries: 20
+-
++      timeout: 3s
++      retries: 12
++    logging: *logging
+ volumes:
+-  postgres:
+   assets:
++  postgres:
++secrets:
++  db_admin:
++    file: ${ABGEN_SECRETS_DIR:?Run prepare_secrets.py and set ABGEN_SECRETS_DIR}/db-admin
++  db_app:
++    file: ${ABGEN_SECRETS_DIR:?Run prepare_secrets.py and set ABGEN_SECRETS_DIR}/db-app
++  database_url:
++    file: ${ABGEN_SECRETS_DIR:?Run prepare_secrets.py and set ABGEN_SECRETS_DIR}/database-url
+diff --git a/docker/init-postgres.sh b/docker/init-postgres.sh
+new file mode 100755
+index 0000000..3b33562
+--- /dev/null
++++ b/docker/init-postgres.sh
+@@ -0,0 +1,10 @@
++#!/bin/sh
++set -eu
++export ABGEN_INIT_PASSWORD="$(cat /run/secrets/db_app)"
++psql --username "$POSTGRES_USER" --dbname postgres --set ON_ERROR_STOP=1 <<'SQL'
++\getenv app_password ABGEN_INIT_PASSWORD
++CREATE ROLE abgen LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD :'app_password';
++CREATE DATABASE abgen OWNER abgen;
++REVOKE ALL ON DATABASE postgres FROM PUBLIC;
++REVOKE ALL ON DATABASE template1 FROM PUBLIC;
++SQL
+diff --git a/docker/pdf.Dockerfile b/docker/pdf.Dockerfile
+index 170ca73..3d88639 100644
+--- a/docker/pdf.Dockerfile
++++ b/docker/pdf.Dockerfile
+@@ -1,17 +1,48 @@
+-# PDF-Dienst: rendert die Druckansicht mit headless Chromium (Playwright).
+-FROM node:26-bookworm-slim AS build
+-RUN npm install -g pnpm@12.15.0
++# Separate Chromium service; source build shares the root Dockerfile.
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS dependencies
++ENV npm_config_cache=/tmp/npm-cache PNPM_HOME=/pnpm
++RUN npm install -g pnpm@12.15.0 && rm -rf /tmp/npm-cache
+ WORKDIR /app
+-COPY . .
+-RUN pnpm install --frozen-lockfile \
+-  && pnpm --filter @abgen/model --filter @abgen/render --filter @abgen/generators --filter @abgen/text --filter @abgen/server build
++COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
++COPY apps/server/package.json ./apps/server/
++COPY apps/web/package.json ./apps/web/
++COPY packages/generators/package.json ./packages/generators/
++COPY packages/model/package.json ./packages/model/
++COPY packages/render/package.json ./packages/render/
++COPY packages/text/package.json ./packages/text/
++RUN node --version && pnpm --version && pnpm install --frozen-lockfile
+ 
+-# Das Playwright-Image bringt Chromium samt Systemabhängigkeiten mit.
+-FROM mcr.microsoft.com/playwright:v1.64.1-noble AS runtime
+-ENV NODE_ENV=production
++FROM dependencies AS builder
++ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
++COPY tsconfig.base.json ./
++COPY apps ./apps
++COPY packages ./packages
++COPY assets ./assets
++COPY scripts ./scripts
++RUN pnpm fonts:check && pnpm -r --if-present build && pnpm -r --if-present typecheck
++
++FROM builder AS tests
++COPY e2e ./e2e
++COPY playwright.config.ts eslint.config.js .prettierrc.json ./
++USER 10001:10001
++
++FROM mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f AS pdf
++ENV NODE_ENV=production PORT=3001 HOST=0.0.0.0
+ WORKDIR /app
+-COPY --from=build /app /app
+-USER pwuser
++RUN groupadd --gid 10001 abgen && useradd --uid 10001 --gid 10001 --create-home abgen
++COPY --from=builder /app /app
++USER 10001:10001
+ EXPOSE 3001
+-ENV PORT=3001
+-CMD ["node", "apps/server/dist/pdf/index.js"]
++CMD ["node","apps/server/dist/pdf/index.js"]
++
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS runtime
++ENV NODE_ENV=production PORT=3000 HOST=0.0.0.0 RUN_MIGRATIONS=0
++WORKDIR /app
++RUN groupadd --gid 10001 abgen && useradd --uid 10001 --gid 10001 --no-create-home abgen \
++ && mkdir -p /app/data/assets && chown -R 10001:10001 /app/data
++COPY --from=builder /app /app
++USER 10001:10001
++EXPOSE 3000
++CMD ["node","apps/server/dist/index.js"]
++
++FROM pdf AS pdf_runtime
+diff --git a/docker/server.Dockerfile b/docker/server.Dockerfile
+index 8a4dd16..194346d 100644
+--- a/docker/server.Dockerfile
++++ b/docker/server.Dockerfile
+@@ -1,20 +1,46 @@
+-# API und Dokumentspeicher
+-FROM node:26-bookworm-slim AS build
+-ENV PNPM_HOME=/pnpm
+-RUN npm install -g pnpm@12.15.0
++# Compatibility build path for the combined SPA/API runtime.
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS dependencies
++ENV npm_config_cache=/tmp/npm-cache PNPM_HOME=/pnpm
++RUN npm install -g pnpm@12.15.0 && rm -rf /tmp/npm-cache
+ WORKDIR /app
+-COPY . .
+-RUN pnpm install --frozen-lockfile \
+-  && pnpm fonts:check \
+-  && pnpm --filter @abgen/model --filter @abgen/render --filter @abgen/generators --filter @abgen/text --filter @abgen/server build
++COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
++COPY apps/server/package.json ./apps/server/
++COPY apps/web/package.json ./apps/web/
++COPY packages/generators/package.json ./packages/generators/
++COPY packages/model/package.json ./packages/model/
++COPY packages/render/package.json ./packages/render/
++COPY packages/text/package.json ./packages/text/
++RUN node --version && pnpm --version && pnpm install --frozen-lockfile
+ 
+-FROM node:26-bookworm-slim AS runtime
+-ENV NODE_ENV=production
++FROM dependencies AS builder
++ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
++COPY tsconfig.base.json ./
++COPY apps ./apps
++COPY packages ./packages
++COPY assets ./assets
++COPY scripts ./scripts
++RUN pnpm fonts:check && pnpm -r --if-present build && pnpm -r --if-present typecheck
++
++FROM builder AS tests
++COPY e2e ./e2e
++COPY playwright.config.ts eslint.config.js .prettierrc.json ./
++USER 10001:10001
++
++FROM mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f AS pdf
++ENV NODE_ENV=production PORT=3001 HOST=0.0.0.0
++WORKDIR /app
++RUN groupadd --gid 10001 abgen && useradd --uid 10001 --gid 10001 --create-home abgen
++COPY --from=builder /app /app
++USER 10001:10001
++EXPOSE 3001
++CMD ["node","apps/server/dist/pdf/index.js"]
++
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS runtime
++ENV NODE_ENV=production PORT=3000 HOST=0.0.0.0 RUN_MIGRATIONS=0
+ WORKDIR /app
+-COPY --from=build /app /app
+-RUN mkdir -p /app/data/assets && chown -R node:node /app/data
+-USER node
++RUN groupadd --gid 10001 abgen && useradd --uid 10001 --gid 10001 --no-create-home abgen \
++ && mkdir -p /app/data/assets && chown -R 10001:10001 /app/data
++COPY --from=builder /app /app
++USER 10001:10001
+ EXPOSE 3000
+-# Migrationen beim Start einspielen (abschaltbar über RUN_MIGRATIONS=0).
+-ENV RUN_MIGRATIONS=1
+-CMD ["node", "apps/server/dist/index.js"]
++CMD ["node","apps/server/dist/index.js"]
+diff --git a/docker/web.Dockerfile b/docker/web.Dockerfile
+index 58de241..194346d 100644
+--- a/docker/web.Dockerfile
++++ b/docker/web.Dockerfile
+@@ -1,13 +1,46 @@
+-# Editor-Oberfläche: statisch gebaut, von nginx ausgeliefert.
+-FROM node:26-bookworm-slim AS build
+-RUN npm install -g pnpm@12.15.0
++# Compatibility build path for the combined SPA/API runtime.
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS dependencies
++ENV npm_config_cache=/tmp/npm-cache PNPM_HOME=/pnpm
++RUN npm install -g pnpm@12.15.0 && rm -rf /tmp/npm-cache
+ WORKDIR /app
+-COPY . .
+-RUN pnpm install --frozen-lockfile \
+-  && pnpm fonts:check \
+-  && pnpm --filter @abgen/model --filter @abgen/render --filter @abgen/generators --filter @abgen/text --filter @abgen/web build
+-
+-FROM nginx:1.29-alpine AS runtime
+-COPY --from=build /app/apps/web/dist /usr/share/nginx/html
+-COPY docker/web-nginx.conf /etc/nginx/conf.d/default.conf
+-EXPOSE 80
++COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
++COPY apps/server/package.json ./apps/server/
++COPY apps/web/package.json ./apps/web/
++COPY packages/generators/package.json ./packages/generators/
++COPY packages/model/package.json ./packages/model/
++COPY packages/render/package.json ./packages/render/
++COPY packages/text/package.json ./packages/text/
++RUN node --version && pnpm --version && pnpm install --frozen-lockfile
++
++FROM dependencies AS builder
++ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
++COPY tsconfig.base.json ./
++COPY apps ./apps
++COPY packages ./packages
++COPY assets ./assets
++COPY scripts ./scripts
++RUN pnpm fonts:check && pnpm -r --if-present build && pnpm -r --if-present typecheck
++
++FROM builder AS tests
++COPY e2e ./e2e
++COPY playwright.config.ts eslint.config.js .prettierrc.json ./
++USER 10001:10001
++
++FROM mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f AS pdf
++ENV NODE_ENV=production PORT=3001 HOST=0.0.0.0
++WORKDIR /app
++RUN groupadd --gid 10001 abgen && useradd --uid 10001 --gid 10001 --create-home abgen
++COPY --from=builder /app /app
++USER 10001:10001
++EXPOSE 3001
++CMD ["node","apps/server/dist/pdf/index.js"]
++
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS runtime
++ENV NODE_ENV=production PORT=3000 HOST=0.0.0.0 RUN_MIGRATIONS=0
++WORKDIR /app
++RUN groupadd --gid 10001 abgen && useradd --uid 10001 --gid 10001 --no-create-home abgen \
++ && mkdir -p /app/data/assets && chown -R 10001:10001 /app/data
++COPY --from=builder /app /app
++USER 10001:10001
++EXPOSE 3000
++CMD ["node","apps/server/dist/index.js"]
+diff --git a/packages/model/src/collaboration.ts b/packages/model/src/collaboration.ts
+new file mode 100644
+index 0000000..d7d921c
+--- /dev/null
++++ b/packages/model/src/collaboration.ts
+@@ -0,0 +1,67 @@
++import type { Item, Page, WorksheetDocument } from './index.js';
++export interface CollaborativeDoc {
++  getMap<T>(name: string): {
++    get(key: string): T | undefined;
++    set(key: string, value: T): unknown;
++    delete(key: string): void;
++    keys(): IterableIterator<string>;
++  };
++  transact(callback: () => void, origin?: unknown): unknown;
++}
++
++/** Dokument in das Yjs-Dokument schreiben (nur geänderte Felder). */
++export function writeDocument(doc: CollaborativeDoc, document_: WorksheetDocument, origin: unknown): void {
++  const items = doc.getMap<string>('items');
++  const order = doc.getMap<string>('order');
++  const meta = doc.getMap<string>('meta');
++
++  doc.transact(() => {
++    const seen = new Set<string>();
++    for (const page of document_.pages) {
++      for (const item of page.items) {
++        seen.add(item.id);
++        const json = JSON.stringify(item);
++        if (items.get(item.id) !== json) items.set(item.id, json);
++      }
++      const ids = JSON.stringify(page.items.map((item) => item.id));
++      if (order.get(page.id) !== ids) order.set(page.id, ids);
++    }
++    for (const key of [...items.keys()]) {
++      if (!seen.has(key)) items.delete(key);
++    }
++
++    // Alles, was nicht Feld ist: Seiten (ohne Felder), Einrichtung, Stile …
++    const rest = {
++      ...document_,
++      pages: document_.pages.map((page) => ({ ...page, items: [] })),
++    };
++    const json = JSON.stringify(rest);
++    if (meta.get('document') !== json) meta.set('document', json);
++  }, origin);
++}
++
++/** Dokument aus dem Yjs-Dokument zusammensetzen. */
++export function readDocument(doc: CollaborativeDoc): WorksheetDocument | null {
++  const meta = doc.getMap<string>('meta');
++  const raw = meta.get('document');
++  if (!raw) return null;
++
++  const base = JSON.parse(raw) as WorksheetDocument;
++  const items = doc.getMap<string>('items');
++  const order = doc.getMap<string>('order');
++
++  const pages: Page[] = base.pages.map((page) => {
++    const ids = order.get(page.id);
++    const list: string[] = ids ? (JSON.parse(ids) as string[]) : [];
++    return {
++      ...page,
++      items: list
++        .map((id) => items.get(id))
++        .filter((entry): entry is string => typeof entry === 'string')
++        .map((entry) => JSON.parse(entry) as Item),
++    };
++  });
++
++  return { ...base, pages };
++}
++
+diff --git a/packages/model/src/index.ts b/packages/model/src/index.ts
+index b4c8b95..5488b79 100644
+--- a/packages/model/src/index.ts
++++ b/packages/model/src/index.ts
+@@ -12,3 +12,5 @@ export * from './example.js';
+ export * from './factory.js';
+ export * from './starters.js';
+ export * from './targets.js';
++
++export { readDocument as readCollaborativeDocument, writeDocument as writeCollaborativeDocument } from './collaboration.js';
+diff --git a/playwright.config.ts b/playwright.config.ts
+index ae1ba93..a3f6e4f 100644
+--- a/playwright.config.ts
++++ b/playwright.config.ts
+@@ -28,8 +28,11 @@ export default defineConfig({
+   webServer: [
+     {
+       // API mit Speicher im Arbeitsspeicher: keine Datenbank für die Tests nötig.
+-      command: 'pnpm --filter @abgen/server dev',
++      command: 'node apps/server/dist/testing/server.js',
+       env: {
++        NODE_ENV: 'test',
++        ABGEN_FIXTURE_EMAIL: 'instanzbetreuung@schule.example',
++        ABGEN_FIXTURE_PASSWORD: 'Arbeitsblatt-2026',
+         STORAGE: 'memory',
+         ALLOW_REGISTRATION: 'true',
+         LOG_LEVEL: 'warn',
+diff --git a/prepare_secrets.py b/prepare_secrets.py
+new file mode 100644
+index 0000000..f5fb6e7
+--- /dev/null
++++ b/prepare_secrets.py
+@@ -0,0 +1,10 @@
++import os,secrets
++from pathlib import Path
++os.umask(0o077)
++directory=Path('.private');directory.mkdir(mode=0o700)
++password=secrets.token_hex(32)
++for name,value in {'db-admin':secrets.token_hex(32),'db-app':password,
++ 'database-url':'postgresql://abgen:'+password+'@postgres:5432/abgen'}.items():
++ fd=os.open(directory/name,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o444)
++ with os.fdopen(fd,'w') as stream:stream.write(value);stream.flush();os.fchmod(stream.fileno(),0o444)
++print('Private database credentials created; set ABGEN_SECRETS_DIR to absolute .private directory.')
+-- 
+2.43.0
+

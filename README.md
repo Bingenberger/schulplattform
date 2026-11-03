@@ -7,6 +7,8 @@ der [Umfangsbeschluss](docs/platform-audit/scope-decision.md).
 **Aktuell ist ein lokaler Pilot mit schulwissen, gswb und optional Zackboing, Schulhelfer, Losverkauf, Grundschultafel, Fahrradausbildung, Leseflux sowie Kompetenz-Manager geprüft.** Die vollständige
 Installation auf leerem Ubuntu 24.04 und der Zehn-App-Stack sind noch offen.
 [Umsetzungsstand und Testnachweise](docs/implementation/status.md).
+Abgen ist zusätzlich als [eigenständiger Stack geprüft](docs/implementation/abgen.md);
+seine Anbindung an den gemeinsamen Pilot steht noch aus.
 
 ## Lokale Entwicklung
 

@@ -1,0 +1,120 @@
+imageId=sha256:b26ecbbaab6af2d079775bdc53d48f242c9e01a57789b29a5a4766c910282fa5
+$ docker run --rm --init --read-only --network none --cap-drop ALL --security-opt no-new-privileges:true --memory 2048m --cpus 2 --pids-limit 256 --tmpfs /tmp:size=256m,mode=1777 --tmpfs /app/node_modules/.vitest-cache:size=128m,uid=10001,gid=10001,mode=700 -e CI=true -e XDG_DATA_HOME=/tmp/xdg-data -e XDG_CACHE_HOME=/tmp/xdg-cache -i abgen-tests:0.1.0-dev node --input-type=module -
+Workspace: packages/model
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90m/app/packages/model[39m
+
+ [32m✓[39m src/targets.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+ [32m✓[39m src/document.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 60[2mms[22m[39m
+ [32m✓[39m src/fonts.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/migrate.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m src/common.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/starters.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m6 passed[39m[22m[90m (6)[39m
+[2m      Tests [22m [1m[32m52 passed[39m[22m[90m (52)[39m
+[2m   Start at [22m 16:22:49
+[2m   Duration [22m 640ms[2m (import 52%, tests 22%, transform 19%, worker 7%)[22m
+
+Workspace: packages/generators
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90m/app/packages/generators[39m
+
+ [32m✓[39m src/generators/phase6.test.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 209[2mms[22m[39m
+ [32m✓[39m src/generators/generators.test.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 361[2mms[22m[39m
+ [32m✓[39m src/generators/formats.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 47[2mms[22m[39m
+ [32m✓[39m src/solve.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/generators/phase8.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/generators/sprache.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+ [32m✓[39m src/tasks.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/teacher-regressions.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 49[2mms[22m[39m
+ [32m✓[39m src/variants.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/rng.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m src/registry.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m11 passed[39m[22m[90m (11)[39m
+[2m      Tests [22m [1m[32m132 passed[39m[22m[90m (132)[39m
+[2m   Start at [22m 16:22:50
+[2m   Duration [22m 1.31s[2m (tests 53%, transform 25%, import 20%, worker 2%)[22m
+
+[2m    Isolate [22m [33m11 workers spawned[39m[2m · ~84ms startup each (spawn + environment, per file)[22m
+[2m            [22m [2mat least ~377ms faster with [22m[33misolate: false[39m[2m — reuses workers across files instead of one per file[22m
+
+Workspace: packages/text
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90m/app/packages/text[39m
+
+ [32m✓[39m src/effects.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/syllables.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 89[2mms[22m[39m
+ [32m✓[39m src/normalize.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/library.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 57[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m4 passed[39m[22m[90m (4)[39m
+[2m      Tests [22m [1m[32m36 passed[39m[22m[90m (36)[39m
+[2m   Start at [22m 16:22:51
+[2m   Duration [22m 467ms[2m (import 49%, tests 34%, transform 15%, worker 2%)[22m
+
+Workspace: packages/render
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90m/app/packages/render[39m
+
+ [32m✓[39m src/snapping.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/fields/fields.test.tsx [2m([22m[2m86 tests[22m[2m)[22m[32m 136[2mms[22m[39m
+ [32m✓[39m src/geometry.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/transform.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/arrange.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/preview.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m6 passed[39m[22m[90m (6)[39m
+[2m      Tests [22m [1m[32m160 passed[39m[22m[90m (160)[39m
+[2m   Start at [22m 16:22:52
+[2m   Duration [22m 3.01s[2m (environment 75%, transform 15%, import 6%, tests 3%)[22m
+
+[2mEnvironment [22m [33mjsdom was created 6 times[39m[2m · 3.75s total, 75% of tracked time[22m
+[2m            [22m [2mcreate it once per worker with [22m[33mpool: 'vmThreads'[39m[2m (keeps per-file isolation) or [22m[33misolate: false[39m[2m (shares it across files)[22m
+[2m            [22m [2mlearn more: https://vitest.dev/guide/improving-performance#test-environments[22m
+
+Workspace: apps/server
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90m/app/apps/server[39m
+
+ [32m✓[39m src/users.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 524[2mms[22m[39m
+ [32m✓[39m src/phase4.test.ts [2m([22m[2m31 tests[22m[2m)[22m[33m 1382[2mms[22m[39m
+ [32m✓[39m src/documents.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 470[2mms[22m[39m
+ [32m✓[39m src/auth.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 519[2mms[22m[39m
+ [32m✓[39m src/app.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 78[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m5 passed[39m[22m[90m (5)[39m
+[2m      Tests [22m [1m[32m63 passed[39m[22m[90m (63)[39m
+[2m   Start at [22m 16:22:55
+[2m   Duration [22m 4.53s[2m (import 54%, tests 35%, transform 11%)[22m
+
+Workspace: apps/web
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90m/app/apps/web[39m
+
+ [32m✓[39m src/hooks/useAutosave.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/state/actions.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/state/collab.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/state/editorStore.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/state/playerStore.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m src/commands/commands.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/commands/shortcuts.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/components/choices/IconChoices.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 104[2mms[22m[39m
+ [32m✓[39m src/views/print.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/api/submissions.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/api/printPreview.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/fonts/fontFaces.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/App.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m13 passed[39m[22m[90m (13)[39m
+[2m      Tests [22m [1m[32m80 passed[39m[22m[90m (80)[39m
+[2m   Start at [22m 16:23:00
+[2m   Duration [22m 6.88s[2m (environment 67%, import 24%, transform 7%, tests 2%, worker 1%)[22m
+
+[2mEnvironment [22m [33mjsdom was created 13 times[39m[2m · 8.11s total, 67% of tracked time[22m
+[2m            [22m [2mcreate it once per worker with [22m[33mpool: 'vmThreads'[39m[2m (keeps per-file isolation) or [22m[33misolate: false[39m[2m (shares it across files)[22m
+[2m            [22m [2mlearn more: https://vitest.dev/guide/improving-performance#test-environments[22m
+
+
+exit_code=0

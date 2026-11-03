@@ -1,0 +1,4 @@
+PASS snapshot survives abrupt API restart
+PASS HTTP reload restores durable Yjs content after restart
+PASS new peer restores durable Yjs content after restart
+exit_code=0

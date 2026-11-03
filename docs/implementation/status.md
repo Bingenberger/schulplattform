@@ -6,7 +6,7 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
 
 ## Beobachtet und implementiert
 
-- Eigenständige, isolierte App-Repositories; neun lokale App-Änderungspakete mit
+- Eigenständige, isolierte App-Repositories; zehn lokale App-Änderungspakete (neun im gemeinsamen Pilot, abgen zunächst standalone) mit
   [Commits und Patches](../../patches/index.json). Keine Appquellen als Monorepo.
 - gswb-Redaktion mit lokaler Anmeldung, CSRF und Pflichtsecret abgesichert;
   öffentliche Lese-API bleibt zugänglich. Kein Vertrauen in Identitätsheader.
@@ -199,10 +199,15 @@ Passwort-Reset-Flow gibt es keinen QR-Code und keine aktivierten OIDC-Callbacks.
 Leseflux wurde mit identischen Fachzeilen, Lernfortschritt und beiden lokalen
 Kinderzugängen in einer frischen PostgreSQL-Instanz wiederhergestellt. Historische
 QR-/Audit-Rohwerte werden erhalten; ihre Bereinigung vor echter Bestandsübernahme
-ist weiterhin offen. [Leseflux-Abnahme und Grenzen](leseflux.md). Noch ausstehende
-App: abgen; SSO bleibt zuletzt.
+ist weiterhin offen. [Leseflux-Abnahme und Grenzen](leseflux.md). Abgen ist zunächst eigenständig geprüft; die gemeinsame Plattformanbindung ist noch offen. SSO bleibt zuletzt.
 
 Kompetenz-Manager wurde mit identischen Fachzeilen, Rollen/Klassenzuordnungen,
 privaten Uploads und Schullogo in frische Volumes wiederhergestellt; danach echter
 PDF-Export und verweigerter Fremdklassenzugriff geprüft. PostgreSQL und reale
 Altbestände sind dabei nicht abgenommen. [Abnahme und Grenzen](kompetenz-manager.md).
+
+Abgen hat einen eigenständigen PostgreSQL-18-/Chromium-Stack mit verdeckter lokaler
+Erstadministration und dauerhaftem Yjs-Zustand. 623 native Tests, ESLint, echte
+Chromium-/WebKit-Zusammenarbeit und Restore in leere Datenbank/Asset-Volumes sind
+bestanden. Die gemeinsame Zehn-App-Integration samt Domainrückfall und Dashboard
+ist weiterhin offen. [Abgen-Standalone und Grenzen](abgen.md).

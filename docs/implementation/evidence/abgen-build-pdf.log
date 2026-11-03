@@ -1,0 +1,102 @@
+$ docker build --platform linux/amd64 --target pdf -t abgen-pdf:0.1.0-dev .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon   15.2MB
+Step 1/32 : FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS dependencies
+ ---> c469fbffcbb0
+Step 2/32 : ENV npm_config_cache=/tmp/npm-cache PNPM_HOME=/pnpm
+ ---> Using cache
+ ---> eeaa96207108
+Step 3/32 : RUN npm install -g pnpm@12.15.0 && rm -rf /tmp/npm-cache
+ ---> Using cache
+ ---> 1c9ad34981f1
+Step 4/32 : WORKDIR /app
+ ---> Using cache
+ ---> f02a6a0f05cd
+Step 5/32 : COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+ ---> Using cache
+ ---> ca7b0c5a913f
+Step 6/32 : COPY apps/server/package.json ./apps/server/
+ ---> Using cache
+ ---> 768673139911
+Step 7/32 : COPY apps/web/package.json ./apps/web/
+ ---> Using cache
+ ---> ea44edb15a02
+Step 8/32 : COPY packages/generators/package.json ./packages/generators/
+ ---> Using cache
+ ---> 089df86f8dd6
+Step 9/32 : COPY packages/model/package.json ./packages/model/
+ ---> Using cache
+ ---> 4c5dec23c779
+Step 10/32 : COPY packages/render/package.json ./packages/render/
+ ---> Using cache
+ ---> 6885d7207c77
+Step 11/32 : COPY packages/text/package.json ./packages/text/
+ ---> Using cache
+ ---> ee34ca7f12d8
+Step 12/32 : RUN node --version && pnpm --version && pnpm install --frozen-lockfile
+ ---> Using cache
+ ---> 06f698f91c9d
+Step 13/32 : FROM dependencies AS builder
+ ---> 06f698f91c9d
+Step 14/32 : ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ ---> Using cache
+ ---> f99e2aa2bdc8
+Step 15/32 : COPY tsconfig.base.json ./
+ ---> Using cache
+ ---> 08e2e69109d8
+Step 16/32 : COPY apps ./apps
+ ---> Using cache
+ ---> 08aa1c626e7a
+Step 17/32 : COPY packages ./packages
+ ---> Using cache
+ ---> 97fe246d55a5
+Step 18/32 : COPY assets ./assets
+ ---> Using cache
+ ---> eaaa4e5db25c
+Step 19/32 : COPY scripts ./scripts
+ ---> Using cache
+ ---> df9145a7944b
+Step 20/32 : RUN pnpm fonts:check && pnpm -r --if-present build && pnpm -r --if-present typecheck
+ ---> Using cache
+ ---> b185a4b85515
+Step 21/32 : FROM builder AS tests
+ ---> b185a4b85515
+Step 22/32 : COPY e2e ./e2e
+ ---> Using cache
+ ---> 6711fa122c08
+Step 23/32 : COPY playwright.config.ts eslint.config.js .prettierrc.json ./
+ ---> Using cache
+ ---> 6fa25e44c218
+Step 24/32 : USER 10001:10001
+ ---> Using cache
+ ---> b26ecbbaab6a
+Step 25/32 : FROM mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f AS pdf
+ ---> a0d7b2b49ffa
+Step 26/32 : ENV NODE_ENV=production PORT=3001 HOST=0.0.0.0
+ ---> Using cache
+ ---> f4a3e35f081f
+Step 27/32 : WORKDIR /app
+ ---> Using cache
+ ---> 778a05ab4ae5
+Step 28/32 : RUN groupadd --gid 10001 abgen && useradd --uid 10001 --gid 10001 --create-home abgen
+ ---> Using cache
+ ---> f8d733012c63
+Step 29/32 : COPY --from=builder /app /app
+ ---> Using cache
+ ---> 9d2178f07f53
+Step 30/32 : USER 10001:10001
+ ---> Using cache
+ ---> 82fac266cc19
+Step 31/32 : EXPOSE 3001
+ ---> Using cache
+ ---> 2652bba4dd30
+Step 32/32 : CMD ["node","apps/server/dist/pdf/index.js"]
+ ---> Using cache
+ ---> 7ee078ec81e7
+Successfully built 7ee078ec81e7
+Successfully tagged abgen-pdf:0.1.0-dev
+
+exit_code=0

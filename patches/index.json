@@ -1,5 +1,11 @@
 [
   {
+    "app": "abgen",
+    "baseCommit": "50db999ccc689cdad3a6b2c930d24dee650eaec2",
+    "implementationCommit": "e14bbe6664087aaef8ecb027913297885b4f6c13",
+    "patch": "patches/abgen/changes.patch"
+  },
+  {
     "app": "schulwissen",
     "baseCommit": "a9673bc343a3a6eea1c15f533d0e89061e669b32",
     "implementationCommit": "225e4dd144a42c79b7db0855aa850bf54ec7d956",

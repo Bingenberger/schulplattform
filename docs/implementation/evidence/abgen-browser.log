@@ -1,0 +1,5 @@
+PASS Chromium personal login and two real editor peers synchronize after server handshake
+PASS new browser session loads committed document after previous peers depart
+PASS WebKit personal login and native editor collaboration handshake
+
+exit_code=0

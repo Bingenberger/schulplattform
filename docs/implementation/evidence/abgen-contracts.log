@@ -1,0 +1,33 @@
+PASS registration remains explicitly closed
+PASS foreign write origin denied
+PASS mutation without request header denied
+PASS anonymous document list denied
+PASS server seeds native document on initial join
+PASS anonymous collaboration denied
+PASS foreign collaboration origin denied
+PASS peer update follows durable PostgreSQL commit
+PASS HTTP document includes latest committed collaborative state
+PASS durable Yjs snapshot retained
+PASS last peer departure preserves document
+PASS explicit save outside room supersedes old snapshot
+PASS private native share grants anonymous read
+PASS invalid share denied
+PASS rootless Chromium renders native worksheet PDF
+PASS one PDF slot rejects concurrent work without queue
+PASS API remains ready after PDF concurrency
+PASS temporary render capabilities removed after PDF jobs
+PASS native child play code needs no account
+PASS native pseudonymous child submission retained
+PASS anonymous child access does not grant teacher results
+PASS native licensed asset upload persists bytes
+PASS asset metadata stored for restore
+PASS failed durable write closes sender without broadcast or data change
+PASS malformed collaborative body does not overwrite durable document
+PASS teacher cannot administer accounts
+PASS teacher cannot read private document of another owner
+PASS teacher cannot join private collaboration
+PASS school share explicitly grants authenticated collaboration
+PASS deactivation immediately revokes copied HTTP session
+PASS existing collaborative socket rechecks deactivation on each frame
+PASS database role has no cluster administration
+exit_code=0

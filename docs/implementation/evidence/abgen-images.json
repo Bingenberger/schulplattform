@@ -1,0 +1,26 @@
+{
+  "runtime": {
+    "Id": "sha256:6157f4ddd1f73038b601b0ad6404239ab25afebcb024e78346344b8442ccd2d0",
+    "Architecture": "amd64",
+    "Os": "linux",
+    "Size": 536808022,
+    "RepoDigests": [],
+    "node": "v22.23.4"
+  },
+  "pdf": {
+    "Id": "sha256:7ee078ec81e7e576b3d6775f6ff56dcddcea5455e9bef43c69fed88026a30ef2",
+    "Architecture": "amd64",
+    "Os": "linux",
+    "Size": 2852699385,
+    "RepoDigests": [],
+    "node": "v26.13.0"
+  },
+  "tests": {
+    "Id": "sha256:b26ecbbaab6af2d079775bdc53d48f242c9e01a57789b29a5a4766c910282fa5",
+    "Architecture": "amd64",
+    "Os": "linux",
+    "Size": 727297849,
+    "RepoDigests": [],
+    "node": "v22.23.4"
+  }
+}

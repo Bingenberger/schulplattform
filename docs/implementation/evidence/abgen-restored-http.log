@@ -1,0 +1,10 @@
+PASS snapshot survives abrupt API restart
+PASS HTTP reload restores durable Yjs content after restart
+PASS new peer restores durable Yjs content after restart
+PASS original private share remains valid after empty restore
+PASS original native child play code remains valid after empty restore
+PASS anonymous restored child access cannot read teacher results
+PASS restored native asset bytes match original content hash
+PASS deactivated copied session remains revoked after restore
+PASS real PDF renders restored collaborative document
+exit_code=0
