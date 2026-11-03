@@ -113,3 +113,5 @@ unveränderten Image-Einstieg zweimal über ein echtes PTY aus und prüft, dass
 das Passwort nicht in der Ausgabe erscheint. Auch restriktive umask 077 ist
 für Credential-Projektionen mit einem Regressionstest abgedeckt. Masterdateien
 bleiben 0600, Projektionen 0444 innerhalb privater 0700-Verzeichnisse.
+
+Plattform-Quellpaket: c61256d; [Commit-Rohbeleg](evidence/leseflux-work-package-commit.log).

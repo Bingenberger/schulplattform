@@ -1,0 +1,37 @@
+$ git diff --cached --check
+
+exit_code=0
+
+$ git commit -m Integrate Leseflux as eighth isolated app with revocable sessions and verified restore
+[main c61256d] Integrate Leseflux as eighth isolated app with revocable sessions and verified restore
+ 47 files changed, 4229 insertions(+), 63 deletions(-)
+ create mode 100644 docs/implementation/evidence/leseflux-app-commit.log
+ create mode 100644 docs/implementation/evidence/leseflux-browser.json
+ create mode 100644 docs/implementation/evidence/leseflux-build-runtime.log
+ create mode 100644 docs/implementation/evidence/leseflux-build-tests.log
+ create mode 100644 docs/implementation/evidence/leseflux-functional.log
+ create mode 100644 docs/implementation/evidence/leseflux-image.json
+ create mode 100644 docs/implementation/evidence/leseflux-patch-replay.json
+ create mode 100644 docs/implementation/evidence/leseflux-platform.json
+ create mode 100644 docs/implementation/evidence/leseflux-private-output-check.log
+ create mode 100644 docs/implementation/evidence/leseflux-restore-operations.json
+ create mode 100644 docs/implementation/evidence/leseflux-restore.json
+ create mode 100644 docs/implementation/evidence/leseflux-session-contract.log
+ create mode 100644 docs/implementation/evidence/leseflux-setup.json
+ create mode 100644 docs/implementation/evidence/leseflux-standalone-operations.json
+ create mode 100644 docs/implementation/evidence/leseflux-standalone.json
+ create mode 100644 docs/implementation/evidence/pilot-v18-operations.jsonl
+ create mode 100644 docs/implementation/leseflux.md
+ create mode 100644 patches/leseflux/changes.patch
+ create mode 100644 scripts/build_leseflux.py
+ create mode 100644 scripts/check_leseflux_runtime.py
+ create mode 100644 scripts/check_leseflux_sessions.py
+ create mode 100644 scripts/leseflux_fixture.py
+ create mode 100644 scripts/verify_leseflux_browser.py
+ create mode 100644 scripts/verify_leseflux_patch.py
+ create mode 100644 scripts/verify_leseflux_platform.py
+ create mode 100644 scripts/verify_leseflux_restore.py
+ create mode 100644 scripts/verify_leseflux_setup.py
+ create mode 100644 scripts/verify_leseflux_standalone.py
+
+exit_code=0
