@@ -1,12 +1,13 @@
 # Umsetzungsstand vom 3. November 2026
 
 **Der Gesamtauftrag ist weiterhin offen.** Der lokale Pilot mit schulwissen,
-gswb und optional Zackboing, Schulhelfer, Losverkauf, Grundschultafel, Fahrradausbildung, Leseflux sowie Kompetenz-Manager ist ausführbar und geprüft. Eine Freigabe für den leeren Ubuntu-Zielserver
-oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
+gswb, Zackboing, Schulhelfer, Losverkauf, Grundschultafel, Fahrradausbildung, Leseflux,
+Kompetenz-Manager und abgen ist als Zehn-App-Stack ausführbar und lokal geprüft.
+Eine Freigabe für den leeren Ubuntu-Zielserver oder den Produktivbetrieb liegt nicht vor.
 
 ## Beobachtet und implementiert
 
-- Eigenständige, isolierte App-Repositories; zehn lokale App-Änderungspakete (neun im gemeinsamen Pilot, abgen zunächst standalone) mit
+- Eigenständige, isolierte App-Repositories; zehn lokale App-Änderungspakete mit
   [Commits und Patches](../../patches/index.json). Keine Appquellen als Monorepo.
 - gswb-Redaktion mit lokaler Anmeldung, CSRF und Pflichtsecret abgesichert;
   öffentliche Lese-API bleibt zugänglich. Kein Vertrauen in Identitätsheader.
@@ -38,7 +39,7 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
   persönliche Terminaleinrichtung, widerrufbare Sitzungen und ein gemeinsamer
   LibreOffice-Slot. Klassenrechte bleiben fachlich unverändert. Worker wird
   beim Stop zuerst pausiert und bei Wiederaufnahme ohne Bootstrap gestartet.
-- Lokaler Zwei- bis Neunerstack mit Caddy, getrennten Appnetzen, PostgreSQL und Mailpit.
+- Lokaler Zwei- bis Zehnerstack mit Caddy, getrennten Appnetzen, PostgreSQL und Mailpit.
   Nur Caddys TLS-Testport ist auf Host-Loopback veröffentlicht. Die Apps laufen
   ohne Rootrechte und mit schreibgeschütztem Root-Dateisystem. Die PostgreSQL-
   Approlle besitzt keine Superuser-, CREATEDB- oder CREATEROLE-Rechte.
@@ -55,7 +56,7 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
   Sitzungen, CSRF und Betriebsprotokoll. Öffentliche Kacheln und bestätigte
   Zugangsprojektion sind von der Administrationsansicht getrennt.
 - Separater Unix-Socket-Steuerdienst mit Peer-UID, HMAC und persistenten Nonces;
-  derzeit ausschließlich Status, Start und Stop für die neun bekannten Pilot-Apps.
+  derzeit ausschließlich Status, Start und Stop für die zehn bekannten Pilot-Apps.
   Aktive Zackboing-Spiele verweigern Stop mit sicherem 409-Hinweis und Audit.
   Das Dashboard besitzt keinen Docker-Socket.
 - Releasebundles werden mit einem unabhängig bereitgestellten Ed25519-Schlüssel
@@ -66,7 +67,7 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
 
 | Prüfung | Ergebnis | Rohbeleg |
 | --- | --- | --- |
-| Python-Suite für Sicherheit, Manifeste, Signaturen, State, Domains, SQLite | 96 bestanden | [Log](evidence/python-tests.log) |
+| Python-Suite für Sicherheit, Manifeste, Signaturen, State, Domains, SQLite und Zehn-App-Lebenszyklus | 103 bestanden | [Log](evidence/abgen-ten-app-regression.log) |
 | schulwissen-Vertragstests im Produktionsimage ohne Netzwerk | 5 bestanden | [Log](evidence/schulwissen-runtime.log) |
 | Zackboing-Bootstrap und Session-Negativtests | bestanden | [Bootstrap](evidence/zackboing-bootstrap.log), [Session](evidence/zackboing-session.log) |
 | Zackboing amd64/Standalone | Node 22.23.4, 117 Fach-/Negativprüfungen bestanden | [Image](evidence/zackboing-image.json), [Standalone](evidence/zackboing-standalone.json) |
@@ -104,6 +105,8 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
 | Kompetenz-Manager SQLite-/Datei-/Vorlagenrestore mit HTTP/PDF-Abnahme | bestanden | [Ergebnis](evidence/kompetenz-restore.json) |
 | Kompetenz-Manager Chromium-Tablet, persönlicher Login, Navigation und Logout | bestanden | [Ergebnis](evidence/kompetenz-browser.json) |
 | Neunerpilot: TLS-Mail-Domainwechsel/Rückfall, No-op und Web-/Worker-Start/Stop | bestanden | [Ergebnis](evidence/kompetenz-platform.json) |
+| Zehn-App-Pilot mit abgen: TLS, dekodierter Kinder-QR, WSS, Domainrückfall und Drain | bestanden, lokale CA; Fachdaten und Yjs-Bytes erhalten | [Ergebnis](evidence/abgen-platform.json) |
+| Zehn-App-Browser Chromium/WebKit und Dashboardsteuerung von abgen | bestanden, TOTP/CSRF und Kachelfreigabe | [Browser](evidence/abgen-platform-browser.log), [Dashboard](evidence/dashboard-container.json) |
 | amd64-Builds gswb und schulwissen | bestanden, lokale Entwicklungsimages | [gswb](evidence/gswb-build.log), [schulwissen](evidence/schulwissen-build.log) |
 | gswb Standalone-Start und Neustart | bestanden | [Ergebnis](evidence/gswb-container.json) |
 | schulwissen Standalone ohne Plattform-Override | bestanden | [Ergebnis](evidence/schulwissen-standalone.json), [Log](evidence/schulwissen-standalone.log) |
@@ -141,11 +144,11 @@ oder Löschungen von Bestandsvolumes ausgeführt.
 | A2 | Schema, Signatur- und Inventarprüfung implementiert | SBOM, veröffentlichte Registry-Digests, geprüfte Releasekombination |
 | A3 | lokaler Caddy-/DB-/Sink-Verbund | produktives Relay mit dauerhafter Queue, Secretrotation, Infrastrukturabnahme |
 | A4 | beide Apps standalone und gemeinsam lokal gestartet | leerer Ubuntu-Server, öffentliche TLS-/DNS-Abnahme, vollständige Fachtests |
-| A5 | State-Maschine und Pilot-Lebenszyklus getestet | Host-Provisionierung, alle zehn Apps, vollständige Bootstrap-/Verify-Stufen auf Ubuntu |
+| A5 | State-Maschine und Pilot-Lebenszyklus getestet | Host-Provisionierung und vollständige Bootstrap-/Verify-Stufen aller zehn Apps auf Ubuntu |
 | A6 | lokaler Domainwechsel mit Rückfall getestet | öffentliche DNS-/Besitz-/ACME-Prüfung, Verwaltungsdomain, alle Link-/Callback-/WS-Varianten |
-| A7 | SQLite/PostgreSQL-Bausteine, Zackboing-, Schulhelfer-, Losverkauf-, Grundschultafel-, Fahrradausbildung-, Leseflux- und Kompetenz-Manager-Apprestore getestet | Plattform-/Datei-/Secret-Gesamtbackup, Verschlüsselung und Offsite, weitere Apprestores |
-| A8 | Dashboard mit TOTP und Steuerdienst für neun Apps, Stopsperre für Spiele | produktive Serviceinstallation, Updates/Domains/Backup/SMTP-Oberfläche, tatsächliche Zugangsprojektion aller zehn Apps |
-| A9 | neun Apps lokal containerisiert und geprüft | abgen; vollständige Release-/Lizenzabnahme |
+| A7 | SQLite/PostgreSQL-Bausteine, Zackboing-, Schulhelfer-, Losverkauf-, Grundschultafel-, Fahrradausbildung-, Leseflux- Kompetenz-Manager- und Abgen-Apprestore getestet | Plattform-/Datei-/Secret-Gesamtbackup, Verschlüsselung und Offsite, weitere Apprestores |
+| A8 | Dashboard mit TOTP und Steuerdienst für zehn Apps, Stopsperre für Spiele | produktive Serviceinstallation, Updates/Domains/Backup/SMTP-Oberfläche, tatsächliche Zugangsprojektion aller zehn Apps |
+| A9 | zehn Apps standalone und gemeinsam lokal containerisiert und geprüft | vollständige Release-/Lizenz- und Fachabnahme |
 | A10 | nicht ausgeführt | Zielservermessung, definierte Last- und Dauerläufe |
 | A11 | nicht begonnen | bleibt bis zur Abnahme der Pflichtpakete zurückgestellt |
 
@@ -199,7 +202,7 @@ Passwort-Reset-Flow gibt es keinen QR-Code und keine aktivierten OIDC-Callbacks.
 Leseflux wurde mit identischen Fachzeilen, Lernfortschritt und beiden lokalen
 Kinderzugängen in einer frischen PostgreSQL-Instanz wiederhergestellt. Historische
 QR-/Audit-Rohwerte werden erhalten; ihre Bereinigung vor echter Bestandsübernahme
-ist weiterhin offen. [Leseflux-Abnahme und Grenzen](leseflux.md). Abgen ist zunächst eigenständig geprüft; die gemeinsame Plattformanbindung ist noch offen. SSO bleibt zuletzt.
+ist weiterhin offen. [Leseflux-Abnahme und Grenzen](leseflux.md). Abgen ist eigenständig und im gemeinsamen Zehn-App-Pilot geprüft. SSO bleibt zuletzt.
 
 Kompetenz-Manager wurde mit identischen Fachzeilen, Rollen/Klassenzuordnungen,
 privaten Uploads und Schullogo in frische Volumes wiederhergestellt; danach echter
@@ -209,5 +212,5 @@ Altbestände sind dabei nicht abgenommen. [Abnahme und Grenzen](kompetenz-manage
 Abgen hat einen eigenständigen PostgreSQL-18-/Chromium-Stack mit verdeckter lokaler
 Erstadministration und dauerhaftem Yjs-Zustand. 523 native Tests, ESLint, echte
 Chromium-/WebKit-Zusammenarbeit und Restore in leere Datenbank/Asset-Volumes sind
-bestanden. Die gemeinsame Zehn-App-Integration samt Domainrückfall und Dashboard
-ist weiterhin offen. [Abgen-Standalone und Grenzen](abgen.md).
+bestanden. Zusätzlich sind Zehn-App-TLS, Domain-/QR-/WSS-Rückfall, No-op sowie
+Dashboardsteuerung geprüft. [Abgen-Abnahme und Grenzen](abgen.md).

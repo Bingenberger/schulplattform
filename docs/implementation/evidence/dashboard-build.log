@@ -3,7 +3,7 @@ DEPRECATED: The legacy builder is deprecated and will be removed in a future rel
             Install the buildx component to build images with BuildKit:
             https://docs.docker.com/go/buildx/
 
-Sending build context to Docker daemon  165.4kB
+Sending build context to Docker daemon  171.5kB
 Step 1/12 : FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c
  ---> 9cb180cb36bd
 Step 2/12 : ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -19,30 +19,30 @@ Step 5/12 : RUN pip install --no-cache-dir --require-hashes -r requirements-dash
  ---> Using cache
  ---> 979fbf08b62b
 Step 6/12 : COPY schulplattform ./schulplattform
- ---> 7e9816f2c0ec
+ ---> 4ff8fb3cdff8
 Step 7/12 : COPY templates/dashboard ./templates/dashboard
- ---> 140597cbeaeb
+ ---> e9851eeeea69
 Step 8/12 : RUN groupadd --gid 10001 platform && useradd --uid 10001 --gid 10001 --no-create-home platform     && mkdir -p /state && chown 10001:10001 /state && chmod 700 /state
- ---> Running in cd98177ede8b
- ---> Removed intermediate container cd98177ede8b
- ---> d22e91e48fe9
+ ---> Running in de7fd01f65bb
+ ---> Removed intermediate container de7fd01f65bb
+ ---> 6cb799e2e9a7
 Step 9/12 : USER 10001:10001
- ---> Running in 5f43cd1df653
- ---> Removed intermediate container 5f43cd1df653
- ---> 98455a92a9e8
+ ---> Running in 18b7c8d49599
+ ---> Removed intermediate container 18b7c8d49599
+ ---> 06d0e7da2c0a
 Step 10/12 : EXPOSE 8000
- ---> Running in e303b0dbafe2
- ---> Removed intermediate container e303b0dbafe2
- ---> e1c8f06586e8
+ ---> Running in 6256aee2b5d8
+ ---> Removed intermediate container 6256aee2b5d8
+ ---> f9ad0ff4f8f7
 Step 11/12 : HEALTHCHECK --interval=15s --timeout=3s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"
- ---> Running in 4ff88ffa772a
- ---> Removed intermediate container 4ff88ffa772a
- ---> 07ecce18248a
+ ---> Running in 2a768994e491
+ ---> Removed intermediate container 2a768994e491
+ ---> 28b5753256fd
 Step 12/12 : CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "180", "--worker-tmp-dir", "/tmp", "schulplattform.dashboard:from_env()"]
- ---> Running in c1c616b5e81c
- ---> Removed intermediate container c1c616b5e81c
- ---> 44d301ee0999
-Successfully built 44d301ee0999
+ ---> Running in be738f2e3439
+ ---> Removed intermediate container be738f2e3439
+ ---> a78fec4567c4
+Successfully built a78fec4567c4
 Successfully tagged schulplattform-dashboard:0.1.0-dev
 
 exit_code=0

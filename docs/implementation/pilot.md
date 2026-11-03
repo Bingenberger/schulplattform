@@ -167,3 +167,23 @@ erzeugt kein Benutzerkonto. Erstadministration erfolgt separat interaktiv.
 Der begrenzte Steuerdienst hält beim Stop zuerst den Mail-Schreiber an und
 startet bei Wiederaufnahme beide Dienste ohne Migration oder Bootstrap.
 [Kompetenz-Manager-Abnahme und Grenzen](kompetenz-manager.md).
+
+## Optionaler zehnter Dienst: abgen
+
+Nach scripts/build_abgen.py einen neuen Zustandsordner mit --apps
+gswb,schulwissen,zackboing,schulhelfer,losverkauf,grundschultafel,fahrradausbildung,leseflux,kompetenz-manager,abgen
+verwenden. Geprüft: .work/pilot-v21. Eigenes PostgreSQL 18, private Zugangsdaten,
+kombinierte SPA/API und separater Chromium-Dienst. Der Erstlauf führt nur die
+explizite Migration aus. Die persönliche Erstadministration erfolgt separat über
+das echte lokale Terminal wie im eigenständigen abgen-README beschrieben.
+
+APP-, PDF- und PostgreSQL-Image-IDs gehören zum Installationsplan. Die aktuelle
+öffentliche Origin ist Laufzeitkonfiguration; die private Druck-Origin bleibt
+http://abgen-web:3000. Der Steuerdienst drainiert offene Räume, stoppt API/PDF,
+erhält PostgreSQL/Volumes und startet ohne erneuten Bootstrap.
+[Abgen-Abnahme](abgen.md) beschreibt QR-/WSS-Domainrückfall und alle Grenzen.
+
+Auf diesem Entwicklungshost wurden ausschließlich Container und Netze bekannter
+gestoppter eigener Testumgebungen entfernt, um die vorhandenen Docker-Adresspools
+nicht auszuschöpfen. Volumes, Schlüssel und fremde Dienste bleiben erhalten.
+Die Plattform konfiguriert die globalen Docker-Adresspools nicht um.

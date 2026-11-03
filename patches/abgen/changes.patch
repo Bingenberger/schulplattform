@@ -1,8 +1,8 @@
 From e14bbe6664087aaef8ecb027913297885b4f6c13 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Tue, 3 Nov 2026 17:26:18 +0100
-Subject: [PATCH] Add standalone PostgreSQL 18 runtime, local setup and durable
- collaborative state
+Subject: [PATCH 1/2] Add standalone PostgreSQL 18 runtime, local setup and
+ durable collaborative state
 
 ---
  .dockerignore                                |  32 ++-
@@ -3981,6 +3981,46 @@ index 0000000..f5fb6e7
 + fd=os.open(directory/name,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o444)
 + with os.fdopen(fd,'w') as stream:stream.write(value);stream.flush();os.fchmod(stream.fileno(),0o444)
 +print('Private database credentials created; set ABGEN_SECRETS_DIR to absolute .private directory.')
+-- 
+2.43.0
+
+
+From 0248358f54e78f6f7bdc00a7a5e93cd0e12cde90 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Tue, 3 Nov 2026 18:41:02 +0100
+Subject: [PATCH 2/2] Document accepted ten-app pilot and worksheet lifecycle
+
+---
+ PLATFORM.md | 16 ++++++++++++++--
+ 1 file changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/PLATFORM.md b/PLATFORM.md
+index 72ffbd3..2938fad 100644
+--- a/PLATFORM.md
++++ b/PLATFORM.md
+@@ -115,8 +115,20 @@ geprüfte Kompatibilitätsmatrizen.
+ 
+ ## Noch nicht abgenommen
+ 
+-Plattformanbindung mit zehn Apps, lokaler TLS-Domainwechsel samt Rückfall,
+-Dashboard-Lebenszyklus für abgen und Zielserver-/Lastmessung sind separat offen.
++Der lokale Zehn-App-Pilot ist separat mit dem Standalone-Compose und ergänzenden
++Overrides geprüft: eigenes PostgreSQL 18, privater PDF-Dienst, nur Proxy-TLS am
++Host-Loopback, exakte öffentliche WEB_ORIGIN und sichere Cookies. Der Installationsplan
++bindet auch PDF- und PostgreSQL-Image-IDs. Zwei unveränderte Läufe behalten
++Container, Schlüssel und Checkpoints. Ein ausgefallener PDF-Dienst degradiert den
++Appstatus und die Gesamtreadiness. Stop drainiert offene Räume, stoppt API/PDF
++und erhält die Datenbank; Start führt keine Migration oder Einrichtung erneut aus.
++Ein lokaler Domainwechsel und erzwungener Rückfall erhalten Fachzeilen und
++bestehende Freigaben/Kinder-Codes. Neue Links und der native dynamische Kinder-QR
++verwenden die aktuelle Origin. Statisch im Dokument eingetragene QR-Zieladressen
++bleiben Benutzerdaten und werden nicht umgeschrieben.
++Das eigene Dashboard wurde mit TOTP, ausdrücklicher Kachelfreigabe und begrenztem
++Unix-Steuerdienst geprüft; dessen Sitzung eröffnet keinen nativen abgen-Zugang.
++Zielserver-/Lastmessung und Produktionsabnahme stehen weiter aus.
+ Keine Ubuntu-24.04-Abnahme, keine öffentlichen DNS-/ACME-Änderungen, kein Offsite-
+ Transport und keine bestätigten RPO/RTO-Ziele. Die vollständige native Playwright-
+ Suite und visuelle/Offline-Abnahme wurden nicht ausgeführt. Schriftinventar:
 -- 
 2.43.0
 

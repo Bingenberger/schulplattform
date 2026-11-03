@@ -58,7 +58,7 @@ def test_existing_database_never_gets_replacement_keys(tmp_path):
     assert not store.secrets.path("totp-wrapping-key").exists()
 
 
-@pytest.mark.parametrize("app_id", ["schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux", "kompetenz-manager"])
+@pytest.mark.parametrize("app_id", ["schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen"])
 def test_optional_app_access_is_explicit_and_operations_are_audited(tmp_path, app_id):
     store = AdminStore(tmp_path / "admin", initialize=True)
     identity = store.create_admin("synthetic.operator", "synthetic-password-123", SEED)

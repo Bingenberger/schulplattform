@@ -1,11 +1,13 @@
-# abgen: eigenständiger PostgreSQL-/Yjs-/PDF-Stand
+# abgen: zehnte App im lokalen Pilot
 
-Die zehnte ausgewählte App hat jetzt einen geprüften eigenständigen Containerstack.
-**Die Anbindung an den gemeinsamen Zehn-App-Pilot ist noch offen.**
-Dies ist keine Produktionsfreigabe und kein Abschluss von A9.
+Alle zehn ausgewählten Apps sind jetzt gemeinsam im lokalen TLS-Pilot geprüft.
+Der eigenständige abgen-Stack bleibt erhalten. Dies ist keine Produktionsfreigabe
+und kein Abschluss der vollständigen Release-/Lizenzabnahme von A9.
 
 Ausgangscommit: `50db999ccc689cdad3a6b2c930d24dee650eaec2`.
-App-Implementierung: `e14bbe6664087aaef8ecb027913297885b4f6c13`.
+App-Paketstand: `0248358f54e78f6f7bdc00a7a5e93cd0e12cde90`.
+Die Runtimequellen und geprüften Images stammen unverändert aus
+`e14bbe6664087aaef8ecb027913297885b4f6c13`; danach wurde nur die Betriebsdokumentation ergänzt.
 [Exportierter Patch](../../patches/abgen/changes.patch),
 [sauberer Replay mit identischem Git-Baum](evidence/abgen-patch-replay.json).
 
@@ -46,6 +48,45 @@ App-Implementierung: `e14bbe6664087aaef8ecb027913297885b4f6c13`.
   des Hostnamens `app`. Chromium lädt nur die interne App und lokale Ressourcen.
   Mediendateien werden synchronisiert und atomar veröffentlicht.
 
+## Gemeinsamer Zehn-App-Pilot
+
+Der Adapter ergänzt `abgen` ausdrücklich als zehnte Auswahl. Frühere Auswahlen
+bleiben gültig; ein bestehender Installationsordner wird nicht automatisch erweitert.
+Geprüfte Umgebung: `.work/pilot-v21`, Installations-ID
+`6e234961-2e5d-411b-bb6e-01442f21b7f5`, lokaler TLS-Testport 33901.
+
+Das native Compose bleibt eigenständig. Der Plattformadapter setzt sichere Cookies,
+eine exakte öffentliche WEB_ORIGIN, private Dateiprojektionen aus dem Secretstore
+und ein eigenes internes Proxynetz. PostgreSQL 18 und PDF haben keine Hostports;
+PDF besitzt keinen Datenbankzugang. API-, PDF- und PostgreSQL-Image-IDs gehören zum
+unveränderlichen Installationsplan. Der Erstlauf migriert nur das Schema und legt
+kein Konto an. Testidentitäten wurden ausschließlich als explizite synthetische
+Fixture hinzugefügt.
+
+Readiness berücksichtigt API, PostgreSQL und PDF; ein PDF-Ausfall degradiert auch
+den angezeigten Appstatus. Der begrenzte Steuerdienst setzt beim Stop die
+Wartungsroute, drainiert den offenen Bearbeitungsraum und stoppt API/PDF.
+Die Datenbank und alle Volumes bleiben erhalten. Start führt keine Migration
+oder Einrichtung erneut aus. Zwei unveränderte Installationsläufe behalten
+Container, Schlüssel und Checkpoints.
+
+Der Domainversuch wechselt WEB_ORIGIN und Proxyroute, während die private
+Druck-Origin unverändert bleibt. Bestehende Freigaben/Kinder-Codes bleiben gültig.
+Neue Freigabelinks und der native dynamische Kinder-QR verwenden die aktuelle
+Browser-Origin. Der QR-Nachweis dekodiert einen Screenshot der echten Oberfläche.
+Chromium verbindet den Editor dabei per WSS mit jeder geprüften Domain; die
+vorherige Origin wird nach dem Wechsel abgewiesen. Ein absichtlich scheiternder
+Prüfschritt stellt die vorherige Domain wieder her. Fachdaten und Yjs-Snapshotbytes bleiben im Domain-/Lebenszyklusversuch gleich.
+Ausgenommen sind neu ausgestellte Sitzungen und der Kontaktzeitstempel der
+Zusammenarbeit, den bereits ein leerer Synchronisationsaustausch aktualisiert.
+Statisch in Dokumenten eingetragene QR-Ziele bleiben Benutzerdaten und werden
+nicht umgeschrieben. Abgen hat keinen nativen Mail- oder OIDC-Callbackflow.
+
+Das echte Dashboard kontrolliert abgen über den authentifizierten Unix-Dienst.
+TOTP, CSRF, unbekannte Aktionen, ausdrückliche Kachelfreigabe und Logout sind
+geprüft. Das Dashboard hat keinen Docker-Socket. Eine Dashboard-Sitzung gewährt
+keinen Zugriff auf das native abgen-Konto.
+
 ## Tatsächlich ausgeführt
 
 | Prüfung | Beobachtung |
@@ -59,6 +100,10 @@ App-Implementierung: `e14bbe6664087aaef8ecb027913297885b4f6c13`.
 | [Leeres Restore](evidence/abgen-restore.json) | alle Fachzeilen und Migrationshistorie identisch; nichtleere DB-Ziele werden verweigert; getrenntes frisches Asset-Volume mit identischen Bytes/UID |
 | [Restaurierte Zugänge](evidence/abgen-restored-http.log) | ursprünglicher Freigabelink/Kurzcode, gesperrte Sitzung, Mediendatei, Yjs und echter PDF-Druck ohne Migration/Seed geprüft |
 | [Browser](evidence/abgen-browser.log) | Chromium: zwei echte Editor-Peers und erneuter Einstieg; WebKit: Anmeldung und Zusammenarbeit |
+| [Zehn-App-TLS / Domains / Lebenszyklus](evidence/abgen-platform.json) | lokale CA und Hostnamen strikt geprüft; QR-Screenshot dekodiert, WSS, Link-/PDF-Flow, erzwungener Rückfall, No-op und Drain geprüft |
+| [Zehn-App-Browser](evidence/abgen-platform-browser.log) | Chromium/WebKit über Caddy-TLS, sichere HttpOnly-Cookies und echte Editor-Zusammenarbeit; Browser mit lokaler CA-Ausnahme, strikte CA-/Hostprüfung zusätzlich im Python-Client |
+| [Dashboard](evidence/dashboard-container.json) | tatsächlicher Container → authentifizierter Unix-Dienst → abgen Start/Stop; TOTP/CSRF/Kachelfreigabe und unabhängiger nativer Login geprüft |
+| [Plattformregression](evidence/abgen-ten-app-regression.log) | 103 Tests bestanden; frühe Auswahlen, Dateirechte, Zusatzdienststatus und Stopreihenfolge enthalten |
 
 Erzwungener PostgreSQL-Schreibfehler: kein Broadcast und kein Überschreiben.
 Fehlerhafter Yjs-Dokumentkörper: unveränderter dauerhafter Stand.
@@ -77,9 +122,6 @@ Das sind Imagegrößen, keine Zielserver- oder Arbeitsspeichermessung.
 
 ## Noch erforderlich
 
-- Abgen-Adapter, eigener PostgreSQL-18-Dienst und PDF-Lebenszyklus im Zehn-App-Pilot;
-  Readiness einschließlich PDF, TLS-Proxy, Domaintransaktion mit Rückfall und
-  Dashboardsteuerung müssen noch integriert und tatsächlich geprüft werden.
 - Vollständige native Playwright-Suite, visuelle Druck-/Offline-Abnahme,
   Last-/Ressourcenmessung und Crash-/Netzwerkrennen über die geprüften Fälle hinaus.
   Keine Mehrprozess-/Clusterfreigabe und kein zugesicherter Verlustschutz für
@@ -96,8 +138,16 @@ Reproduzierbare lokale Reihenfolge:
 `scripts/build_abgen.py`, `scripts/check_abgen_runtime.py`,
 `scripts/verify_abgen_standalone.py`, `scripts/verify_abgen_restore.py`,
 `scripts/verify_abgen_browser.py`, `scripts/verify_abgen_patch.py`.
+Für den laufenden Zehn-App-Pilot zusätzlich `scripts/verify_abgen_platform.py`,
+`scripts/verify_abgen_platform_browser.py` und
+`scripts/verify_dashboard_container.py --state-dir .work/pilot-v21`.
 Alle Fixturekonten und Daten sind synthetisch; private Zugangsdaten und
 Freigabefähigkeiten bleiben ausschließlich unter ignorierten 0700-Verzeichnissen.
 
 Plattformrepository-Änderungspaket: `678e01e20dfa4e80dac2ef3955a6192c17d381fc`.
 [Geprüfter Commitbeleg](evidence/abgen-work-package-commit.log).
+
+Der QR-Nachweis verwendet das vorhandene Decoder-Testimage aus
+`scripts/build_fahrradausbildung.py --browser` ausschließlich offline für
+Pillow/pyzbar. Der Browser läuft im festgelegten abgen-Playwright-Image.
+[Decoder-Imagebeleg](evidence/abgen-qr-decoder-image.json).

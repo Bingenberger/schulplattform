@@ -26,7 +26,7 @@ parser=argparse.ArgumentParser()
 parser.add_argument("--state-dir", default=".work/pilot-v2")
 args=parser.parse_args()
 pilot = Pilot(ROOT / args.state_dir)
-control_app = "kompetenz-manager" if "kompetenz-manager" in pilot.apps else "leseflux" if "leseflux" in pilot.apps else "fahrradausbildung" if "fahrradausbildung" in pilot.apps else "grundschultafel" if "grundschultafel" in pilot.apps else "gswb"
+control_app = "abgen" if "abgen" in pilot.apps else "kompetenz-manager" if "kompetenz-manager" in pilot.apps else "leseflux" if "leseflux" in pilot.apps else "fahrradausbildung" if "fahrradausbildung" in pilot.apps else "grundschultafel" if "grundschultafel" in pilot.apps else "gswb"
 directory = ROOT / ".work" / ("dashboard-test-" + secrets.token_hex(5))
 directory.mkdir(mode=0o700)
 sockets = directory / "sockets"
@@ -59,6 +59,9 @@ if "leseflux" in pilot.apps:
 if "kompetenz-manager" in pilot.apps:
     catalogue["kompetenz-manager"]={"name":"Kompetenz-Manager","description":"Förder- und Diagnostikverwaltung",
         "url":"https://kompetenz.localhost:"+str(pilot.config["port"]), "public":False}
+if "abgen" in pilot.apps:
+    catalogue["abgen"]={"name":"Arbeitsblatt-Editor","description":"Arbeitsblätter und gemeinsame Bearbeitung",
+        "url":"https://blaetter.localhost:"+str(pilot.config["port"]), "public":False}
 (directory / "apps.json").write_text(json.dumps(catalogue))
 (directory / "Caddyfile").write_text("{\n admin localhost:2019\n local_certs\n}\nverwaltung.localhost {\n reverse_proxy dashboard:8000\n}\n")
 compose_data = {
@@ -92,6 +95,7 @@ def run(argv, input=None):
     result = subprocess.run(argv, input=input, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180)
     operations.append({"command": argv, "exitCode": result.returncode})
     if result.returncode:
+        (directory / "failure.private.log").write_text(result.stdout+result.stderr)
         raise RuntimeError("Dashboard integration command failed; no potentially sensitive output emitted")
     return result.stdout
 
@@ -146,6 +150,8 @@ try:
     status, html = request("/")
     assert status == 200 and "Wörterbuch" in html
     assert catalogue["schulwissen"]["url"] not in html
+    if control_app in catalogue and not catalogue[control_app]["public"]:
+        assert catalogue[control_app]["url"] not in html
     assert request("/admin")[0] == 302
     assert request("/admin/actions/"+control_app+"/start", "POST", {})[0] == 403
     status, html = request("/login")
@@ -159,10 +165,24 @@ try:
     status, html = request("/admin")
     assert status == 200 and "Plattform verwalten" in html
     assert password not in html and seed not in html and key.decode() not in html
+    if control_app in catalogue and not catalogue[control_app]["public"]:
+        assert catalogue[control_app]["url"] not in request("/")[1]
+        grant = """import json,sys
+from schulplattform.dashboard_auth import AdminStore
+data=json.load(sys.stdin);store=AdminStore('/state')
+with store.connect() as db:
+ identity=db.execute("SELECT id FROM admins WHERE username=?",('synthetic.operator',)).fetchone()[0]
+store.confirm_access(identity,data['app'])
+"""
+        run(base+["exec","-T","dashboard","python","-c",grant],input=json.dumps({"app":control_app}))
+        assert catalogue[control_app]["url"] in request("/")[1]
     csrf = token(html)
     assert request("/admin/actions/"+control_app+"/shell", "POST", {"csrf": csrf})[0] == 404
     assert request("/admin/actions/"+control_app+"/start", "POST", {"csrf": csrf})[0] == 302
     assert PilotEngine(pilot).status(control_app)["health"] == "healthy"
+    if control_app == "abgen":
+        assert pilot.request(pilot.current_domains()["abgen"],"/api/auth/me",
+            headers={"Cookie":"sp_admin="+cookies["sp_admin"]})[0] == 401
     assert request("/admin/actions/"+control_app+"/stop", "POST", {})[0] == 403
     assert PilotEngine(pilot).status(control_app)["running"]
     assert request("/admin/actions/"+control_app+"/stop", "POST", {"csrf": csrf})[0] == 302

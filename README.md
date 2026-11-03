@@ -4,11 +4,11 @@ Die Plattform bündelt eigenständige Apps für einen selbst gehosteten Schulser
 Maßgeblich sind der [Auftrag](Coding_Agent_Umsetzungsauftrag_Schulplattform.md) und
 der [Umfangsbeschluss](docs/platform-audit/scope-decision.md).
 
-**Aktuell ist ein lokaler Pilot mit schulwissen, gswb und optional Zackboing, Schulhelfer, Losverkauf, Grundschultafel, Fahrradausbildung, Leseflux sowie Kompetenz-Manager geprüft.** Die vollständige
-Installation auf leerem Ubuntu 24.04 und der Zehn-App-Stack sind noch offen.
+**Aktuell ist der lokale Zehn-App-Pilot einschließlich abgen geprüft.** Die vollständige
+Installation auf leerem Ubuntu 24.04 sowie Produktions- und Releaseabnahme sind noch offen.
 [Umsetzungsstand und Testnachweise](docs/implementation/status.md).
-Abgen ist zusätzlich als [eigenständiger Stack geprüft](docs/implementation/abgen.md);
-seine Anbindung an den gemeinsamen Pilot steht noch aus.
+Abgen ist eigenständig und im gemeinsamen Pilot mit PostgreSQL 18,
+Yjs, PDF und Domainrückfall geprüft: [Abnahme und Grenzen](docs/implementation/abgen.md).
 
 ## Lokale Entwicklung
 
@@ -95,9 +95,9 @@ Negativzugriffe, Mail in den Sink, Domainwechsel mit Rückfall und einen synthet
 PostgreSQL-Restore sowie einen kombinierten Zackboing-DB-/Medienrestore. Sie ersetzen keine vollständige Produktionsabnahme.
 
 Das [Dashboard](docs/implementation/dashboard.md) mit TOTP und eingeschränktem
-Unix-Steuerdienst unterstützt die sieben Pilot-Apps; aktive Zackboing-Spiele blockieren Stop.
+Unix-Steuerdienst unterstützt die zehn Pilot-Apps; aktive Zackboing-Spiele blockieren Stop.
 Verschlüsseltes Offsitebackup, konsistente gemeinsame DB-/Datei-/Schlüsselsicherung,
-weitere Dashboardfunktionen, drei weitere Appintegrationen und Zielservermessungen sind offen.
+weitere Dashboardfunktionen und Zielservermessungen sind offen.
 RPO/RTO und die geschätzten 16 GB RAM/4 vCPU sind noch nicht bestätigt.
 
 Kein Keycloak, keine zentrale Benutzersperrung und kein zentraler Logout.
@@ -111,3 +111,12 @@ Leseflux ergänzt einen neuen Achterpilot nach scripts/build_leseflux.py mit
 Kompetenz-Manager ergänzt nach scripts/build_kompetenz.py den Neunerpilot mit
 --apps gswb,schulwissen,zackboing,schulhelfer,losverkauf,grundschultafel,fahrradausbildung,leseflux,kompetenz-manager.
 [SQLite, lokale Rechte, begrenzte PDF-Exporte und Restore](docs/implementation/kompetenz-manager.md).
+
+Abgen ergänzt nach scripts/build_abgen.py den Zehnerpilot in einem neuen Zustandsordner:
+
+```sh
+./install.sh pilot-up --state-dir .work/pilot-v21 --apps gswb,schulwissen,zackboing,schulhelfer,losverkauf,grundschultafel,fahrradausbildung,leseflux,kompetenz-manager,abgen
+```
+
+Eigenes PostgreSQL 18, privater Chromium-Dienst und dauerhafter Yjs-Zustand; die
+Erstmigration erzeugt kein Konto. [Standalone, Domain-/QR-/WSS-Rückfall, Dashboard und Restore](docs/implementation/abgen.md).

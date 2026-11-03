@@ -28,15 +28,16 @@ INFRASTRUCTURE = {
 }
 
 
-APP_PORTS = {"gswb": 8000, "schulwissen": 8000, "zackboing": 3000, "schulhelfer": 8000, "losverkauf": 8000, "grundschultafel": 3000, "fahrradausbildung": 8000, "leseflux": 3001, "kompetenz-manager": 8000}
-DEFAULT_DOMAINS = {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost", "zackboing": "quiz.localhost", "schulhelfer": "helfer.localhost", "losverkauf": "lose.localhost", "grundschultafel": "tafel.localhost", "fahrradausbildung": "rad.localhost", "leseflux": "lesen.localhost", "kompetenz-manager": "kompetenz.localhost"}
+APP_PORTS = {"gswb": 8000, "schulwissen": 8000, "zackboing": 3000, "schulhelfer": 8000, "losverkauf": 8000, "grundschultafel": 3000, "fahrradausbildung": 8000, "leseflux": 3001, "kompetenz-manager": 8000, "abgen": 3000}
+DEFAULT_DOMAINS = {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost", "zackboing": "quiz.localhost", "schulhelfer": "helfer.localhost", "losverkauf": "lose.localhost", "grundschultafel": "tafel.localhost", "fahrradausbildung": "rad.localhost", "leseflux": "lesen.localhost", "kompetenz-manager": "kompetenz.localhost", "abgen": "blaetter.localhost"}
 APP_SELECTIONS = (("gswb", "schulwissen"), ("gswb", "schulwissen", "zackboing"),
                   ("gswb", "schulwissen", "zackboing", "schulhelfer"),
                   ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf"),
                   ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel"),
                   ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung"),
                   ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux"),
-                  ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux", "kompetenz-manager"))
+                  ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux", "kompetenz-manager"),
+                  ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen"))
 
 class Pilot:
     def __init__(self, directory, apps=None):
@@ -86,6 +87,7 @@ class Pilot:
             "FP_SECRETS_DIR": str(self.directory / "runtime/fahrrad"),
             "LESEFLUX_SECRETS_DIR": str(self.directory / "runtime/leseflux"),
             "KM_SECRET_FILE": str(self.directory / "runtime/kompetenz-key"),
+            "ABGEN_SECRETS_DIR": str(self.directory / "runtime/abgen"),
         }
         self.log = self.directory / "operations.jsonl"
 
@@ -143,6 +145,11 @@ class Pilot:
             values["leseflux/database-url"] = "postgresql://leseflux:"+values["leseflux/db-app"]+"@postgres:5432/leseflux?connection_limit=5&pool_timeout=3&connect_timeout=3"
         if "kompetenz-manager" in self.apps:
             values["kompetenz-key"] = store.get_or_create("kompetenz-key")
+        if "abgen" in self.apps:
+            (runtime / "abgen").mkdir(mode=0o700, exist_ok=True)
+            values["abgen/db-admin"] = store.get_or_create("abgen-db-admin")
+            values["abgen/db-app"] = store.get_or_create("abgen-db-app")
+            values["abgen/database-url"] = "postgresql://abgen:"+values["abgen/db-app"]+"@postgres:5432/abgen"
         values["gswb-editor"] = ""  # editor remains closed until separately provisioned
         values["wissen-db"] = "postgresql://schulwissen:" + values["postgres-app"] + "@db:5432/schulwissen"
         for name, value in values.items():
@@ -208,6 +215,9 @@ class Pilot:
         if "leseflux" in self.apps:
             infrastructure["services"]["proxy"]["networks"].append("lese-proxy")
             infrastructure["networks"]["lese-proxy"] = {"internal": True}
+        if "abgen" in self.apps:
+            infrastructure["services"]["proxy"]["networks"].append("abgen-proxy")
+            infrastructure["networks"]["abgen-proxy"] = {"internal": True}
         for service in infrastructure["services"].values():
             service["logging"] = {"driver": "json-file", "options": {"max-size": "10m", "max-file": "3"}}
         (self.directory / "infra.json").write_text(json.dumps(infrastructure, indent=2))
@@ -380,6 +390,35 @@ networks:
     external: true
     name: {net}_lese-proxy
 """)
+        if "abgen" in self.apps:
+            (self.directory / "abgen.yml").write_text(f"""
+services:
+  app:
+    restart: "no"
+    ports: !reset []
+    environment:
+      WEB_ORIGIN: https://blaetter.localhost:{port}
+      COOKIE_SECURE: "true"
+      ALLOW_REGISTRATION: "false"
+      DATABASE_URL_FILE: /run/secrets/database_url
+      INTERNAL_WEB_ORIGIN: http://abgen-web:3000
+      PDF_SERVICE_URL: http://pdf:3001
+    networks:
+      default:
+        aliases: [abgen-web]
+      proxy:
+        aliases: [abgen]
+  pdf:
+    restart: "no"
+    environment:
+      WEB_ORIGIN: http://abgen-web:3000
+  postgres:
+    restart: "no"
+networks:
+  proxy:
+    external: true
+    name: {net}_abgen-proxy
+""")
         # No administrative database credential is passed to the application.
         (self.directory / "init-postgres.sh").write_text("""#!/bin/sh
 set -eu
@@ -536,6 +575,9 @@ networks:
             self.compose_command("leseflux", "run", "--rm", "--no-deps", "app", "node", "scripts/content.cjs")
         if "kompetenz-manager" in self.apps:
             self.compose_command("kompetenz-manager", "run", "--rm", "--no-deps", "app", "python", "-m", "km_migrate")
+        if "abgen" in self.apps:
+            self.compose_command("abgen", "up", "-d", "--no-build", "--wait", "postgres")
+            self.compose_command("abgen", "run", "--rm", "--no-deps", "app", "node", "apps/server/dist/db/migrate.js")
         # Schema/content jobs only. No administrative or real user account is created.
         self.compose_command("gswb", "run", "--rm", "--no-deps", "app", "python", "-m", "grundschul_woerterbuch.migrate")
         self.compose_command("schulwissen", "run", "--rm", "--no-deps", "app", "python", "manage.py", "platform_migrate")
@@ -570,11 +612,16 @@ networks:
         if "kompetenz-manager" in self.apps:
             self.compose_command("kompetenz-manager", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
 
+        if "abgen" in self.apps:
+            self.compose_command("abgen", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
+
     def ready(self, identity):
         try:
             services=[(app,"app") for app in self.apps]
             if "kompetenz-manager" in self.apps:
                 services.append(("kompetenz-manager","worker"))
+            if "abgen" in self.apps:
+                services.extend([("abgen","pdf"),("abgen","postgres")])
             for app,service in services:
                 state=(self.inspect_service(app,service) or {}).get("State",{})
                 if state.get("Running") is not True or state.get("Health",{}).get("Status")!="healthy":
@@ -608,6 +655,21 @@ networks:
                   ".then(async r=>{if(!r.ok)process.exit(1);process.stdout.write(await r.text());})"
                   ".catch(()=>process.exit(1));")
         return json.loads(self.command(["docker", "exec", backend["Id"], "node", "-e", source]))
+
+    def abgen_control(self, action):
+        if action not in ("prepare-stop", "cancel-stop") or "abgen" not in self.apps:
+            raise ValueError("Unknown local worksheet control")
+        backend = self.inspect_service("abgen", "app")
+        if not backend or not backend["State"].get("Running"):
+            raise StateError("Worksheet service is not running")
+        source = ("fetch('http://127.0.0.1:3000/_platform/" + action +
+                  "',{method:'POST',headers:{'X-Abgen-Request':'1'}})"
+                  ".then(async r=>{if(!r.ok)process.exit(1);process.stdout.write(await r.text());})"
+                  ".catch(()=>process.exit(1));")
+        result = json.loads(self.command(["docker", "exec", backend["Id"], "node", "-e", source]))
+        if action == "prepare-stop" and (result.get("pendingUpdates") != 0 or result.get("pendingBytes") != 0):
+            raise StateError("Worksheet collaboration is not drained")
+        return result
 
     def current_domains(self):
         path = self.directory / "domain-transactions/current.json"
@@ -644,7 +706,7 @@ networks:
         results = {}
         domains = self.current_domains()
         for app, host in domains.items():
-            status, _ = self.request(host, "/health/ready")
+            status, _ = self.request(host, "/api/health/ready" if app == "abgen" else "/health/ready")
             if status != 200:
                 raise StateError("TLS readiness check failed")
             results[app + "-tls-ready"] = status
@@ -696,6 +758,21 @@ networks:
                 raise StateError("Anonymous reading account access accepted")
             if self.request(domains["leseflux"], "/child/login")[0] != 200:
                 raise StateError("Reading child login unavailable")
+        if "abgen" in self.apps:
+            if self.request(domains["abgen"], "/api/auth/me")[0] != 401:
+                raise StateError("Anonymous worksheet account access accepted")
+            if self.request(domains["abgen"], "/_platform/prepare-stop", "POST",
+                            {"X-Abgen-Request": "1"})[0] != 404:
+                raise StateError("Worksheet private control reachable through proxy")
+            for service in ("pdf", "postgres"):
+                auxiliary = self.inspect_service("abgen", service)
+                if not auxiliary or any(auxiliary["NetworkSettings"]["Ports"].values()):
+                    raise StateError("Worksheet auxiliary service has a published port")
+            pdf = self.inspect_service("abgen", "pdf")
+            if pdf["Config"]["User"] != "10001:10001" or not pdf["HostConfig"]["ReadonlyRootfs"]:
+                raise StateError("Worksheet PDF isolation violated")
+            if any(m["Destination"] == "/run/secrets/database_url" for m in pdf["Mounts"]):
+                raise StateError("Worksheet PDF has a database credential")
         results["negative-access"] = True
         atomic_json(self.directory / "verified.json", {"installation": identity, "checks": results})
 
@@ -711,6 +788,10 @@ networks:
         images = {}
         for app in self.apps:
             images[app] = json.loads(self.command(["docker", "image", "inspect", app + ":0.1.0-dev"]))[0]["Id"]
+        if "abgen" in self.apps:
+            for name, tag in [("abgen-pdf", "abgen-pdf:0.1.0-dev"),
+                              ("abgen-postgres", "postgres:18.6-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5")]:
+                images[name] = json.loads(self.command(["docker", "image", "inspect", tag]))[0]["Id"]
         plan = {"mode": "local-pilot", "config": self.config, "images": images,
                 "infrastructure": INFRASTRUCTURE}
         result = Installation(self.directory / "state").run(plan, [
@@ -735,6 +816,8 @@ networks:
                 self.compose_command(app, "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
             if "zackboing" in self.apps:
                 self.quiz_control("cancel-stop")
+            if "abgen" in self.apps:
+                self.abgen_control("cancel-stop")
             self.refresh_routes()
             self.verify(result["id"])
         return result
@@ -747,6 +830,9 @@ networks:
                 if pending["activeGames"]:
                     self.quiz_control("cancel-stop")
                     raise StateError("Active games must finish before stopping the pilot")
+            worksheet = self.inspect_service("abgen", "app") if "abgen" in self.apps else None
+            if worksheet and worksheet.get("State", {}).get("Running") is True:
+                self.abgen_control("prepare-stop")
             for app in (*self.apps, "infra"):
                 if (self.directory / ("infra.json" if app == "infra" else app + ".yml")).exists():
                     self.compose_command(app, "stop")

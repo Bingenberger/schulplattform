@@ -31,7 +31,7 @@ def test_legacy_configuration_keeps_two_apps_without_rewrite(root):
     assert config.read_bytes() == before
 
 
-@pytest.mark.parametrize("selected", [("gswb", "schulwissen", "zackboing"), ("gswb", "schulwissen", "zackboing", "schulhelfer"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux", "kompetenz-manager")])
+@pytest.mark.parametrize("selected", module.APP_SELECTIONS[1:])
 def test_optional_apps_persist_and_excluded_app_never_creates_state(root, selected):
     directory = root / "three"
     assert Pilot(directory, apps=selected).apps == selected
@@ -87,7 +87,7 @@ def test_private_projections_work_under_restrictive_umask(root):
         os.umask(previous)
     runtime = pilot.directory / "runtime"
     assert runtime.stat().st_mode & 0o777 == 0o700
-    for app in ("leseflux", "fahrrad", "losverkauf"):
+    for app in ("leseflux", "fahrrad", "losverkauf", "abgen"):
         assert (runtime / app).stat().st_mode & 0o777 == 0o700
     for path in runtime.rglob("*"):
         if path.is_file():
@@ -119,3 +119,51 @@ def test_competency_failed_worker_degrades_running_app(root):
     status=PilotEngine(pilot).status("kompetenz-manager")
     assert status["running"] and status["health"]=="degraded"
     assert not pilot.ready("synthetic-installation")
+
+
+@pytest.mark.parametrize("failed", ["pdf", "postgres"])
+def test_worksheet_auxiliary_failure_degrades_whole_app(root, failed):
+    from schulplattform.pilot_engine import PilotEngine
+    pilot=Pilot(root/"worksheet-health",apps=module.APP_SELECTIONS[-1])
+    (pilot.directory/"state").mkdir()
+    (pilot.directory/"state/installation.json").write_text('{"status":"completed"}')
+    def inspect(app,service):
+        return {"Image":"synthetic-image","State":{"Running":service!=failed,
+                "Health":{"Status":"healthy"}}}
+    pilot.inspect_service=inspect
+    status=PilotEngine(pilot).status("abgen")
+    assert status["running"] and status["health"]=="degraded"
+    assert not pilot.ready("synthetic-installation")
+
+
+def test_worksheet_stop_drains_before_web_and_pdf_stop(root):
+    from schulplattform.pilot_engine import PilotEngine
+    pilot=Pilot(root/"worksheet-stop",apps=module.APP_SELECTIONS[-1])
+    (pilot.directory/"state").mkdir()
+    (pilot.directory/"state/installation.json").write_text('{"status":"completed"}')
+    operations=[]
+    pilot.inspect_service=lambda *args: {"Image":"synthetic","State":{"Running":True,"Health":{"Status":"healthy"}}}
+    pilot.refresh_routes=lambda maintenance:operations.append(("routes",maintenance))
+    pilot.abgen_control=lambda action:operations.append(("control",action))
+    pilot.compose_command=lambda *args:operations.append(args)
+    PilotEngine(pilot).execute("stop","abgen")
+    assert operations==[("routes",{"abgen"}),("control","prepare-stop"),
+                        ("abgen","stop","--timeout","130","app"),
+                        ("abgen","stop","--timeout","60","pdf")]
+
+
+@pytest.mark.parametrize("selected", [module.APP_SELECTIONS[-2],module.APP_SELECTIONS[-1]])
+def test_worksheet_plan_binds_auxiliary_images_only_when_selected(root,monkeypatch,selected):
+    pilot=Pilot(root/"worksheet-images",apps=selected)
+    captured={}
+    class Installation:
+        def __init__(self,*args):pass
+        def run(self,plan,steps):
+            captured.update(plan)
+            return {"id":"synthetic","status":"completed"}
+    monkeypatch.setattr(module,"Installation",Installation)
+    pilot.command=lambda command:json.dumps([{"Id":"synthetic-id-for-"+command[-1]}])
+    pilot.up(check_running=False)
+    auxiliary={"abgen-pdf","abgen-postgres"} & set(captured["images"])
+    assert auxiliary==({"abgen-pdf","abgen-postgres"} if "abgen" in selected else set())
+    assert len(captured["images"])==len(selected)+len(auxiliary)
