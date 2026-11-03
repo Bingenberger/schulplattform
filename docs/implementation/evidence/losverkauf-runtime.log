@@ -1,0 +1,5 @@
+$ docker run --rm --read-only --network none --cap-drop ALL --security-opt no-new-privileges:true --memory 512m --cpus 1 --pids-limit 128 --tmpfs /tmp:size=128m,mode=1777 losverkauf-tests:0.1.0-dev python -m pytest -q -p no:cacheprovider tests
+................                                                         [100%]
+16 passed in 1.91s
+
+exit_code=0

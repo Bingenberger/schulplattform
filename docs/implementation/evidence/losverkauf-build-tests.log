@@ -1,0 +1,68 @@
+$ docker build --platform linux/amd64 --memory 1024m --target tests -t losverkauf-tests:0.1.0-dev .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon    300kB
+Step 1/20 : FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c AS runtime
+ ---> 9cb180cb36bd
+Step 2/20 : ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+ ---> Using cache
+ ---> 852e22c7c175
+Step 3/20 : WORKDIR /app
+ ---> Using cache
+ ---> 78e36e3da949
+Step 4/20 : COPY requirements.lock ./
+ ---> Using cache
+ ---> e3b824d0086e
+Step 5/20 : RUN pip install --no-cache-dir --require-hashes -r requirements.lock
+ ---> Using cache
+ ---> 5d42dcbb8abe
+Step 6/20 : COPY app.py mail.py los_runtime.py los_migrate.py los_worker.py gunicorn.conf.py ./
+ ---> Using cache
+ ---> f5c4874f15b2
+Step 7/20 : COPY templates ./templates
+ ---> Using cache
+ ---> e486e11bd088
+Step 8/20 : COPY static ./static
+ ---> Using cache
+ ---> 06bdd34e0455
+Step 9/20 : RUN groupadd --gid 10001 losverkauf && useradd --uid 10001 --gid 10001 --no-create-home losverkauf     && mkdir -p /data/maps /data/mails && chown -R 10001:10001 /data && chmod 700 /data /data/maps /data/mails
+ ---> Using cache
+ ---> 50599bf4c352
+Step 10/20 : RUN python -c "import os,json;from pathlib import Path;os.umask(0o077);Path(\"/data/maps/bezirke.geojson\").write_text(json.dumps({\"type\":\"FeatureCollection\",\"features\":[]}))"     && chown 10001:10001 /data/maps/bezirke.geojson
+ ---> Using cache
+ ---> 92af5c259ceb
+Step 11/20 : USER 10001:10001
+ ---> Using cache
+ ---> aaf37aef376f
+Step 12/20 : EXPOSE 8000
+ ---> Using cache
+ ---> f641db973a27
+Step 13/20 : CMD ["gunicorn", "--config", "gunicorn.conf.py", "app:app"]
+ ---> Using cache
+ ---> 03ab71f3b5ef
+Step 14/20 : FROM runtime AS tests
+ ---> 03ab71f3b5ef
+Step 15/20 : USER 0
+ ---> Using cache
+ ---> a989395a3ef9
+Step 16/20 : COPY requirements-test.lock ./
+ ---> Using cache
+ ---> f4a502f5237b
+Step 17/20 : RUN pip install --no-cache-dir --require-hashes -r requirements-test.lock
+ ---> Using cache
+ ---> 58d48aaebc32
+Step 18/20 : USER 10001:10001
+ ---> Using cache
+ ---> ad6ef260b75f
+Step 19/20 : COPY tests ./tests
+ ---> Using cache
+ ---> ac0620947efc
+Step 20/20 : CMD ["python", "-m", "pytest", "-q"]
+ ---> Using cache
+ ---> 3015ac93cf45
+Successfully built 3015ac93cf45
+Successfully tagged losverkauf-tests:0.1.0-dev
+
+exit_code=0

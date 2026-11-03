@@ -4,7 +4,7 @@ Die Plattform bündelt eigenständige Apps für einen selbst gehosteten Schulser
 Maßgeblich sind der [Auftrag](Coding_Agent_Umsetzungsauftrag_Schulplattform.md) und
 der [Umfangsbeschluss](docs/platform-audit/scope-decision.md).
 
-**Aktuell ist ein lokaler Pilot mit schulwissen, gswb und optional Zackboing sowie Schulhelfer geprüft.** Die vollständige
+**Aktuell ist ein lokaler Pilot mit schulwissen, gswb und optional Zackboing, Schulhelfer sowie Losverkauf geprüft.** Die vollständige
 Installation auf leerem Ubuntu 24.04 und der Zehn-App-Stack sind noch offen.
 [Umsetzungsstand und Testnachweise](docs/implementation/status.md).
 
@@ -60,6 +60,11 @@ Bestehende Installationen behalten ihre Auswahl. Für den Viererpilot zusätzlic
 `--apps gswb,schulwissen,zackboing,schulhelfer` wählen.
 [Schulhelfer: Standalone, Domainwechsel und Restore](docs/implementation/schulhelfer.md).
 
+Losverkauf ergänzt einen neuen Fünferpilot nach dem Build mit
+`scripts/build_losverkauf.py` und Auswahl
+`--apps gswb,schulwissen,zackboing,schulhelfer,losverkauf` in einem neuen
+Zustandsordner. [Abnahme, Mailqueue und Grenzen](docs/implementation/losverkauf.md).
+
 ## Releaseprüfung
 
 ```sh
@@ -79,9 +84,9 @@ Negativzugriffe, Mail in den Sink, Domainwechsel mit Rückfall und einen synthet
 PostgreSQL-Restore sowie einen kombinierten Zackboing-DB-/Medienrestore. Sie ersetzen keine vollständige Produktionsabnahme.
 
 Das [Dashboard](docs/implementation/dashboard.md) mit TOTP und eingeschränktem
-Unix-Steuerdienst unterstützt die vier Pilot-Apps; aktive Zackboing-Spiele blockieren Stop.
+Unix-Steuerdienst unterstützt die fünf Pilot-Apps; aktive Zackboing-Spiele blockieren Stop.
 Verschlüsseltes Offsitebackup, konsistente gemeinsame DB-/Datei-/Schlüsselsicherung,
-weitere Dashboardfunktionen, sechs weitere Appintegrationen und Zielservermessungen sind offen.
+weitere Dashboardfunktionen, fünf weitere Appintegrationen und Zielservermessungen sind offen.
 RPO/RTO und die geschätzten 16 GB RAM/4 vCPU sind noch nicht bestätigt.
 
 Kein Keycloak, keine zentrale Benutzersperrung und kein zentraler Logout.

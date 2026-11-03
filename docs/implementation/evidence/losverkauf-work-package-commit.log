@@ -1,0 +1,18 @@
+$ git diff --cached --check
+
+exit_code=0
+
+$ git commit -m Integrate Losverkauf as fifth pilot with durable mail and verified restore
+[main 43b0ae0] Integrate Losverkauf as fifth pilot with durable mail and verified restore
+ 18 files changed, 3502 insertions(+), 19 deletions(-)
+ create mode 100644 adapters/losverkauf/platform.yml
+ create mode 100644 scripts/build_losverkauf.py
+ create mode 100644 scripts/check_losverkauf_runtime.py
+ create mode 100644 scripts/lock_losverkauf.py
+ create mode 100644 scripts/losverkauf_fixture.py
+ create mode 100644 scripts/vendor_losverkauf_leaflet.py
+ create mode 100644 scripts/verify_losverkauf_platform.py
+ create mode 100644 scripts/verify_losverkauf_restore.py
+ create mode 100644 scripts/verify_losverkauf_standalone.py
+
+exit_code=0

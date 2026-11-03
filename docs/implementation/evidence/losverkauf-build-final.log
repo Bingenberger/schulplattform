@@ -1,0 +1,99 @@
+$ docker build --platform linux/amd64 --memory 1024m --target final -t losverkauf:0.1.0-dev .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon    300kB
+Step 1/21 : FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c AS runtime
+ ---> 9cb180cb36bd
+Step 2/21 : ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+ ---> Using cache
+ ---> 852e22c7c175
+Step 3/21 : WORKDIR /app
+ ---> Using cache
+ ---> 78e36e3da949
+Step 4/21 : COPY requirements.lock ./
+ ---> Using cache
+ ---> e3b824d0086e
+Step 5/21 : RUN pip install --no-cache-dir --require-hashes -r requirements.lock
+ ---> Using cache
+ ---> 5d42dcbb8abe
+Step 6/21 : COPY app.py mail.py los_runtime.py los_migrate.py los_worker.py gunicorn.conf.py ./
+ ---> f5c4874f15b2
+Step 7/21 : COPY templates ./templates
+ ---> e486e11bd088
+Step 8/21 : COPY static ./static
+ ---> 06bdd34e0455
+Step 9/21 : RUN groupadd --gid 10001 losverkauf && useradd --uid 10001 --gid 10001 --no-create-home losverkauf     && mkdir -p /data/maps /data/mails && chown -R 10001:10001 /data && chmod 700 /data /data/maps /data/mails
+ ---> Running in e19955069c59
+ ---> Removed intermediate container e19955069c59
+ ---> 50599bf4c352
+Step 10/21 : RUN python -c "import os,json;from pathlib import Path;os.umask(0o077);Path(\"/data/maps/bezirke.geojson\").write_text(json.dumps({\"type\":\"FeatureCollection\",\"features\":[]}))"     && chown 10001:10001 /data/maps/bezirke.geojson
+ ---> Running in 894f8bc63bb1
+ ---> Removed intermediate container 894f8bc63bb1
+ ---> 92af5c259ceb
+Step 11/21 : USER 10001:10001
+ ---> Running in 8f99d3030caf
+ ---> Removed intermediate container 8f99d3030caf
+ ---> aaf37aef376f
+Step 12/21 : EXPOSE 8000
+ ---> Running in 7a13c187fea8
+ ---> Removed intermediate container 7a13c187fea8
+ ---> f641db973a27
+Step 13/21 : CMD ["gunicorn", "--config", "gunicorn.conf.py", "app:app"]
+ ---> Running in d9324916b79f
+ ---> Removed intermediate container d9324916b79f
+ ---> 03ab71f3b5ef
+Step 14/21 : FROM runtime AS tests
+ ---> 03ab71f3b5ef
+Step 15/21 : USER 0
+ ---> Running in c644ea7af914
+ ---> Removed intermediate container c644ea7af914
+ ---> a989395a3ef9
+Step 16/21 : COPY requirements-test.lock ./
+ ---> f4a502f5237b
+Step 17/21 : RUN pip install --no-cache-dir --require-hashes -r requirements-test.lock
+ ---> Running in d8fff9a53b3c
+Requirement already satisfied: blinker==1.9.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 2)) (1.9.0)
+Requirement already satisfied: charset-normalizer==3.5.2 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 3)) (3.5.2)
+Requirement already satisfied: click==8.5.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 4)) (8.5.0)
+Requirement already satisfied: Flask==3.1.3 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 5)) (3.1.3)
+Requirement already satisfied: gunicorn==26.2.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 6)) (26.2.0)
+Collecting iniconfig==2.3.1 (from -r requirements-test.lock (line 7))
+  Downloading iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+Requirement already satisfied: itsdangerous==2.2.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 8)) (2.2.0)
+Requirement already satisfied: Jinja2==3.1.6 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 9)) (3.1.6)
+Requirement already satisfied: MarkupSafe==3.0.4 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 10)) (3.0.4)
+Collecting packaging==26.3 (from -r requirements-test.lock (line 11))
+  Downloading packaging-26.3-py3-none-any.whl (129 kB)
+Requirement already satisfied: pillow==13.0.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 12)) (13.0.0)
+Collecting pluggy==1.7.0 (from -r requirements-test.lock (line 13))
+  Downloading pluggy-1.7.0-py3-none-any.whl (27 kB)
+Collecting Pygments==2.21.0 (from -r requirements-test.lock (line 14))
+  Downloading pygments-2.21.0-py3-none-any.whl (1.3 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.3/1.3 MB 12.2 MB/s eta 0:00:00
+Collecting pytest==8.4.2 (from -r requirements-test.lock (line 15))
+  Downloading pytest-8.4.2-py3-none-any.whl (365 kB)
+Requirement already satisfied: reportlab==5.1.0 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 16)) (5.1.0)
+Requirement already satisfied: Werkzeug==3.1.9 in /usr/local/lib/python3.12/site-packages (from -r requirements-test.lock (line 17)) (3.1.9)
+Installing collected packages: Pygments, pluggy, packaging, iniconfig, pytest
+Successfully installed Pygments-2.21.0 iniconfig-2.3.1 packaging-26.3 pluggy-1.7.0 pytest-8.4.2
+[91mWARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+[0m ---> Removed intermediate container d8fff9a53b3c
+ ---> 58d48aaebc32
+Step 18/21 : USER 10001:10001
+ ---> Running in 039d3b249161
+ ---> Removed intermediate container 039d3b249161
+ ---> ad6ef260b75f
+Step 19/21 : COPY tests ./tests
+ ---> ac0620947efc
+Step 20/21 : CMD ["python", "-m", "pytest", "-q"]
+ ---> Running in 7b179a705c1e
+ ---> Removed intermediate container 7b179a705c1e
+ ---> 3015ac93cf45
+Step 21/21 : FROM runtime AS final
+ ---> 03ab71f3b5ef
+Successfully built 03ab71f3b5ef
+Successfully tagged losverkauf:0.1.0-dev
+
+exit_code=0

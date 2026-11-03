@@ -1,0 +1,242 @@
+[
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-standalone-52f25a5ede",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "up",
+      "-d",
+      "--no-build"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-standalone-52f25a5ede",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-standalone-52f25a5ede",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "run",
+      "--rm",
+      "--no-deps",
+      "app",
+      "python",
+      "-m",
+      "los_migrate"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "-d",
+      "--name",
+      "sp-lose-standalone-52f25a5ede-mail",
+      "--network",
+      "sp-lose-standalone-52f25a5ede_default",
+      "--network-alias",
+      "mailpit",
+      "--read-only",
+      "--user",
+      "10001:10001",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--memory",
+      "128m",
+      "--cpus",
+      "0.5",
+      "--pids-limit",
+      "64",
+      "--tmpfs",
+      "/tmp:size=64m,mode=1777",
+      "axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-standalone-52f25a5ede",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-standalone-52f25a5ede",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-standalone-52f25a5ede",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "pause",
+      "sp-lose-standalone-52f25a5ede-mail"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-standalone-52f25a5ede",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-standalone-52f25a5ede",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "restart",
+      "app"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "unpause",
+      "sp-lose-standalone-52f25a5ede-mail"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-standalone-52f25a5ede",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-standalone-52f25a5ede",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-standalone-52f25a5ede",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-standalone-52f25a5ede",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "ps",
+      "-q",
+      "app"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "inspect",
+      "2a8e92a266eeb1e809dd86f02c4f59f9e0a9fb5ebc13faa71b8c50b4fb779381"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-standalone-52f25a5ede",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "down"
+    ],
+    "exitCode": 0
+  }
+]

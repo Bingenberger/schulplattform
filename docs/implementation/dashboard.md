@@ -54,7 +54,7 @@ und einer persistenten einmaligen Nonce. Antworten sind ebenfalls authentifizier
 und an die Anfragenonce gebunden.
 
 Erlaubte Aktionen sind derzeit `status`, `start` und `stop`; bekannte Ziele sind
-`gswb`, `schulwissen`, optional `zackboing` und `schulhelfer`. Unbekannte Felder, Apps, Aktionen, manipulierte MACs,
+`gswb`, `schulwissen`, optional `zackboing`, `schulhelfer` und `losverkauf`. Unbekannte Felder, Apps, Aktionen, manipulierte MACs,
 abgelaufene Zeitstempel und Wiederholungen werden abgewiesen. Die Oberfläche
 kann weder Hostpfade noch argv, Compose-Fragmente oder Shellkommandos vorgeben.
 
@@ -74,6 +74,10 @@ werden als nicht installiert gemeldet.
 Schulhelfer ist im Viererpilot ein weiteres festes Ziel. Sein eigener Erstadmin
 wird über die lokale App-CLI eingerichtet; Plattformadmins erhalten dadurch
 keine automatischen Fachrechte. Die Zugangsprojektion bleibt ausdrücklich bestätigt.
+
+Losverkauf ist im Fünferpilot ein weiteres festes Ziel. Elternzugänge und
+individuelle Bearbeitungstokens werden nicht in das Dashboard übernommen;
+Fachzugriff wird weiterhin ausdrücklich projiziert.
 
 Das ist der lokale Pilot-Controller. Ein vollständig signierter Produktions-
 Releasecontroller mit Update, Migration, Restore und Lifecycle-Archivierung

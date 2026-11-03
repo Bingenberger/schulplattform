@@ -97,3 +97,21 @@ Restore-, Domain- und Parallelbuchungsprüfungen sowie die Grenzen von Mailqueue
 Legacy-Adoption und Browserassets. Bestehende Zwei-/Dreierkonfigurationen werden
 nicht umgeschrieben. Nach neuen Runtime-Builds ist ein neuer Pilotzustandsordner
 erforderlich; der lokale Pilot ersetzt keinen produktiven Upgradecontroller.
+
+
+## Optionaler fünfter Dienst: Losverkauf
+
+Mit `scripts/build_losverkauf.py` bauen und einen neuen Pilotzustandsordner verwenden:
+
+```sh
+./install.sh pilot-up --state-dir .work/pilot-v10 --apps gswb,schulwissen,zackboing,schulhelfer,losverkauf
+```
+
+Losverkauf besitzt eigene feste Session-/Elternschlüssel, ein eigenes SQLite-Volume,
+Maps-/Mailverzeichnisse, ein internes Proxynetz und eine begrenzte lokale Mailqueue.
+Der Erstlauf migriert das Schema, erzeugt aber keinen Standardadmin. Die persönliche
+Identität wird lokal konfiguriert. Bereits installierte Auswahlen bleiben erhalten.
+
+[Losverkauf-Abnahme](losverkauf.md) nennt Standalone, kombinierten Restore,
+individuelle Elternlinks nach Domainwechsel und die Grenzen von SMTP-Duplikaten,
+nativen Alt-Automationen und noch fehlender Browser-/Produktionsabnahme.

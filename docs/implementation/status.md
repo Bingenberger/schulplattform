@@ -1,7 +1,7 @@
-# Umsetzungsstand vom 2. November 2026
+# Umsetzungsstand vom 3. November 2026
 
 **Der Gesamtauftrag ist weiterhin offen.** Der lokale Pilot mit schulwissen,
-gswb und optional Zackboing sowie Schulhelfer ist ausführbar und geprüft. Eine Freigabe für den leeren Ubuntu-Zielserver
+gswb und optional Zackboing, Schulhelfer sowie Losverkauf ist ausführbar und geprüft. Eine Freigabe für den leeren Ubuntu-Zielserver
 oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
 
 ## Beobachtet und implementiert
@@ -20,7 +20,11 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
 - Schulhelfer: eigenständiger Rootless-Container, Pflichtsecret, explizite Alembic-
   Migration und persönliche lokale Erstadministration. Ein Webprozess, exklusiver
   Scheduler und ein PDF-Slot. Öffentliche Elternlinks bleiben erreichbar.
-- Lokaler Zwei-, Drei- oder Viererstack mit Caddy, getrennten Appnetzen, PostgreSQL und Mailpit.
+- Losverkauf: Pflicht-Session-/Elterntoken, persönliche Hashdatei, CSRF für alle
+  Schreibpfade und explizite SQLite-Migration. Bekannte IDs/Bearbeitungstokens bleiben
+  erhalten; unbekannte Bestandsfelder werden abgewiesen. Dauerhafte begrenzte
+  Eingangs-Mailqueue und lokale Leaflet-Assets.
+- Lokaler Zwei- bis Fünferstack mit Caddy, getrennten Appnetzen, PostgreSQL und Mailpit.
   Nur Caddys TLS-Testport ist auf Host-Loopback veröffentlicht. Die Apps laufen
   ohne Rootrechte und mit schreibgeschütztem Root-Dateisystem. Die PostgreSQL-
   Approlle besitzt keine Superuser-, CREATEDB- oder CREATEROLE-Rechte.
@@ -37,7 +41,7 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
   Sitzungen, CSRF und Betriebsprotokoll. Öffentliche Kacheln und bestätigte
   Zugangsprojektion sind von der Administrationsansicht getrennt.
 - Separater Unix-Socket-Steuerdienst mit Peer-UID, HMAC und persistenten Nonces;
-  derzeit ausschließlich Status, Start und Stop für die vier bekannten Pilot-Apps.
+  derzeit ausschließlich Status, Start und Stop für die fünf bekannten Pilot-Apps.
   Aktive Zackboing-Spiele verweigern Stop mit sicherem 409-Hinweis und Audit.
   Das Dashboard besitzt keinen Docker-Socket.
 - Releasebundles werden mit einem unabhängig bereitgestellten Ed25519-Schlüssel
@@ -48,7 +52,7 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
 
 | Prüfung | Ergebnis | Rohbeleg |
 | --- | --- | --- |
-| Python-Suite für Sicherheit, Manifeste, Signaturen, State, Domains, SQLite | 80 bestanden | [Log](evidence/python-tests.log) |
+| Python-Suite für Sicherheit, Manifeste, Signaturen, State, Domains, SQLite | 82 bestanden | [Log](evidence/python-tests.log) |
 | schulwissen-Vertragstests im Produktionsimage ohne Netzwerk | 5 bestanden | [Log](evidence/schulwissen-runtime.log) |
 | Zackboing-Bootstrap und Session-Negativtests | bestanden | [Bootstrap](evidence/zackboing-bootstrap.log), [Session](evidence/zackboing-session.log) |
 | Zackboing amd64/Standalone | Node 22.23.4, 117 Fach-/Negativprüfungen bestanden | [Image](evidence/zackboing-image.json), [Standalone](evidence/zackboing-standalone.json) |
@@ -60,6 +64,10 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
 | Schulhelfer Standalone, Sink, SMTP-Ausfall und echte parallele Buchungen | bestanden; 8 gleichzeitige Anmeldungen auf 1 Platz ergeben 1 Buchung | [Ergebnis](evidence/schulhelfer-standalone.json) |
 | Schulhelfer Restore in neues leeres Volume mit HTTP-Abnahme | bestanden | [Ergebnis](evidence/schulhelfer-restore.json) |
 | Viererpilot: TLS, Mail-Domainwechsel und Rückfall, No-op, Stop/Start | bestanden | [Ergebnis](evidence/schulhelfer-platform.json) |
+| Losverkauf Laufzeit/Sicherheit ohne Netzwerk | 16 bestanden | [Log](evidence/losverkauf-runtime.log) |
+| Losverkauf Standalone, 8 parallele Anmeldungen auf 1 Platz, Queue-Erhalt bei Neustart | bestanden | [Ergebnis](evidence/losverkauf-standalone.json) |
+| Losverkauf kombinierter DB-/Map-/Mailrestore mit HTTP-Abnahme | bestanden | [Ergebnis](evidence/losverkauf-restore.json) |
+| Fünferpilot: TLS, persönliche Elternlinks, Mail-URL, Domainrückfall, No-op und Stop/Start | bestanden | [Ergebnis](evidence/losverkauf-platform.json) |
 | Grundschultafel Bootstrap-/Dateitests und TypeScript | bestanden | [Nodetest](evidence/grundschultafel-users.log), [TypeScript](evidence/grundschultafel-types.log) |
 | amd64-Builds gswb und schulwissen | bestanden, lokale Entwicklungsimages | [gswb](evidence/gswb-build.log), [schulwissen](evidence/schulwissen-build.log) |
 | gswb Standalone-Start und Neustart | bestanden | [Ergebnis](evidence/gswb-container.json) |
@@ -100,9 +108,9 @@ oder Löschungen von Bestandsvolumes ausgeführt.
 | A4 | beide Apps standalone und gemeinsam lokal gestartet | leerer Ubuntu-Server, öffentliche TLS-/DNS-Abnahme, vollständige Fachtests |
 | A5 | State-Maschine und Pilot-Lebenszyklus getestet | Host-Provisionierung, alle zehn Apps, vollständige Bootstrap-/Verify-Stufen auf Ubuntu |
 | A6 | lokaler Domainwechsel mit Rückfall getestet | öffentliche DNS-/Besitz-/ACME-Prüfung, Verwaltungsdomain, alle Link-/Callback-/WS-Varianten |
-| A7 | SQLite/PostgreSQL-Bausteine, Zackboing- und Schulhelfer-Apprestore getestet | Plattform-/Datei-/Secret-Gesamtbackup, Verschlüsselung und Offsite, weitere Apprestores |
-| A8 | Dashboard mit TOTP und Steuerdienst für vier Apps, Stopsperre für Spiele | produktive Serviceinstallation, Updates/Domains/Backup/SMTP-Oberfläche, tatsächliche Zugangsprojektion aller zehn Apps |
-| A9 | Zackboing und Schulhelfer als dritte und vierte App lokal containerisiert und geprüft | sechs weitere Apps; vollständige Release-/Lizenzabnahme |
+| A7 | SQLite/PostgreSQL-Bausteine, Zackboing-, Schulhelfer- und Losverkauf-Apprestore getestet | Plattform-/Datei-/Secret-Gesamtbackup, Verschlüsselung und Offsite, weitere Apprestores |
+| A8 | Dashboard mit TOTP und Steuerdienst für fünf Apps, Stopsperre für Spiele | produktive Serviceinstallation, Updates/Domains/Backup/SMTP-Oberfläche, tatsächliche Zugangsprojektion aller zehn Apps |
+| A9 | fünf Apps lokal containerisiert und geprüft | fünf weitere Apps; vollständige Release-/Lizenzabnahme |
 | A10 | nicht ausgeführt | Zielservermessung, definierte Last- und Dauerläufe |
 | A11 | nicht begonnen | bleibt bis zur Abnahme der Pflichtpakete zurückgestellt |
 
@@ -115,6 +123,9 @@ App, Nutzer-/Rollenprüfung und verweigerten Adminzugriffen nachgewiesen.
 Auch Schulhelfer wurde nach Restore mit unveränderten Admin-/Fach-IDs,
 Buchungen, privater Eigentümerschaft und öffentlichem Elternlink geprüft.
 [Schulhelfer-Abnahme und Grenzen](schulhelfer.md).
+Losverkauf wurde mit gleicher Anmeldung, Personen-/Queue-IDs, bestehenden
+Bearbeitungstokens sowie Karten- und privaten Maildateien wiederhergestellt.
+[Losverkauf-Abnahme und Grenzen](losverkauf.md).
 Der Domainversuch verwendet lokale Testnamen und eine lokale CA; er ersetzt
 keinen Nachweis öffentlicher DNS-/ACME-Konfiguration. Im geprüften schulwissen-
 Passwort-Reset-Flow gibt es keinen QR-Code und keine aktivierten OIDC-Callbacks.
@@ -132,6 +143,10 @@ Passwort-Reset-Flow gibt es keinen QR-Code und keine aktivierten OIDC-Callbacks.
 - Schulhelfer hat noch keine persistente Mail-Outbox oder vollständige
   Massenversand-/Retentionabnahme. Lokales Vendoring der bestehenden Pico-CDN-
   Stylesheets mit Lizenznachweis steht aus. Der Retention-Fremdschlüssel-Regressionsfall ist geprüft.
+- Losverkaufs Queue sichert Eingangsbestätigungen; andere Mailaktionen sind
+  teilweise synchron. SMTP-Absturzrennen können Duplikate erzeugen. Keine zentrale
+  Queue-/Retry-/Alarmierungsoberfläche oder Browserabnahme; native Alt-Automationen
+  sind für den geänderten Vertrag noch nicht abgenommen.
 - Gerätebindung der Grundschultafel-Sitzung und transaktionale parallele Änderungen
   vollständiger Nutzerlisten sind offen. gswb-Login-Drosselung ist offen.
 - Keine Produktivumstellung, keine DNSänderung, keine echten Benutzerkonten und

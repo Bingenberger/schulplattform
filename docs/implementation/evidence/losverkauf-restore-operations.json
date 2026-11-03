@@ -1,0 +1,195 @@
+[
+  {
+    "command": [
+      "docker",
+      "ps",
+      "-q",
+      "--filter",
+      "label=com.docker.compose.project=sp-lose-standalone-52f25a5ede"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--read-only",
+      "--network",
+      "none",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--user",
+      "10001:10001",
+      "--memory",
+      "512m",
+      "--cpus",
+      "1",
+      "--pids-limit",
+      "64",
+      "--tmpfs",
+      "/tmp:size=256m,mode=1777",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-e",
+      "PYTHONPATH=/helper",
+      "-v",
+      "/home/emrichschule/schulplattform/schulplattform:/helper/schulplattform:ro",
+      "-v",
+      "sp-lose-standalone-52f25a5ede_data:/data:ro",
+      "python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c",
+      "python",
+      "-m",
+      "schulplattform.snapshot",
+      "create",
+      "/data",
+      "--database",
+      "losverkauf.db",
+      "--directory",
+      "maps",
+      "--directory",
+      "mails"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "volume",
+      "create",
+      "sp-lose-restore-c3e4df1f74-data"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--read-only",
+      "--network",
+      "none",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "-v",
+      "sp-lose-restore-c3e4df1f74-data:/data",
+      "losverkauf:0.1.0-dev",
+      "python",
+      "-c",
+      "from pathlib import Path\nroot=Path('/data')\nassert sorted(p.name for p in root.iterdir())==['mails','maps']\nassert list((root/'mails').iterdir())==[]\npath=root/'maps/bezirke.geojson'\nimport json\nassert json.loads(path.read_text())=={'type':'FeatureCollection','features':[]}\npath.unlink()\n(root/'maps').rmdir()\n(root/'mails').rmdir()\nassert not list(root.iterdir())\n"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--read-only",
+      "--network",
+      "none",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--user",
+      "10001:10001",
+      "--memory",
+      "512m",
+      "--cpus",
+      "1",
+      "--pids-limit",
+      "64",
+      "--tmpfs",
+      "/tmp:size=256m,mode=1777",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-e",
+      "PYTHONPATH=/helper",
+      "-v",
+      "/home/emrichschule/schulplattform/schulplattform:/helper/schulplattform:ro",
+      "-i",
+      "-v",
+      "sp-lose-restore-c3e4df1f74-data:/data",
+      "python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c",
+      "python",
+      "-c",
+      "import shutil,sys\nfrom pathlib import Path\nfrom schulplattform.snapshot import restore\npath=Path('/tmp/snapshot.tar')\nwith path.open('wb') as stream: shutil.copyfileobj(sys.stdin.buffer,stream)\nrestore(path,Path('/data'),sys.argv[1])\n",
+      "2765320e09c2594efa08b4f5682f23a538c7b1a00b1f21246f2597df89f0b953"
+    ],
+    "exitCode": 0
+  },
+  {
+    "action": "nonempty-restore",
+    "exitCode": 1
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-restore-c3e4df1f74",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/sp-lose-standalone-52f25a5ede/restore-c08b54c788/restore.json",
+      "up",
+      "-d",
+      "--no-build",
+      "--wait",
+      "--wait-timeout",
+      "90"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-restore-c3e4df1f74",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/sp-lose-standalone-52f25a5ede/restore-c08b54c788/restore.json",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-restore-c3e4df1f74",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/sp-lose-standalone-52f25a5ede/restore-c08b54c788/restore.json",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-lose-restore-c3e4df1f74",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/losverkauf/docker-compose.yml",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/sp-lose-standalone-52f25a5ede/restore-c08b54c788/restore.json",
+      "down"
+    ],
+    "exitCode": 0
+  }
+]

@@ -1,6 +1,6 @@
 {
   "scope": "synthetic admin, real dashboard container, real authenticated Unix service and pilot actions",
-  "imageId": "sha256:9aa952ba899c00b22fe370be6c2623bd96365e18e65ff742f6007eb8077c6f90",
+  "imageId": "sha256:986a891968fcd39001df4633b03154a720665f306bd28341304e4379787a680a",
   "tls": true,
   "totpRequired": true,
   "anonymousAdminDenied": true,

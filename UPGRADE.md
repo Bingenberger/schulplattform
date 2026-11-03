@@ -13,7 +13,7 @@ bestehende Hostinstallation automatisch.
 | Zackboing | Node 22.23.4, better-sqlite3 11.10.0, SQLite user_version 1 | Standalone, TLS-Spiel, Domainrückfall und leerer Apprestore lokal geprüft |
 | Schulhelfer | Python 3.12.12, SQLite user_version 1 / Alembic b7c2e9a41d38 | Standalone, Parallelbuchung, SMTP-Ausfall, lokaler Domainrückfall und leerer Restore |
 | Grundschultafel | users.json mit optionalem Bootstrapablauf | atomare Dateien, keine vollständige Schreibtransaktion |
-| Losverkauf | unverändertes SQLite-Schema | persönlicher Adminname zusätzlich erforderlich |
+| Losverkauf | Python 3.12.12, SQLite user_version 1, dauerhafte Eingangs-Mailqueue | Standalone, Token-/ID-Erhalt, lokaler Domainrückfall und kombinierter Restore |
 | Übrige Apps | unveränderte Auditcommits | noch keine Container-/Plattformabnahme |
 
 Ein Pilot-Installationsplan bindet die lokalen App-Image-IDs. Neue Builds werden
@@ -50,6 +50,14 @@ lokale persönliche Erstadministration. Unversionierte create_all-Bestandsdaten
 werden ohne geprüften Adoptionspfad abgewiesen. Keine Änderung bestehender IDs
 oder Neugenerierung von Elternlinks durch einen Installationslauf. Mail-Outbox
 und verlustfreier Drain von Massenversand sind noch offen.
+
+Losverkauf benötigt `python -m los_migrate`, feste Session-/Elternschlüssel und
+eine persönliche Adminidentität. Die bekannte Legacy-Umwandlung erhält IDs und
+edit_tokens; zusätzliche unbekannte Felder blockieren die Umwandlung. Bestehende
+Elterntoken unter 32 Zeichen müssen vor Übernahme bewusst ersetzt und die Links
+neu verteilt werden. Eingangsbestätigungen werden dauerhaft vorgemerkt; SMTP-
+Absturzrennen können doppelte Zustellung verursachen. Keine native Altinstallation
+wurde automatisch übernommen.
 
 Vor Änderungen bestehender Deployments konsistent sichern und ein Wartungsfenster
 nutzen. Der vorliegende Auftrag umfasst weiterhin keine Produktivumstellung.

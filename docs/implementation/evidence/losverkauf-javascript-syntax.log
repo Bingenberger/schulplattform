@@ -1,0 +1,7 @@
+$ node --check /home/emrichschule/schulplattform/.work/apps/losverkauf/static/app.js
+
+exit_code=0
+
+$ node --check /home/emrichschule/schulplattform/.work/apps/losverkauf/static/vendor/leaflet/leaflet.js
+
+exit_code=0
