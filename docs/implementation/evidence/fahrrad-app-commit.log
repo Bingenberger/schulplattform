@@ -1,0 +1,35 @@
+$ git log --stat --oneline AUDIT..HEAD (isolated app checkout)
+4e007ff Add explicit PostgreSQL migration, shared worker limits and standalone isolation
+ app/posten_app/css/posten.css | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+dc699c4 Add explicit PostgreSQL migration, shared worker limits and standalone isolation
+ tests/test_posten_offline.py | 13 +++++++------
+ 1 file changed, 7 insertions(+), 6 deletions(-)
+8d1e499 Add explicit PostgreSQL migration, shared worker limits and standalone isolation
+ .dockerignore                              |  24 ++-
+ .env.example                               |   8 +-
+ .gitignore                                 |   2 +
+ DEPLOYMENT.md                              | 297 ++---------------------------
+ Dockerfile                                 |  60 +++---
+ PLATFORM.md                                | 123 ++++++++++++
+ README.md                                  |  13 +-
+ app/betrieb.py                             |  86 +++++++++
+ app/config.py                              |  20 ++
+ app/db.py                                  |   2 +-
+ app/kartenbild.py                          |   8 +-
+ app/kommandos.py                           |   9 +-
+ app/main.py                                |  27 ++-
+ app/migrate.py                             |  20 ++
+ app/modelle.py                             |   8 +-
+ app/pdf.py                                 |  10 +
+ app/posten/api.py                          |   3 +-
+ app/run.py                                 |  11 ++
+ app/web/anmeldung.py                       |   9 +-
+ contract_tests/conftest.py                 |   1 +
+ contract_tests/test_platform.py            |  66 +++++++
+ docker-compose.yml                         |  81 ++++----
+ docker/init-postgres.sh                    |  10 +
+ docker/start.sh                            |  16 +-
+ migrations/versions/0008_betriebslimits.py |  13 ++
+ prepare_secrets.py                         |  12 ++
+ 26 files changed, 542 insertions(+), 397 deletions(-)

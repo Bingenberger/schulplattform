@@ -1,0 +1,16 @@
+$ git diff --cached --check
+
+exit_code=0
+
+$ git commit -m Integrate seventh app with shared worker limits and verified PostgreSQL restore
+[main 85585f7] Integrate seventh app with shared worker limits and verified PostgreSQL restore
+ 16 files changed, 2025 insertions(+), 11 deletions(-)
+ create mode 100644 patches/fahrradausbildung/changes.patch
+ create mode 100644 scripts/build_fahrradausbildung.py
+ create mode 100644 scripts/check_fahrradausbildung_runtime.py
+ create mode 100644 scripts/fahrrad_fixture.py
+ create mode 100644 scripts/verify_fahrradausbildung_platform.py
+ create mode 100644 scripts/verify_fahrradausbildung_restore.py
+ create mode 100644 scripts/verify_fahrradausbildung_standalone.py
+
+exit_code=0

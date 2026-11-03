@@ -1,0 +1,40 @@
+# Reuse already downloaded same-lock browser/development dependencies; replace all app/migration/test sources.
+FROM sha256:1c6b5adf560d8b8a017df070603ff4a226245c667a99be8acec32532b356fe09
+USER root
+COPY app ./app
+COPY migrations ./migrations
+COPY tests ./tests
+COPY contract_tests ./contract_tests
+COPY .env.example docker-compose.yml ./
+USER 10001:10001
+
+$ docker build --platform linux/amd64 -f /home/emrichschule/schulplattform/.work/fahrrad-browser-cache.Dockerfile -t fahrradausbildung-browser-tests:0.1.0-dev .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  1.124MB
+Step 1/8 : FROM sha256:1c6b5adf560d8b8a017df070603ff4a226245c667a99be8acec32532b356fe09
+ ---> 1c6b5adf560d
+Step 2/8 : USER root
+ ---> Running in 32c1a314d50e
+ ---> Removed intermediate container 32c1a314d50e
+ ---> 8958d94d87a2
+Step 3/8 : COPY app ./app
+ ---> b959a2610cc7
+Step 4/8 : COPY migrations ./migrations
+ ---> 3a7bbf495288
+Step 5/8 : COPY tests ./tests
+ ---> ad2fa8ce3e91
+Step 6/8 : COPY contract_tests ./contract_tests
+ ---> ee44463b1c89
+Step 7/8 : COPY .env.example docker-compose.yml ./
+ ---> fc0681d115ea
+Step 8/8 : USER 10001:10001
+ ---> Running in 43537f341cd9
+ ---> Removed intermediate container 43537f341cd9
+ ---> 7d3413a387d6
+Successfully built 7d3413a387d6
+Successfully tagged fahrradausbildung-browser-tests:0.1.0-dev
+
+exit_code=0

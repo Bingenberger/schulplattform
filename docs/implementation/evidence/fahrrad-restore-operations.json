@@ -1,0 +1,263 @@
+[
+  {
+    "command": [
+      "docker",
+      "ps",
+      "-q",
+      "--filter",
+      "label=com.docker.compose.project=sp-fahrrad-standalone-73c5b103ef"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-fahrrad-standalone-73c5b103ef",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
+      "up",
+      "-d",
+      "--no-build",
+      "--wait",
+      "db"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-fahrrad-standalone-73c5b103ef",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
+      "ps",
+      "-q",
+      "db"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--read-only",
+      "--network",
+      "none",
+      "--user",
+      "10001:10001",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--memory",
+      "512m",
+      "--pids-limit",
+      "64",
+      "--tmpfs",
+      "/tmp:size=64m,mode=1777",
+      "-e",
+      "PYTHONPATH=/helper",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-v",
+      "/home/emrichschule/schulplattform/schulplattform:/helper/schulplattform:ro",
+      "-v",
+      "sp-fahrrad-standalone-73c5b103ef_vorlagen:/data:ro",
+      "-i",
+      "python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c",
+      "python",
+      "-c",
+      "from schulplattform.snapshot import create\nimport sys\ncreate('/data',sys.stdout.buffer,files=['fixture.txt'])"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-fahrrad-restore-5371db609f",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
+      "up",
+      "-d",
+      "--no-build",
+      "--wait",
+      "db"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-fahrrad-restore-5371db609f",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
+      "ps",
+      "-q",
+      "db"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-fahrrad-restore-5371db609f",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
+      "create",
+      "app"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-fahrrad-restore-5371db609f",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
+      "ps",
+      "-aq",
+      "app"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "inspect",
+      "d099c19167b999a63c9c75335464782d96ea903ef6cff2698cd022be1045caf1"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--read-only",
+      "--network",
+      "none",
+      "--user",
+      "10001:10001",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--memory",
+      "512m",
+      "--pids-limit",
+      "64",
+      "--tmpfs",
+      "/tmp:size=64m,mode=1777",
+      "-e",
+      "PYTHONPATH=/helper",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-v",
+      "/home/emrichschule/schulplattform/schulplattform:/helper/schulplattform:ro",
+      "-v",
+      "sp-fahrrad-restore-5371db609f_vorlagen:/data:rw",
+      "-i",
+      "python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c",
+      "python",
+      "-c",
+      "from pathlib import Path\nfrom schulplattform.snapshot import restore\nimport sys\np=Path('/tmp/snapshot.tar');p.write_bytes(sys.stdin.buffer.read());restore(p,Path('/data'),'5bac029be38c702cfa29c5c46c5dd035f6fd3278efd0483022805917f6f93624')"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-fahrrad-restore-5371db609f",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
+      "up",
+      "-d",
+      "--no-build",
+      "--wait",
+      "--wait-timeout",
+      "90",
+      "app"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-fahrrad-restore-5371db609f",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "python",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--read-only",
+      "--network",
+      "none",
+      "--user",
+      "10001:10001",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--memory",
+      "512m",
+      "--pids-limit",
+      "64",
+      "--tmpfs",
+      "/tmp:size=64m,mode=1777",
+      "-e",
+      "PYTHONPATH=/helper",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-v",
+      "/home/emrichschule/schulplattform/schulplattform:/helper/schulplattform:ro",
+      "-v",
+      "sp-fahrrad-restore-5371db609f_vorlagen:/data:ro",
+      "-i",
+      "python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c",
+      "python",
+      "-c",
+      "import json;from pathlib import Path\np=Path('/data/fixture.txt');print(json.dumps({'text':p.read_text(),'uid':p.stat().st_uid,'gid':p.stat().st_gid,'mode':p.stat().st_mode&511}))"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-fahrrad-restore-5371db609f",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
+      "stop"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-fahrrad-standalone-73c5b103ef",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
+      "stop"
+    ],
+    "exitCode": 0
+  }
+]

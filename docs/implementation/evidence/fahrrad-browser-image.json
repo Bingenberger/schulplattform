@@ -1,0 +1,7 @@
+{
+  "cacheBaseImage": "sha256:1c6b5adf560d8b8a017df070603ff4a226245c667a99be8acec32532b356fe09",
+  "testImage": "sha256:7d3413a387d6653171e0aa86f4ee1a53aaa048a65b0f7c109515e96b189046a7",
+  "sourceTreeAndLockMatch": true,
+  "sourceTree": "bb115bad9bd71f20168af936e6cc8bf370a252d4c722052c70be7ccf6d0334a9",
+  "uvLock": "652917753ecc66d45fcabd8d1037de47283629eaf62f98f92f6179b8bf48bdc1"
+}

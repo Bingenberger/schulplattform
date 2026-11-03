@@ -1,12 +1,12 @@
 # Umsetzungsstand vom 3. November 2026
 
 **Der Gesamtauftrag ist weiterhin offen.** Der lokale Pilot mit schulwissen,
-gswb und optional Zackboing, Schulhelfer, Losverkauf sowie Grundschultafel ist ausführbar und geprüft. Eine Freigabe für den leeren Ubuntu-Zielserver
+gswb und optional Zackboing, Schulhelfer, Losverkauf, Grundschultafel sowie Fahrradausbildung ist ausführbar und geprüft. Eine Freigabe für den leeren Ubuntu-Zielserver
 oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
 
 ## Beobachtet und implementiert
 
-- Eigenständige, isolierte App-Repositories; sechs lokale App-Änderungspakete mit
+- Eigenständige, isolierte App-Repositories; sieben lokale App-Änderungspakete mit
   [Commits und Patches](../../patches/index.json). Keine Appquellen als Monorepo.
 - gswb-Redaktion mit lokaler Anmeldung, CSRF und Pflichtsecret abgesichert;
   öffentliche Lese-API bleibt zugänglich. Kein Vertrauen in Identitätsheader.
@@ -25,7 +25,10 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
   Schreibpfade und explizite SQLite-Migration. Bekannte IDs/Bearbeitungstokens bleiben
   erhalten; unbekannte Bestandsfelder werden abgewiesen. Dauerhafte begrenzte
   Eingangs-Mailqueue und lokale Leaflet-Assets.
-- Lokaler Zwei- bis Sechserstack mit Caddy, getrennten Appnetzen, PostgreSQL und Mailpit.
+- Fahrradausbildung: explizite PostgreSQL-Migration, eigene beschränkte DB-Rolle,
+  zwei Worker, gemeinsame Login-/Postenlimits und ein prozessübergreifender PDF-Slot.
+  Öffentliche Posten-PWA und bestehende Tokens bleiben erhalten.
+- Lokaler Zwei- bis Siebenerstack mit Caddy, getrennten Appnetzen, PostgreSQL und Mailpit.
   Nur Caddys TLS-Testport ist auf Host-Loopback veröffentlicht. Die Apps laufen
   ohne Rootrechte und mit schreibgeschütztem Root-Dateisystem. Die PostgreSQL-
   Approlle besitzt keine Superuser-, CREATEDB- oder CREATEROLE-Rechte.
@@ -42,7 +45,7 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
   Sitzungen, CSRF und Betriebsprotokoll. Öffentliche Kacheln und bestätigte
   Zugangsprojektion sind von der Administrationsansicht getrennt.
 - Separater Unix-Socket-Steuerdienst mit Peer-UID, HMAC und persistenten Nonces;
-  derzeit ausschließlich Status, Start und Stop für die sechs bekannten Pilot-Apps.
+  derzeit ausschließlich Status, Start und Stop für die sieben bekannten Pilot-Apps.
   Aktive Zackboing-Spiele verweigern Stop mit sicherem 409-Hinweis und Audit.
   Das Dashboard besitzt keinen Docker-Socket.
 - Releasebundles werden mit einem unabhängig bereitgestellten Ed25519-Schlüssel
@@ -53,7 +56,7 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
 
 | Prüfung | Ergebnis | Rohbeleg |
 | --- | --- | --- |
-| Python-Suite für Sicherheit, Manifeste, Signaturen, State, Domains, SQLite | 86 bestanden | [Log](evidence/python-tests.log) |
+| Python-Suite für Sicherheit, Manifeste, Signaturen, State, Domains, SQLite | 89 bestanden | [Log](evidence/python-tests.log) |
 | schulwissen-Vertragstests im Produktionsimage ohne Netzwerk | 5 bestanden | [Log](evidence/schulwissen-runtime.log) |
 | Zackboing-Bootstrap und Session-Negativtests | bestanden | [Bootstrap](evidence/zackboing-bootstrap.log), [Session](evidence/zackboing-session.log) |
 | Zackboing amd64/Standalone | Node 22.23.4, 117 Fach-/Negativprüfungen bestanden | [Image](evidence/zackboing-image.json), [Standalone](evidence/zackboing-standalone.json) |
@@ -74,6 +77,11 @@ oder für den gesamten Zehn-App-Stack liegt noch nicht vor.
 | Grundschultafel Standalone, parallele Nutzeranlagen, Session-/Uploaddenials und Neustart | bestanden | [Rohlog](evidence/grundschultafel-standalone.log) |
 | Grundschultafel Datei-/Medienrestore in leeres Volume mit HTTP-Abnahme | bestanden | [Ergebnis](evidence/grundschultafel-restore.json) |
 | Sechserpilot: TLS, Login-/QR-Domainwechsel, Rückfall, No-op und Stop/Start | bestanden | [Ergebnis](evidence/grundschultafel-platform.json) |
+| Fahrradausbildung Fach-/Vertragssuite, echte separate PostgreSQL-Instanz | 730 bestanden; Browser/QR separat | [Rohlog](evidence/fahrrad-functional.log) |
+| Fahrradausbildung Chromium/WebKit, Offline und PDF-QR | 40 bestanden, isolierte Browsergruppen | [Rohlog](evidence/fahrrad-browser-functional.log) |
+| Fahrradausbildung Standalone, Worker-/Limitprüfung und DB-Ausfall | bestanden | [Ergebnis](evidence/fahrrad-standalone.json) |
+| Fahrradausbildung PG-/Vorlagenrestore mit HTTP-Abnahme | bestanden | [Ergebnis](evidence/fahrrad-restore.json) |
+| Siebenerpilot: dekodierte QR-Domainwechsel, Rückfall, No-op und Stop/Start | bestanden | [Ergebnis](evidence/fahrrad-platform.json) |
 | amd64-Builds gswb und schulwissen | bestanden, lokale Entwicklungsimages | [gswb](evidence/gswb-build.log), [schulwissen](evidence/schulwissen-build.log) |
 | gswb Standalone-Start und Neustart | bestanden | [Ergebnis](evidence/gswb-container.json) |
 | schulwissen Standalone ohne Plattform-Override | bestanden | [Ergebnis](evidence/schulwissen-standalone.json), [Log](evidence/schulwissen-standalone.log) |
@@ -113,9 +121,9 @@ oder Löschungen von Bestandsvolumes ausgeführt.
 | A4 | beide Apps standalone und gemeinsam lokal gestartet | leerer Ubuntu-Server, öffentliche TLS-/DNS-Abnahme, vollständige Fachtests |
 | A5 | State-Maschine und Pilot-Lebenszyklus getestet | Host-Provisionierung, alle zehn Apps, vollständige Bootstrap-/Verify-Stufen auf Ubuntu |
 | A6 | lokaler Domainwechsel mit Rückfall getestet | öffentliche DNS-/Besitz-/ACME-Prüfung, Verwaltungsdomain, alle Link-/Callback-/WS-Varianten |
-| A7 | SQLite/PostgreSQL-Bausteine, Zackboing-, Schulhelfer-, Losverkauf- und Grundschultafel-Apprestore getestet | Plattform-/Datei-/Secret-Gesamtbackup, Verschlüsselung und Offsite, weitere Apprestores |
-| A8 | Dashboard mit TOTP und Steuerdienst für sechs Apps, Stopsperre für Spiele | produktive Serviceinstallation, Updates/Domains/Backup/SMTP-Oberfläche, tatsächliche Zugangsprojektion aller zehn Apps |
-| A9 | sechs Apps lokal containerisiert und geprüft | vier weitere Apps; vollständige Release-/Lizenzabnahme |
+| A7 | SQLite/PostgreSQL-Bausteine, Zackboing-, Schulhelfer-, Losverkauf-, Grundschultafel- und Fahrradausbildung-Apprestore getestet | Plattform-/Datei-/Secret-Gesamtbackup, Verschlüsselung und Offsite, weitere Apprestores |
+| A8 | Dashboard mit TOTP und Steuerdienst für sieben Apps, Stopsperre für Spiele | produktive Serviceinstallation, Updates/Domains/Backup/SMTP-Oberfläche, tatsächliche Zugangsprojektion aller zehn Apps |
+| A9 | sieben Apps lokal containerisiert und geprüft | drei weitere Apps; vollständige Release-/Lizenzabnahme |
 | A10 | nicht ausgeführt | Zielservermessung, definierte Last- und Dauerläufe |
 | A11 | nicht begonnen | bleibt bis zur Abnahme der Pflichtpakete zurückgestellt |
 
@@ -134,6 +142,9 @@ Bearbeitungstokens sowie Karten- und privaten Maildateien wiederhergestellt.
 Grundschultafel wurde als Dateistore mit Nutzer-/Notizbuch-IDs und privaten
 Uploadbildern in einem neuen Volume wiederhergestellt.
 [Grundschultafel-Abnahme und Grenzen](grundschultafel.md).
+Fahrradausbildung wurde mit eigenem PostgreSQL-Cluster und Vorlagenvolume,
+identischen Fachzeilen sowie Rollen-/Token-/Ereignisprüfung wiederhergestellt.
+[Fahrradausbildung-Abnahme und Grenzen](fahrradausbildung.md).
 Der Domainversuch verwendet lokale Testnamen und eine lokale CA; er ersetzt
 keinen Nachweis öffentlicher DNS-/ACME-Konfiguration. Im geprüften schulwissen-
 Passwort-Reset-Flow gibt es keinen QR-Code und keine aktivierten OIDC-Callbacks.
@@ -158,5 +169,7 @@ Passwort-Reset-Flow gibt es keinen QR-Code und keine aktivierten OIDC-Callbacks.
 - Grundschultafel prüft zusätzliches Gerätecookie und serverseitige Sitzungen;
   das ist keine Hardwarebindung. Visuelle Canvas-/QR-Kameraabnahme
   und Lizenzprüfung der Unterrichtsmedien bleiben offen. gswb-Login-Drosselung ist offen.
+- Fahrradausbildung: lokale ungesendete PWA-/IndexedDB-Daten sind nicht im Serverbackup
+  und wechseln die Origin nicht automatisch. Vor Domainwechsel vollständig synchronisieren.
 - Keine Produktivumstellung, keine DNSänderung, keine echten Benutzerkonten und
   keine echten E-Mails. Mailpit hat keinen externen SMTP-Upstream.

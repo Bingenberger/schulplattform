@@ -1,0 +1,94 @@
+$ docker run --rm --init --network sp-fahrrad-tests-3a9d9acae8 --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 1536m --cpus 2 --pids-limit 512 --tmpfs /tmp:size=256m,mode=1777 --env-file /home/emrichschule/schulplattform/.work/sp-fahrrad-tests-3a9d9acae8/test-env fahrradausbildung-browser-tests:0.1.0-dev python -m pytest -q -p no:cacheprovider tests contract_tests -k test_posten_frontend or test_posten_offline or im_browser or kartenstil_ohne_bilder or hoher_zoom_bleibt or qr_codes_im_pdf --collect-only
+tests/test_karte.py::test_posten_verorten_und_strecke_zeichnen_im_browser
+tests/test_karte.py::test_kartenstil_ohne_bilder_vor_ort_zoomt_eine_stufe_zurueck
+tests/test_karte.py::test_hoher_zoom_bleibt_bei_jedem_kartenstil_bebildert
+tests/test_laeufe.py::test_qr_codes_im_pdf_lassen_sich_scannen
+tests/test_posten_frontend.py::test_standarderfassung_ist_ein_tap
+tests/test_posten_frontend.py::test_zwei_vergessene_items_sind_drei_taps
+tests/test_posten_frontend.py::test_event_id_ist_uuid4
+tests/test_posten_frontend.py::test_nach_der_letzten_nummer_beginnt_der_naechste_durchgang
+tests/test_posten_frontend.py::test_doppeltipp_erzeugt_nur_eine_erfassung
+tests/test_posten_frontend.py::test_ueberspringen_erfasst_nichts
+tests/test_posten_frontend.py::test_andere_nummer_ueber_raster
+tests/test_posten_frontend.py::test_markierungen_bleiben_beim_nummernwechsel
+tests/test_posten_frontend.py::test_durchgang_wird_pro_kind_gezaehlt
+tests/test_posten_frontend.py::test_rueckgaengig_ist_neues_ereignis_keine_loeschung
+tests/test_posten_frontend.py::test_rueckgaengig_verschwindet_nach_zehn_sekunden
+tests/test_posten_frontend.py::test_fahrsicherheit_ist_jederzeit_ueberschreibbar
+tests/test_posten_frontend.py::test_bemerkung_ohne_stufe_wird_nicht_verworfen
+tests/test_posten_frontend.py::test_daten_und_position_ueberstehen_neustart
+tests/test_posten_frontend.py::test_lesbarkeit_aller_ansichten[iPad (gen 7)]
+tests/test_posten_frontend.py::test_lesbarkeit_aller_ansichten[iPad (gen 7) landscape]
+tests/test_posten_frontend.py::test_groessen_der_bedienelemente[iPad (gen 7)]
+tests/test_posten_frontend.py::test_groessen_der_bedienelemente[iPad (gen 7) landscape]
+tests/test_posten_frontend.py::test_keine_links_nach_aussen
+tests/test_posten_frontend.py::test_manifest_standalone
+tests/test_posten_frontend.py::test_strenge_csp
+tests/test_posten_frontend.py::test_lesbarkeitspruefung_erkennt_verstoesse
+tests/test_posten_frontend.py::test_display_bleibt_waehrend_der_erfassung_an
+tests/test_posten_frontend.py::test_wake_lock_wird_nach_dem_wegschalten_neu_angefordert
+tests/test_posten_frontend.py::test_abgelehnte_sperre_wird_in_der_statuszeile_gesagt
+tests/test_posten_frontend.py::test_altes_geraet_ohne_wake_lock_bekommt_die_einstellung_gesagt
+tests/test_posten_offline.py::test_flugmodus_mit_neustart[chromium]
+tests/test_posten_offline.py::test_flugmodus_mit_neustart[webkit]
+tests/test_posten_offline.py::test_abgebrochener_upload
+tests/test_posten_offline.py::test_keine_namen_auf_dem_geraet
+tests/test_posten_offline.py::test_nach_abschluss_werden_lokale_daten_geloescht
+tests/test_posten_offline.py::test_offene_daten_bleiben_wenn_lauf_zu_frueh_abgeschlossen
+tests/test_posten_offline.py::test_geraetewechsel_uebertraegt_zuerst_alte_daten
+tests/test_posten_offline.py::test_ungueltiger_zugang
+tests/test_posten_offline.py::test_uebungsmodus_offline
+tests/test_posten_offline.py::test_versehentlicher_wechsel_offline_behaelt_alten_posten
+
+40/774 tests collected (734 deselected) in 1.53s
+
+$ docker run --rm --init --network sp-fahrrad-tests-3a9d9acae8 --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 1536m --cpus 2 --pids-limit 512 --tmpfs /tmp:size=256m,mode=1777 --env-file /home/emrichschule/schulplattform/.work/sp-fahrrad-tests-3a9d9acae8/test-env fahrradausbildung-browser-tests:0.1.0-dev python -m pytest -q -p no:cacheprovider tests/test_karte.py::test_posten_verorten_und_strecke_zeichnen_im_browser tests/test_karte.py::test_kartenstil_ohne_bilder_vor_ort_zoomt_eine_stufe_zurueck tests/test_karte.py::test_hoher_zoom_bleibt_bei_jedem_kartenstil_bebildert tests/test_laeufe.py::test_qr_codes_im_pdf_lassen_sich_scannen
+....                                                                     [100%]
+4 passed in 8.24s
+
+exit_code=0
+$ docker run --rm --init --network sp-fahrrad-tests-3a9d9acae8 --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 1536m --cpus 2 --pids-limit 512 --tmpfs /tmp:size=256m,mode=1777 --env-file /home/emrichschule/schulplattform/.work/sp-fahrrad-tests-3a9d9acae8/test-env fahrradausbildung-browser-tests:0.1.0-dev python -m pytest -q -p no:cacheprovider tests/test_posten_frontend.py::test_standarderfassung_ist_ein_tap tests/test_posten_frontend.py::test_zwei_vergessene_items_sind_drei_taps tests/test_posten_frontend.py::test_event_id_ist_uuid4 tests/test_posten_frontend.py::test_nach_der_letzten_nummer_beginnt_der_naechste_durchgang
+....                                                                     [100%]
+4 passed in 25.10s
+
+exit_code=0
+$ docker run --rm --init --network sp-fahrrad-tests-3a9d9acae8 --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 1536m --cpus 2 --pids-limit 512 --tmpfs /tmp:size=256m,mode=1777 --env-file /home/emrichschule/schulplattform/.work/sp-fahrrad-tests-3a9d9acae8/test-env fahrradausbildung-browser-tests:0.1.0-dev python -m pytest -q -p no:cacheprovider tests/test_posten_frontend.py::test_doppeltipp_erzeugt_nur_eine_erfassung tests/test_posten_frontend.py::test_ueberspringen_erfasst_nichts tests/test_posten_frontend.py::test_andere_nummer_ueber_raster tests/test_posten_frontend.py::test_markierungen_bleiben_beim_nummernwechsel
+....                                                                     [100%]
+4 passed in 7.26s
+
+exit_code=0
+$ docker run --rm --init --network sp-fahrrad-tests-3a9d9acae8 --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 1536m --cpus 2 --pids-limit 512 --tmpfs /tmp:size=256m,mode=1777 --env-file /home/emrichschule/schulplattform/.work/sp-fahrrad-tests-3a9d9acae8/test-env fahrradausbildung-browser-tests:0.1.0-dev python -m pytest -q -p no:cacheprovider tests/test_posten_frontend.py::test_durchgang_wird_pro_kind_gezaehlt tests/test_posten_frontend.py::test_rueckgaengig_ist_neues_ereignis_keine_loeschung tests/test_posten_frontend.py::test_rueckgaengig_verschwindet_nach_zehn_sekunden tests/test_posten_frontend.py::test_fahrsicherheit_ist_jederzeit_ueberschreibbar
+....                                                                     [100%]
+4 passed in 10.87s
+
+exit_code=0
+$ docker run --rm --init --network sp-fahrrad-tests-3a9d9acae8 --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 1536m --cpus 2 --pids-limit 512 --tmpfs /tmp:size=256m,mode=1777 --env-file /home/emrichschule/schulplattform/.work/sp-fahrrad-tests-3a9d9acae8/test-env fahrradausbildung-browser-tests:0.1.0-dev python -m pytest -q -p no:cacheprovider tests/test_posten_frontend.py::test_bemerkung_ohne_stufe_wird_nicht_verworfen tests/test_posten_frontend.py::test_daten_und_position_ueberstehen_neustart tests/test_posten_frontend.py::test_lesbarkeit_aller_ansichten[iPad (gen 7)] tests/test_posten_frontend.py::test_lesbarkeit_aller_ansichten[iPad (gen 7) landscape]
+....                                                                     [100%]
+4 passed in 21.64s
+
+exit_code=0
+$ docker run --rm --init --network sp-fahrrad-tests-3a9d9acae8 --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 1536m --cpus 2 --pids-limit 512 --tmpfs /tmp:size=256m,mode=1777 --env-file /home/emrichschule/schulplattform/.work/sp-fahrrad-tests-3a9d9acae8/test-env fahrradausbildung-browser-tests:0.1.0-dev python -m pytest -q -p no:cacheprovider tests/test_posten_frontend.py::test_groessen_der_bedienelemente[iPad (gen 7)] tests/test_posten_frontend.py::test_groessen_der_bedienelemente[iPad (gen 7) landscape] tests/test_posten_frontend.py::test_keine_links_nach_aussen tests/test_posten_frontend.py::test_manifest_standalone
+....                                                                     [100%]
+4 passed in 5.94s
+
+exit_code=0
+$ docker run --rm --init --network sp-fahrrad-tests-3a9d9acae8 --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 1536m --cpus 2 --pids-limit 512 --tmpfs /tmp:size=256m,mode=1777 --env-file /home/emrichschule/schulplattform/.work/sp-fahrrad-tests-3a9d9acae8/test-env fahrradausbildung-browser-tests:0.1.0-dev python -m pytest -q -p no:cacheprovider tests/test_posten_frontend.py::test_strenge_csp tests/test_posten_frontend.py::test_lesbarkeitspruefung_erkennt_verstoesse tests/test_posten_frontend.py::test_display_bleibt_waehrend_der_erfassung_an tests/test_posten_frontend.py::test_wake_lock_wird_nach_dem_wegschalten_neu_angefordert
+....                                                                     [100%]
+4 passed in 4.86s
+
+exit_code=0
+$ docker run --rm --init --network sp-fahrrad-tests-3a9d9acae8 --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 1536m --cpus 2 --pids-limit 512 --tmpfs /tmp:size=256m,mode=1777 --env-file /home/emrichschule/schulplattform/.work/sp-fahrrad-tests-3a9d9acae8/test-env fahrradausbildung-browser-tests:0.1.0-dev python -m pytest -q -p no:cacheprovider tests/test_posten_frontend.py::test_abgelehnte_sperre_wird_in_der_statuszeile_gesagt tests/test_posten_frontend.py::test_altes_geraet_ohne_wake_lock_bekommt_die_einstellung_gesagt tests/test_posten_offline.py::test_flugmodus_mit_neustart[chromium] tests/test_posten_offline.py::test_flugmodus_mit_neustart[webkit]
+....                                                                     [100%]
+4 passed in 84.80s (0:01:24)
+
+exit_code=0
+$ docker run --rm --init --network sp-fahrrad-tests-3a9d9acae8 --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 1536m --cpus 2 --pids-limit 512 --tmpfs /tmp:size=256m,mode=1777 --env-file /home/emrichschule/schulplattform/.work/sp-fahrrad-tests-3a9d9acae8/test-env fahrradausbildung-browser-tests:0.1.0-dev python -m pytest -q -p no:cacheprovider tests/test_posten_offline.py::test_abgebrochener_upload tests/test_posten_offline.py::test_keine_namen_auf_dem_geraet tests/test_posten_offline.py::test_nach_abschluss_werden_lokale_daten_geloescht tests/test_posten_offline.py::test_offene_daten_bleiben_wenn_lauf_zu_frueh_abgeschlossen
+....                                                                     [100%]
+4 passed in 23.78s
+
+exit_code=0
+$ docker run --rm --init --network sp-fahrrad-tests-3a9d9acae8 --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 1536m --cpus 2 --pids-limit 512 --tmpfs /tmp:size=256m,mode=1777 --env-file /home/emrichschule/schulplattform/.work/sp-fahrrad-tests-3a9d9acae8/test-env fahrradausbildung-browser-tests:0.1.0-dev python -m pytest -q -p no:cacheprovider tests/test_posten_offline.py::test_geraetewechsel_uebertraegt_zuerst_alte_daten tests/test_posten_offline.py::test_ungueltiger_zugang tests/test_posten_offline.py::test_uebungsmodus_offline tests/test_posten_offline.py::test_versehentlicher_wechsel_offline_behaelt_alten_posten
+....                                                                     [100%]
+4 passed in 11.09s
+
+exit_code=0

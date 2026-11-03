@@ -1,0 +1,24 @@
+$ git clone --shared --no-checkout /home/emrichschule/schulplattform/.work/apps/fahrradausbildung /home/emrichschule/schulplattform/.work/patch-check-fahrradausbildung-4e007ff
+Cloning into '/home/emrichschule/schulplattform/.work/patch-check-fahrradausbildung-4e007ff'...
+exit_code=0
+$ git -C /home/emrichschule/schulplattform/.work/patch-check-fahrradausbildung-4e007ff checkout --detach d9a9a6c8e02dd7fd5a14a5e2151948d7ec32c207
+Warning: you are leaving 3 commits behind, not connected to
+any of your branches:
+
+  4e007ff Add explicit PostgreSQL migration, shared worker limits and standalone isolation
+  dc699c4 Add explicit PostgreSQL migration, shared worker limits and standalone isolation
+  8d1e499 Add explicit PostgreSQL migration, shared worker limits and standalone isolation
+
+If you want to keep them by creating a new branch, this may be a good time
+to do so with:
+
+ git branch <new-branch-name> 4e007ff
+
+HEAD is now at d9a9a6c Mehrere Läufe pro Tag und Laufwechsel in der Posten-App
+exit_code=0
+$ git -C /home/emrichschule/schulplattform/.work/patch-check-fahrradausbildung-4e007ff am /home/emrichschule/schulplattform/patches/fahrradausbildung/changes.patch
+Applying: Add explicit PostgreSQL migration, shared worker limits and standalone isolation
+Applying: Add explicit PostgreSQL migration, shared worker limits and standalone isolation
+Applying: Add explicit PostgreSQL migration, shared worker limits and standalone isolation
+exit_code=0
+PASS: audited checkout plus complete patch produces identical source tree 154aafddfe88b1e14a55caf37310dd834d22fcd1

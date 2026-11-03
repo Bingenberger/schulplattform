@@ -14,6 +14,7 @@ bestehende Hostinstallation automatisch.
 | Schulhelfer | Python 3.12.12, SQLite user_version 1 / Alembic b7c2e9a41d38 | Standalone, Parallelbuchung, SMTP-Ausfall, lokaler Domainrückfall und leerer Restore |
 | Grundschultafel | Node 22.23.4 / Next 16.1.6, Dateischema 1 | JSON-Transaktionen, Sitzungs-/Uploaddenials, Domainrückfall und Dateirestore |
 | Losverkauf | Python 3.12.12, SQLite user_version 1, dauerhafte Eingangs-Mailqueue | Standalone, Token-/ID-Erhalt, lokaler Domainrückfall und kombinierter Restore |
+| Fahrradausbildung | Python 3.12.12, PostgreSQL 16 / Alembic 0008 | zwei Worker, gemeinsame Limits, öffentlicher Postentoken, PDF-QR-Domainwechsel und PG-/Vorlagenrestore |
 | Übrige Apps | unveränderte Auditcommits | noch keine Container-/Plattformabnahme |
 
 Ein Pilot-Installationsplan bindet die lokalen App-Image-IDs. Neue Builds werden
@@ -69,3 +70,10 @@ benötigen erneute Anmeldung. Nicht zugeordnete flache Alt-Uploads werden nicht
 automatisch freigegeben. Datei-/Assetbestand und Session-Schlüssel gemeinsam
 sichern; bei produktivem Restore Sitzungs-/Bootstrap-Widerruf planen.
 Details in [Grundschultafel](docs/implementation/grundschultafel.md).
+
+Fahrradausbildung benötigt python -m app.migrate als expliziten exklusiven Job.
+Revision 0008 erhält bestehende Fach-IDs und Postentokens. Neue Compose-DBs
+verwenden getrennte Admin-/Appcredentials; vorhandene Cluster werden nicht
+automatisch umgestellt. Vor Upgrade pg_dump, Vorlagen und Credentials gemeinsam
+sichern und Geräte synchronisieren. Nicht gesendete Browserereignisse gehören
+nicht zum Serverbackup. Details: [Fahrradausbildung](docs/implementation/fahrradausbildung.md).

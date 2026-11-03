@@ -54,7 +54,7 @@ und einer persistenten einmaligen Nonce. Antworten sind ebenfalls authentifizier
 und an die Anfragenonce gebunden.
 
 Erlaubte Aktionen sind derzeit `status`, `start` und `stop`; bekannte Ziele sind
-`gswb`, `schulwissen`, optional `zackboing`, `schulhelfer`, `losverkauf` und `grundschultafel`. Unbekannte Felder, Apps, Aktionen, manipulierte MACs,
+`gswb`, `schulwissen`, optional `zackboing`, `schulhelfer`, `losverkauf`, `grundschultafel` und `fahrradausbildung`. Unbekannte Felder, Apps, Aktionen, manipulierte MACs,
 abgelaufene Zeitstempel und Wiederholungen werden abgewiesen. Die Oberfläche
 kann weder Hostpfade noch argv, Compose-Fragmente oder Shellkommandos vorgeben.
 
@@ -83,6 +83,10 @@ Grundschultafel ist im Sechserpilot ein weiteres festes Ziel. Ihre Lehrkraftkont
 und PINs bleiben in der App. Der letzte reale Dashboard-/Unix-Test steuerte
 Start und Stop von Grundschultafel; die öffentliche Kachel bleibt ohne bestätigte
 Fachzugangsprojektion verborgen.
+
+Fahrradausbildung ist im Siebenerpilot ein weiteres festes Ziel. Der letzte reale
+Dashboard-/Unix-Test steuerte diese App; Fachrollen und Postentokens bleiben in der
+App und erzeugen keine automatische Dashboardberechtigung.
 
 Das ist der lokale Pilot-Controller. Ein vollständig signierter Produktions-
 Releasecontroller mit Update, Migration, Restore und Lifecycle-Archivierung
@@ -113,7 +117,7 @@ Installation. Für den Container konfiguriert `from_env()` ausschließlich Datei
 für Zustand, Socket, Credentials und Appkatalog sowie erlaubte Hostnamen.
 
 Die Tests verwenden ausschließlich synthetische Adminprofile, private Testvolumes
-und lokale Pilotumgebungen; zuletzt den Sechserpilot mit Grundschultafel. Sie prüfen unter anderem Login/CSRF, TOTP-Replay,
+und lokale Pilotumgebungen; zuletzt den Siebenerpilot mit Fahrradausbildung. Sie prüfen unter anderem Login/CSRF, TOTP-Replay,
 Sitzungswiderruf, Peer-UID, MAC/Nonce-Replay und die tatsächlichen Start-/Stop-Aktionen
 über den authentifizierten Kanal.
 

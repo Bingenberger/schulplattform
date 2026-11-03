@@ -1,0 +1,18 @@
+$ docker run --rm --network sp-fahrrad-tests-a6979ce1d5 --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 1024m --cpus 2 --pids-limit 192 --tmpfs /tmp:size=256m,mode=1777 --env-file /home/emrichschule/schulplattform/.work/sp-fahrrad-tests-a6979ce1d5/test-env fahrradausbildung-tests:0.1.0-dev python -m pytest -q -p no:cacheprovider tests contract_tests --ignore=tests/test_posten_frontend.py --ignore=tests/test_posten_offline.py -k not im_browser and not kartenstil_ohne_bilder and not hoher_zoom_bleibt
+........................................................................ [  9%]
+......................ssss.............................................. [ 19%]
+...........................s............................................ [ 29%]
+........................................................................ [ 39%]
+........................................................................ [ 48%]
+........................................................................ [ 58%]
+........................................................................ [ 68%]
+........................................................................ [ 78%]
+........................................................................ [ 88%]
+........................................................................ [ 97%]
+...............                                                          [100%]
+=========================== short test summary info ============================
+SKIPPED [4] tests/test_gestaltung.py:82: PDF-Vorlagen haben eine eigene Umgebung (app/pdf.py)
+SKIPPED [1] tests/test_laeufe.py:243: pdftoppm (poppler-utils) nicht installiert
+730 passed, 5 skipped, 3 deselected in 206.32s (0:03:26)
+
+exit_code=0

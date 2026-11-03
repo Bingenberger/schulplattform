@@ -129,3 +129,16 @@ Erstzugang wird separat lokal am Terminal eingerichtet.
 Nutzeränderungen, widerrufbare Sitzungen, mobile Uploadtickets, Login-/QR-
 Domainwechsel, Rückfall und Restore in ein leeres Volume. Unterrichtsmedien
 müssen nach Lizenzklärung ausdrücklich bereitgestellt werden.
+
+## Optionaler siebter Dienst: Fahrradausbildung
+
+Nach scripts/build_fahrradausbildung.py in einem neuen Zustandsordner mit --apps
+gswb,schulwissen,zackboing,schulhelfer,losverkauf,grundschultafel,fahrradausbildung
+installieren. Die geprüfte Umgebung ist .work/pilot-v14. Eigene PostgreSQL-Instanz,
+beschränkte Approlle, Credentials, Vorlagenvolume und internes Proxynetz.
+Der Erstlauf führt nur python -m app.migrate aus, keinen Konto- oder Seedjob.
+
+[Fahrradausbildung-Abnahme](fahrradausbildung.md) enthält Standalone, gemeinsame
+Workerlimits, QR-Domainwechsel und PG-/Vorlagenrestore. Vor Domainwechsel
+Postengeräte vollständig synchronisieren: IndexedDB/PWA bleibt an die alte
+Browser-Origin gebunden. Serverbackup enthält keine ungesendeten Geräteereignisse.
