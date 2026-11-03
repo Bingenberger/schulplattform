@@ -144,10 +144,13 @@ Für den laufenden Zehn-App-Pilot zusätzlich `scripts/verify_abgen_platform.py`
 Alle Fixturekonten und Daten sind synthetisch; private Zugangsdaten und
 Freigabefähigkeiten bleiben ausschließlich unter ignorierten 0700-Verzeichnissen.
 
-Plattformrepository-Änderungspaket: `678e01e20dfa4e80dac2ef3955a6192c17d381fc`.
+Erstes Standalone-Änderungspaket: `678e01e20dfa4e80dac2ef3955a6192c17d381fc`.
 [Geprüfter Commitbeleg](evidence/abgen-work-package-commit.log).
 
 Der QR-Nachweis verwendet das vorhandene Decoder-Testimage aus
 `scripts/build_fahrradausbildung.py --browser` ausschließlich offline für
 Pillow/pyzbar. Der Browser läuft im festgelegten abgen-Playwright-Image.
 [Decoder-Imagebeleg](evidence/abgen-qr-decoder-image.json).
+
+Zehn-App-Integration im Plattformrepository: `fa9f648f4e08f14ecacf693085fe882786a8b39d`.
+[Geprüfter Commitbeleg](evidence/abgen-ten-app-work-package-commit.log).

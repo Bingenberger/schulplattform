@@ -1,0 +1,21 @@
+$ git diff --cached --check
+
+exit_code=0
+
+$ git commit -m Integrate abgen into ten-app pilot with verified TLS lifecycle and dashboard controls
+[main fa9f648] Integrate abgen into ten-app pilot with verified TLS lifecycle and dashboard controls
+ 30 files changed, 2095 insertions(+), 81 deletions(-)
+ create mode 100644 docs/implementation/evidence/abgen-platform-browser.log
+ create mode 100644 docs/implementation/evidence/abgen-platform-compose.json
+ create mode 100644 docs/implementation/evidence/abgen-platform-native.log
+ create mode 100644 docs/implementation/evidence/abgen-platform.json
+ create mode 100644 docs/implementation/evidence/abgen-qr-decoder-image.json
+ create mode 100644 docs/implementation/evidence/abgen-ten-app-private-output-check.log
+ create mode 100644 docs/implementation/evidence/abgen-ten-app-regression.log
+ create mode 100644 docs/implementation/evidence/pilot-v21-operations.jsonl
+ create mode 100644 scripts/abgen_fixture.py
+ create mode 100644 scripts/abgen_qr.py
+ create mode 100644 scripts/verify_abgen_platform.py
+ create mode 100644 scripts/verify_abgen_platform_browser.py
+
+exit_code=0
