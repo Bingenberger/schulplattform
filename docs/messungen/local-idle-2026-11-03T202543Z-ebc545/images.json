@@ -1,0 +1,108 @@
+{
+  "runtimeImages": {
+    "sha256:00441bd3b9f00362211f26e2cc06c897fc20b9504df09ba9dde0da83226773de": {
+      "Id": "sha256:00441bd3b9f00362211f26e2cc06c897fc20b9504df09ba9dde0da83226773de",
+      "Size": 480234971,
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    "sha256:007e089c2537c15f61b9a9112a61d22b91fc310a8e98bcb3d38cba2e17ce8dc0": {
+      "Id": "sha256:007e089c2537c15f61b9a9112a61d22b91fc310a8e98bcb3d38cba2e17ce8dc0",
+      "Size": 424460181,
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    "sha256:03ab71f3b5ef448d4eaae0cec5f6b4b991f1df5e5ec0e6b1a7197dddb974606e": {
+      "Id": "sha256:03ab71f3b5ef448d4eaae0cec5f6b4b991f1df5e5ec0e6b1a7197dddb974606e",
+      "Size": 162449871,
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    "sha256:0499ac5fd33b65cd1282c207ec539e053f6238e86a659a422c6f72ea5667fe77": {
+      "Id": "sha256:0499ac5fd33b65cd1282c207ec539e053f6238e86a659a422c6f72ea5667fe77",
+      "Size": 249196589,
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    "sha256:20f852b86a50239fea35610e67696d1bcf63d37a5482368a952c8f771a986667": {
+      "Id": "sha256:20f852b86a50239fea35610e67696d1bcf63d37a5482368a952c8f771a986667",
+      "Size": 300284206,
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    "sha256:3067cc4e02c091399edbd5d65f85a3ff4d511574aecadb47f280c3761e68852e": {
+      "Id": "sha256:3067cc4e02c091399edbd5d65f85a3ff4d511574aecadb47f280c3761e68852e",
+      "Size": 66343362,
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    "sha256:3df623b1e19ebfe80d4e396a56c41ca0acbe0ad19e319268e2e3aea82d54f3e9": {
+      "Id": "sha256:3df623b1e19ebfe80d4e396a56c41ca0acbe0ad19e319268e2e3aea82d54f3e9",
+      "Size": 644840683,
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    "sha256:4b13436cd1e7009d0f15b0936ea4e7999856fa21506334f765f82851d4c77b84": {
+      "Id": "sha256:4b13436cd1e7009d0f15b0936ea4e7999856fa21506334f765f82851d4c77b84",
+      "Size": 190572022,
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    "sha256:57b23a0326ee442e83b3d3fa027c5a148be0a392d7c91d1ca4e1e70131ee859a": {
+      "Id": "sha256:57b23a0326ee442e83b3d3fa027c5a148be0a392d7c91d1ca4e1e70131ee859a",
+      "Size": 303736028,
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    "sha256:580a202b5088e9c651a8e8b4e461e3213fbd3a3aacaa3d2251892a546a734116": {
+      "Id": "sha256:580a202b5088e9c651a8e8b4e461e3213fbd3a3aacaa3d2251892a546a734116",
+      "Size": 35929243,
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    "sha256:6157f4ddd1f73038b601b0ad6404239ab25afebcb024e78346344b8442ccd2d0": {
+      "Id": "sha256:6157f4ddd1f73038b601b0ad6404239ab25afebcb024e78346344b8442ccd2d0",
+      "Size": 536808022,
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    "sha256:6a2e324ebe59af6031c4c1cd96c1d5072c2ebc36563d2196365e43b8297c062d": {
+      "Id": "sha256:6a2e324ebe59af6031c4c1cd96c1d5072c2ebc36563d2196365e43b8297c062d",
+      "Size": 294301549,
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    "sha256:7ee078ec81e7e576b3d6775f6ff56dcddcea5455e9bef43c69fed88026a30ef2": {
+      "Id": "sha256:7ee078ec81e7e576b3d6775f6ff56dcddcea5455e9bef43c69fed88026a30ef2",
+      "Size": 2852699385,
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    "sha256:d8c4c9c46d8ddd646c5b0c9eee0aaa62fdbfc7c71a66a377865c0c4118ce3d40": {
+      "Id": "sha256:d8c4c9c46d8ddd646c5b0c9eee0aaa62fdbfc7c71a66a377865c0c4118ce3d40",
+      "Size": 235182541,
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    "sha256:f47591e54cf0e6e8182cc2624bbbc8f38c7070beada1abfc129ab94d3cc1f248": {
+      "Id": "sha256:f47591e54cf0e6e8182cc2624bbbc8f38c7070beada1abfc129ab94d3cc1f248",
+      "Size": 363197786,
+      "Architecture": "amd64",
+      "Os": "linux"
+    }
+  },
+  "additionalInventory": {
+    "abgenPlaywrightBase": {
+      "Id": "sha256:a0d7b2b49ffa0e99787a00b7ec2af46eca58020082713f002ca9f0f1cfd1a017",
+      "Size": 2542930822,
+      "Architecture": "amd64",
+      "Os": "linux"
+    },
+    "dashboardInventoryOnly": {
+      "Id": "sha256:a78fec4567c41c7b1c2e43e40719df14e8c44a99f9abda9fa26bde5f7fb86f3f",
+      "Size": 148139986,
+      "Architecture": "amd64",
+      "Os": "linux"
+    }
+  }
+}

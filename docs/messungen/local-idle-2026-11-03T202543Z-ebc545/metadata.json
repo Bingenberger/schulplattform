@@ -1,0 +1,281 @@
+{
+  "scope": "Local development-host idle observation; not target-server or capacity acceptance",
+  "timestamp": "2026-11-03T202543Z",
+  "pilotProject": "sp-pilot-a4c3cb5c7ff6",
+  "installationId": "6e234961-2e5d-411b-bb6e-01442f21b7f5",
+  "host": {
+    "os": {
+      "ID": "tuxedo",
+      "PRETTY_NAME": "TUXEDO OS",
+      "VERSION_ID": "24.04"
+    },
+    "kernel": "7.0.0-113038-tuxedo",
+    "architecture": "x86_64",
+    "cpuModel": "AMD Ryzen 7 7840HS w/ Radeon 780M Graphics",
+    "logicalCpus": 16,
+    "processCpuAffinityCount": 16,
+    "workspaceFilesystem": {
+      "bytes": 983040749568,
+      "availableBytes": 501293543424
+    },
+    "memory": {
+      "MemTotalBytes": 29127405568,
+      "MemFreeBytes": 21347913728,
+      "MemAvailableBytes": 24975720448,
+      "BuffersBytes": 454414336,
+      "CachedBytes": 3511767040,
+      "SwapTotalBytes": 536866816,
+      "SwapFreeBytes": 536866816,
+      "ShmemBytes": 211841024,
+      "SReclaimableBytes": 302649344
+    },
+    "docker": {
+      "serverVersion": "29.1.3",
+      "cgroupVersion": "2",
+      "cgroupDriver": "systemd"
+    }
+  },
+  "settings": {
+    "warmupSeconds": 30,
+    "measurementSeconds": 120,
+    "intervalSeconds": 5
+  },
+  "services": {
+    "gswb/app": {
+      "id": "21feb405a0d0bdfda12562acd0fac8f5f4533b2f4537e764f14a78037a3a775c",
+      "project": "sp-pilot-a4c3cb5c7ff6-gswb",
+      "service": "app",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-21feb405a0d0bdfda12562acd0fac8f5f4533b2f4537e764f14a78037a3a775c.scope",
+      "image": "sha256:4b13436cd1e7009d0f15b0936ea4e7999856fa21506334f765f82851d4c77b84",
+      "limits": {
+        "memoryBytes": 536870912,
+        "nanoCpus": 1000000000,
+        "pids": 128
+      }
+    },
+    "schulwissen/app": {
+      "id": "848ef5069048d8115782195e8287a05fd21237e95e251b8179e6b9722cc2286a",
+      "project": "sp-pilot-a4c3cb5c7ff6-schulwissen",
+      "service": "app",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-848ef5069048d8115782195e8287a05fd21237e95e251b8179e6b9722cc2286a.scope",
+      "image": "sha256:007e089c2537c15f61b9a9112a61d22b91fc310a8e98bcb3d38cba2e17ce8dc0",
+      "limits": {
+        "memoryBytes": 805306368,
+        "nanoCpus": 1000000000,
+        "pids": 128
+      }
+    },
+    "zackboing/app": {
+      "id": "a18dc8fcf8a0239d2c350213f1a2904f5f6335fd6cff7dd88b077a180552d827",
+      "project": "sp-pilot-a4c3cb5c7ff6-zackboing",
+      "service": "app",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-a18dc8fcf8a0239d2c350213f1a2904f5f6335fd6cff7dd88b077a180552d827.scope",
+      "image": "sha256:0499ac5fd33b65cd1282c207ec539e053f6238e86a659a422c6f72ea5667fe77",
+      "limits": {
+        "memoryBytes": 402653184,
+        "nanoCpus": 1000000000,
+        "pids": 128
+      }
+    },
+    "schulhelfer/app": {
+      "id": "f3d89c7d57293991d524dbacab470cdb95aadc0feafc39cc9d3bc05f117ca892",
+      "project": "sp-pilot-a4c3cb5c7ff6-schulhelfer",
+      "service": "app",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-f3d89c7d57293991d524dbacab470cdb95aadc0feafc39cc9d3bc05f117ca892.scope",
+      "image": "sha256:d8c4c9c46d8ddd646c5b0c9eee0aaa62fdbfc7c71a66a377865c0c4118ce3d40",
+      "limits": {
+        "memoryBytes": 402653184,
+        "nanoCpus": 1000000000,
+        "pids": 128
+      }
+    },
+    "losverkauf/app": {
+      "id": "da4a206a78ee6b381f22479332c3a779ff1f31befd029c0416a4b7d9c249ddf6",
+      "project": "sp-pilot-a4c3cb5c7ff6-losverkauf",
+      "service": "app",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-da4a206a78ee6b381f22479332c3a779ff1f31befd029c0416a4b7d9c249ddf6.scope",
+      "image": "sha256:03ab71f3b5ef448d4eaae0cec5f6b4b991f1df5e5ec0e6b1a7197dddb974606e",
+      "limits": {
+        "memoryBytes": 402653184,
+        "nanoCpus": 1000000000,
+        "pids": 128
+      }
+    },
+    "grundschultafel/app": {
+      "id": "6712fc2d3c32a24eb5d79768bc0aba73a5cc31af2b34e1e2ad93e98f575f1e54",
+      "project": "sp-pilot-a4c3cb5c7ff6-grundschultafel",
+      "service": "app",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-6712fc2d3c32a24eb5d79768bc0aba73a5cc31af2b34e1e2ad93e98f575f1e54.scope",
+      "image": "sha256:20f852b86a50239fea35610e67696d1bcf63d37a5482368a952c8f771a986667",
+      "limits": {
+        "memoryBytes": 536870912,
+        "nanoCpus": 1000000000,
+        "pids": 128
+      }
+    },
+    "fahrradausbildung/app": {
+      "id": "8494071c2593518ce644a4f076bfc6289f9301d8f626add4dac14d79c0ce41d6",
+      "project": "sp-pilot-a4c3cb5c7ff6-fahrradausbildung",
+      "service": "app",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-8494071c2593518ce644a4f076bfc6289f9301d8f626add4dac14d79c0ce41d6.scope",
+      "image": "sha256:f47591e54cf0e6e8182cc2624bbbc8f38c7070beada1abfc129ab94d3cc1f248",
+      "limits": {
+        "memoryBytes": 805306368,
+        "nanoCpus": 1000000000,
+        "pids": 128
+      }
+    },
+    "leseflux/app": {
+      "id": "f49a165bb2b3890c3d7cfaf8de8d79ad03c40b2d507991e52172481ec7c1fa30",
+      "project": "sp-pilot-a4c3cb5c7ff6-leseflux",
+      "service": "app",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-f49a165bb2b3890c3d7cfaf8de8d79ad03c40b2d507991e52172481ec7c1fa30.scope",
+      "image": "sha256:00441bd3b9f00362211f26e2cc06c897fc20b9504df09ba9dde0da83226773de",
+      "limits": {
+        "memoryBytes": 805306368,
+        "nanoCpus": 1000000000,
+        "pids": 128
+      }
+    },
+    "kompetenz-manager/app": {
+      "id": "6f52edc88f7126fb4fbce7273f01c109e5dc7ad39f7029fa037afea16b0b9096",
+      "project": "sp-pilot-a4c3cb5c7ff6-kompetenz-manager",
+      "service": "app",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-6f52edc88f7126fb4fbce7273f01c109e5dc7ad39f7029fa037afea16b0b9096.scope",
+      "image": "sha256:3df623b1e19ebfe80d4e396a56c41ca0acbe0ad19e319268e2e3aea82d54f3e9",
+      "limits": {
+        "memoryBytes": 1610612736,
+        "nanoCpus": 2000000000,
+        "pids": 192
+      }
+    },
+    "abgen/app": {
+      "id": "c3cf8635f038febb252e46c5f1452a22b7aaed0c8a277b15e528d81e338dd4c2",
+      "project": "sp-pilot-a4c3cb5c7ff6-abgen",
+      "service": "app",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-c3cf8635f038febb252e46c5f1452a22b7aaed0c8a277b15e528d81e338dd4c2.scope",
+      "image": "sha256:6157f4ddd1f73038b601b0ad6404239ab25afebcb024e78346344b8442ccd2d0",
+      "limits": {
+        "memoryBytes": 1073741824,
+        "nanoCpus": 1000000000,
+        "pids": 128
+      }
+    },
+    "kompetenz-manager/worker": {
+      "id": "d3eb736ec52551c085156f191b5c89b7faa8b3f639be5b1ffdd5e8cc52902b01",
+      "project": "sp-pilot-a4c3cb5c7ff6-kompetenz-manager",
+      "service": "worker",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-d3eb736ec52551c085156f191b5c89b7faa8b3f639be5b1ffdd5e8cc52902b01.scope",
+      "image": "sha256:3df623b1e19ebfe80d4e396a56c41ca0acbe0ad19e319268e2e3aea82d54f3e9",
+      "limits": {
+        "memoryBytes": 402653184,
+        "nanoCpus": 500000000,
+        "pids": 64
+      }
+    },
+    "abgen/pdf": {
+      "id": "a03838dbf843de430df6db910cb012e736d305cf663b068dc5c9be7fbccbd165",
+      "project": "sp-pilot-a4c3cb5c7ff6-abgen",
+      "service": "pdf",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-a03838dbf843de430df6db910cb012e736d305cf663b068dc5c9be7fbccbd165.scope",
+      "image": "sha256:7ee078ec81e7e576b3d6775f6ff56dcddcea5455e9bef43c69fed88026a30ef2",
+      "limits": {
+        "memoryBytes": 1610612736,
+        "nanoCpus": 2000000000,
+        "pids": 384
+      }
+    },
+    "schulwissen/db": {
+      "id": "d06621e9c52b21b5bd467de5af8190f672ddc2260579c6a9cd1553db75e6586f",
+      "project": "sp-pilot-a4c3cb5c7ff6-schulwissen",
+      "service": "db",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-d06621e9c52b21b5bd467de5af8190f672ddc2260579c6a9cd1553db75e6586f.scope",
+      "image": "sha256:6a2e324ebe59af6031c4c1cd96c1d5072c2ebc36563d2196365e43b8297c062d",
+      "limits": {
+        "memoryBytes": 0,
+        "nanoCpus": 0,
+        "pids": null
+      }
+    },
+    "fahrradausbildung/db": {
+      "id": "63e5df3b59e04bd0e35cad41c1f642e533bd4f0f0620a415288b0ce91eb15dd4",
+      "project": "sp-pilot-a4c3cb5c7ff6-fahrradausbildung",
+      "service": "db",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-63e5df3b59e04bd0e35cad41c1f642e533bd4f0f0620a415288b0ce91eb15dd4.scope",
+      "image": "sha256:6a2e324ebe59af6031c4c1cd96c1d5072c2ebc36563d2196365e43b8297c062d",
+      "limits": {
+        "memoryBytes": 536870912,
+        "nanoCpus": 1000000000,
+        "pids": 128
+      }
+    },
+    "leseflux/postgres": {
+      "id": "8297795759bdf521e5494b10014a33b0bdf783af25630f829d962062fd6bbd4b",
+      "project": "sp-pilot-a4c3cb5c7ff6-leseflux",
+      "service": "postgres",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-8297795759bdf521e5494b10014a33b0bdf783af25630f829d962062fd6bbd4b.scope",
+      "image": "sha256:6a2e324ebe59af6031c4c1cd96c1d5072c2ebc36563d2196365e43b8297c062d",
+      "limits": {
+        "memoryBytes": 536870912,
+        "nanoCpus": 1000000000,
+        "pids": 128
+      }
+    },
+    "abgen/postgres": {
+      "id": "18795f0a39ce32b8f62e5377e98ba0945b53b6c491337dca3628b32db468a451",
+      "project": "sp-pilot-a4c3cb5c7ff6-abgen",
+      "service": "postgres",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-18795f0a39ce32b8f62e5377e98ba0945b53b6c491337dca3628b32db468a451.scope",
+      "image": "sha256:57b23a0326ee442e83b3d3fa027c5a148be0a392d7c91d1ca4e1e70131ee859a",
+      "limits": {
+        "memoryBytes": 536870912,
+        "nanoCpus": 1000000000,
+        "pids": 128
+      }
+    },
+    "infra/proxy": {
+      "id": "cff835fab2834337fb33c89650286613574480555c889e23202508691c46b06a",
+      "project": "sp-pilot-a4c3cb5c7ff6-infra",
+      "service": "proxy",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-cff835fab2834337fb33c89650286613574480555c889e23202508691c46b06a.scope",
+      "image": "sha256:3067cc4e02c091399edbd5d65f85a3ff4d511574aecadb47f280c3761e68852e",
+      "limits": {
+        "memoryBytes": 134217728,
+        "nanoCpus": 500000000,
+        "pids": 128
+      }
+    },
+    "infra/mailpit": {
+      "id": "16d1bb5f28af0882cd2b1d71c61914e6c4a933eee20cc78d2a84fcaf87d1d1a0",
+      "project": "sp-pilot-a4c3cb5c7ff6-infra",
+      "service": "mailpit",
+      "cgroup": "/sys/fs/cgroup/system.slice/docker-16d1bb5f28af0882cd2b1d71c61914e6c4a933eee20cc78d2a84fcaf87d1d1a0.scope",
+      "image": "sha256:580a202b5088e9c651a8e8b4e461e3213fbd3a3aacaa3d2251892a546a734116",
+      "limits": {
+        "memoryBytes": 134217728,
+        "nanoCpus": 500000000,
+        "pids": 128
+      }
+    }
+  },
+  "method": {
+    "memory": "cgroup v2 memory.current, anon/file and current-inactive_file as separate views; never added together",
+    "cpu": "cgroup usage_usec deltas / monotonic elapsed time; one core is 100%",
+    "io": "cgroup block-I/O byte counters; host iowait/steal and PSI, not disk latency",
+    "databases": "own database-role connection counts; collector backend excluded",
+    "monitoringOverhead": "Docker exec for PG and queue/PDF probes every sample is included in container and host counters",
+    "data": "Previously created synthetic pilot fixtures; no real school data",
+    "pdf": "Fresh renderer process starts cold, no print job deliberately submitted",
+    "missing": [
+      "HTTP latency/error rates",
+      "disk latency",
+      "ten-person load and 60-minute soak",
+      "import/PDF/mail/backup concurrency",
+      "separate load-generator host",
+      "queues outside two explicit native probes",
+      "queue age and SQL query latency"
+    ],
+    "cache": "No OS/page-cache flushing; caches affected by preceding local acceptance tests",
+    "excludedServices": "Dashboard/deployment daemon and production relay are not part of this pilot runtime; host/desktop/foreign containers excluded from service totals"
+  }
+}

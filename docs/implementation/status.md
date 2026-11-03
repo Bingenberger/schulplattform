@@ -67,7 +67,7 @@ Eine Freigabe für den leeren Ubuntu-Zielserver oder den Produktivbetrieb liegt 
 
 | Prüfung | Ergebnis | Rohbeleg |
 | --- | --- | --- |
-| Python-Suite für Sicherheit, Manifeste, Signaturen, State, Domains, SQLite und Zehn-App-Lebenszyklus | 103 bestanden | [Log](evidence/abgen-ten-app-regression.log) |
+| Python-Suite für Sicherheit, Manifeste, Signaturen, State, Domains, SQLite und Zehn-App-Lebenszyklus | 114 bestanden | [Log](evidence/restore-metrics-tests.log) |
 | schulwissen-Vertragstests im Produktionsimage ohne Netzwerk | 5 bestanden | [Log](evidence/schulwissen-runtime.log) |
 | Zackboing-Bootstrap und Session-Negativtests | bestanden | [Bootstrap](evidence/zackboing-bootstrap.log), [Session](evidence/zackboing-session.log) |
 | Zackboing amd64/Standalone | Node 22.23.4, 117 Fach-/Negativprüfungen bestanden | [Image](evidence/zackboing-image.json), [Standalone](evidence/zackboing-standalone.json) |
@@ -107,6 +107,8 @@ Eine Freigabe für den leeren Ubuntu-Zielserver oder den Produktivbetrieb liegt 
 | Neunerpilot: TLS-Mail-Domainwechsel/Rückfall, No-op und Web-/Worker-Start/Stop | bestanden | [Ergebnis](evidence/kompetenz-platform.json) |
 | Zehn-App-Pilot mit abgen: TLS, dekodierter Kinder-QR, WSS, Domainrückfall und Drain | bestanden, lokale CA; Fachdaten und Yjs-Bytes erhalten | [Ergebnis](evidence/abgen-platform.json) |
 | Zehn-App-Browser Chromium/WebKit und Dashboardsteuerung von abgen | bestanden, TOTP/CSRF und Kachelfreigabe | [Browser](evidence/abgen-platform-browser.log), [Dashboard](evidence/dashboard-container.json) |
+| Schulwissen: leere PostgreSQL-/Medienrestoreziele, bestehende Sitzung, echte HTTP-Rechte und PDF | bestanden | [Ergebnis](evidence/schulwissen-http-restore.json) |
+| Lokale Zehn-App-Leerlaufstichprobe, 18 Dienste über 120 Sekunden | durchgeführt; keine Kapazitätsabnahme | [Auswertung](../messungen/README.md) |
 | amd64-Builds gswb und schulwissen | bestanden, lokale Entwicklungsimages | [gswb](evidence/gswb-build.log), [schulwissen](evidence/schulwissen-build.log) |
 | gswb Standalone-Start und Neustart | bestanden | [Ergebnis](evidence/gswb-container.json) |
 | schulwissen Standalone ohne Plattform-Override | bestanden | [Ergebnis](evidence/schulwissen-standalone.json), [Log](evidence/schulwissen-standalone.log) |
@@ -135,6 +137,19 @@ Der Pilot und die Dashboard-Testdienste sind nach den Prüfungen gestoppt. Daten
 Testvolumes bleiben erhalten. Es wurden keine globalen Docker-Aufräumkommandos
 oder Löschungen von Bestandsvolumes ausgeführt.
 
+## Neuer Restore- und Messnachweis
+
+Schulwissen ist mit unabhängiger leerer Datenbank und leerem Medienvolume sowie
+separat erhaltenem Signierschlüssel wiederhergestellt und als echte Webapp geprüft.
+[Restorebericht](schulwissen-restore.md), [Rohbeleg](evidence/schulwissen-http-restore.json).
+
+Der Zehn-App-Pilot wurde auf dem lokalen TUXEDO-OS-Rechner 120 Sekunden lang nach
+30 Sekunden Aufwärmen beobachtet: 25 Stichproben, 18 eigene Dienste, maximal
+1.637.384.192 Byte Cgroup-Speicherbelegung, durchschnittlich 0,378 CPU-Kerne.
+Kein beobachteter OOM-Abbruch oder Neustart; PDF-Renderer kalt, keine aktiven Nutzer.
+Keine Kapazitätsabnahme und keine Bestätigung der geschätzten 16 GB/4 vCPU.
+[Rohdaten und genaue Aussagegrenzen](../messungen/README.md).
+
 ## Noch nicht abgenommene Pakete
 
 | Paket | Stand | Fehlend |
@@ -146,15 +161,17 @@ oder Löschungen von Bestandsvolumes ausgeführt.
 | A4 | beide Apps standalone und gemeinsam lokal gestartet | leerer Ubuntu-Server, öffentliche TLS-/DNS-Abnahme, vollständige Fachtests |
 | A5 | State-Maschine und Pilot-Lebenszyklus getestet | Host-Provisionierung und vollständige Bootstrap-/Verify-Stufen aller zehn Apps auf Ubuntu |
 | A6 | lokaler Domainwechsel mit Rückfall getestet | öffentliche DNS-/Besitz-/ACME-Prüfung, Verwaltungsdomain, alle Link-/Callback-/WS-Varianten |
-| A7 | SQLite/PostgreSQL-Bausteine, Zackboing-, Schulhelfer-, Losverkauf-, Grundschultafel-, Fahrradausbildung-, Leseflux- Kompetenz-Manager- und Abgen-Apprestore getestet | Plattform-/Datei-/Secret-Gesamtbackup, Verschlüsselung und Offsite, weitere Apprestores |
+| A7 | SQLite/PostgreSQL-Bausteine, Schulwissen-, Zackboing-, Schulhelfer-, Losverkauf-, Grundschultafel-, Fahrradausbildung-, Leseflux-, Kompetenz-Manager- und Abgen-Apprestore getestet | Plattform-/Datei-/Secret-Gesamtbackup, Verschlüsselung und Offsite, weitere Apprestores |
 | A8 | Dashboard mit TOTP und Steuerdienst für zehn Apps, Stopsperre für Spiele | produktive Serviceinstallation, Updates/Domains/Backup/SMTP-Oberfläche, tatsächliche Zugangsprojektion aller zehn Apps |
 | A9 | zehn Apps standalone und gemeinsam lokal containerisiert und geprüft | vollständige Release-/Lizenz- und Fachabnahme |
-| A10 | nicht ausgeführt | Zielservermessung, definierte Last- und Dauerläufe |
+| A10 | kurzer lokaler Leerlauf: 18 Dienste, rohe Cgroup-/Host-/DB-/Queue-Daten | Zielservermessung, Zehn-Personen-Last, 60-Minuten-Dauerlauf und Hintergrundkonkurrenz |
 | A11 | nicht begonnen | bleibt bis zur Abnahme der Pflichtpakete zurückgestellt |
 
 Keine App erfüllt bereits die gesamte Fertigdefinition des Auftrags. Der
-PostgreSQL-Test prüft Schema, Fremdschlüssel, Eigentümer sowie Nutzer-/Rollen-IDs;
-eine wiederhergestellte schulwissen-App wurde dabei noch nicht per HTTP gestartet.
+PostgreSQL-/Medienrestore von schulwissen prüft alle Tabellenzeilen, Fremdschlüssel,
+Eigentümer und Nutzer-/Rollen-IDs. Die restaurierte Webapp wurde ohne erneute
+Migration gestartet; bestehende Sitzung, geschützte Medien, Rechte und echter
+JSON-/PDF-Export sind über HTTP geprüft. [Schulwissen-Restore](schulwissen-restore.md).
 Für Zackboing ist dagegen der kombinierte SQLite-/Medienrestore samt neu gestarteter
 App, Nutzer-/Rollenprüfung und verweigerten Adminzugriffen nachgewiesen.
 [Zackboing-Abnahme und Grenzen](zackboing.md).
@@ -181,7 +198,7 @@ Passwort-Reset-Flow gibt es keinen QR-Code und keine aktivierten OIDC-Callbacks.
 - Offsite-Backupziel wurde angefragt. Bis zur Festlegung ausschließlich lokale,
   synthetische Sicherungsprüfungen. RPO 24 h und RTO 4 h bleiben unbestätigte Ziele.
 - 16 GB RAM, 4 dedizierte vCPU und 160–200 GB SSD für zehn Apps bleiben Schätzungen.
-  Es gibt noch keine neue Leerlauf- oder Kapazitätsmessung.
+  Es gibt eine kurze lokale Leerlaufstichprobe; Zielserver- und Kapazitätsmessungen fehlen weiter.
 - Keine zentrale Sperrung und kein zentraler Logout. Die
   [Austrittschecklisten](departure-checklists.md) bleiben notwendig.
 - Schulhelfer hat noch keine persistente Mail-Outbox oder vollständige

@@ -1,0 +1,264 @@
+[
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--read-only",
+      "--network",
+      "none",
+      "--user",
+      "10001:10001",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--memory",
+      "512m",
+      "--pids-limit",
+      "64",
+      "--tmpfs",
+      "/tmp:size=64m,mode=1777",
+      "-e",
+      "PYTHONPATH=/helper",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-v",
+      "/home/emrichschule/schulplattform/schulplattform:/helper/schulplattform:ro",
+      "-v",
+      "sp-pilot-a4c3cb5c7ff6-schulwissen_medien:/data:ro",
+      "-i",
+      "python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c",
+      "python",
+      "-c",
+      "from pathlib import Path\nfrom schulplattform.snapshot import create\nimport sys\np=Path('/data');create(p,sys.stdout.buffer,directories=[x.name for x in p.iterdir() if x.is_dir()],files=[x.name for x in p.iterdir() if x.is_file()])"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-wissen-http-restore-cf3a716129",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/schulwissen/docker-compose.yml",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/pilot-v21/schulwissen-restore-fixtures/588dc60030/restore.yml",
+      "up",
+      "-d",
+      "--no-build",
+      "--wait",
+      "db"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-wissen-http-restore-cf3a716129",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/schulwissen/docker-compose.yml",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/pilot-v21/schulwissen-restore-fixtures/588dc60030/restore.yml",
+      "ps",
+      "-q",
+      "db"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-wissen-http-restore-cf3a716129",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/schulwissen/docker-compose.yml",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/pilot-v21/schulwissen-restore-fixtures/588dc60030/restore.yml",
+      "create",
+      "--no-build",
+      "app"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-wissen-http-restore-cf3a716129",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/schulwissen/docker-compose.yml",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/pilot-v21/schulwissen-restore-fixtures/588dc60030/restore.yml",
+      "ps",
+      "-aq",
+      "app"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "inspect",
+      "3aa629247ac7f38f9cb6851570d301b8c0699b40508e1b115e278ac455f3c836"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--read-only",
+      "--network",
+      "none",
+      "--user",
+      "10001:10001",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--memory",
+      "512m",
+      "--pids-limit",
+      "64",
+      "--tmpfs",
+      "/tmp:size=64m,mode=1777",
+      "-e",
+      "PYTHONPATH=/helper",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-v",
+      "/home/emrichschule/schulplattform/schulplattform:/helper/schulplattform:ro",
+      "-v",
+      "sp-wissen-http-restore-cf3a716129_medien:/data:rw",
+      "-i",
+      "python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c",
+      "python",
+      "-c",
+      "from pathlib import Path\nfrom schulplattform.snapshot import restore\nimport sys\np=Path('/tmp/media.tar');p.write_bytes(sys.stdin.buffer.read());restore(p,Path('/data'),'be5c950ae1965e6d93aa3b05c607a1ad6fdff35967e74fad792dd5038fae63b6')"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--read-only",
+      "--network",
+      "none",
+      "--user",
+      "10001:10001",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--memory",
+      "512m",
+      "--pids-limit",
+      "64",
+      "--tmpfs",
+      "/tmp:size=64m,mode=1777",
+      "-e",
+      "PYTHONPATH=/helper",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-v",
+      "/home/emrichschule/schulplattform/schulplattform:/helper/schulplattform:ro",
+      "-v",
+      "sp-pilot-a4c3cb5c7ff6-schulwissen_medien:/data:ro",
+      "-i",
+      "python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c",
+      "python",
+      "-c",
+      "from pathlib import Path\nimport hashlib,json\nprint(json.dumps({str(p.relative_to('/data')):{'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'uid':p.stat().st_uid} for p in Path('/data').rglob('*') if p.is_file()}))"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--read-only",
+      "--network",
+      "none",
+      "--user",
+      "10001:10001",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--memory",
+      "512m",
+      "--pids-limit",
+      "64",
+      "--tmpfs",
+      "/tmp:size=64m,mode=1777",
+      "-e",
+      "PYTHONPATH=/helper",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-v",
+      "/home/emrichschule/schulplattform/schulplattform:/helper/schulplattform:ro",
+      "-v",
+      "sp-wissen-http-restore-cf3a716129_medien:/data:ro",
+      "-i",
+      "python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c",
+      "python",
+      "-c",
+      "from pathlib import Path\nimport hashlib,json\nprint(json.dumps({str(p.relative_to('/data')):{'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'uid':p.stat().st_uid} for p in Path('/data').rglob('*') if p.is_file()}))"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-wissen-http-restore-cf3a716129",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/schulwissen/docker-compose.yml",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/pilot-v21/schulwissen-restore-fixtures/588dc60030/restore.yml",
+      "up",
+      "-d",
+      "--no-build",
+      "--wait",
+      "--wait-timeout",
+      "90",
+      "app"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "inspect",
+      "3aa629247ac7f38f9cb6851570d301b8c0699b40508e1b115e278ac455f3c836"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "inspect",
+      "29670d298285e41d112d65fda9f2d9da0cfa8a4d2cfb4a2a4af7d57b6b873dfd"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-wissen-http-restore-cf3a716129",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/schulwissen/docker-compose.yml",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/pilot-v21/schulwissen-restore-fixtures/588dc60030/restore.yml",
+      "stop"
+    ],
+    "exitCode": 0
+  }
+]

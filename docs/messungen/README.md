@@ -1,34 +1,44 @@
 # Tatsächlich erfasste Messdaten
 
-**Keine neue Last- oder Kapazitätsmessung des Plattformstacks.** Frühere
-Auditmessungen werden nicht auf die aktuelle Umsetzung übertragen.
+Es liegt jetzt eine kurze **lokale Leerlaufstichprobe des Zehn-App-Pilots** vor.
+Sie ersetzt keine Zielserver-, Last- oder Kapazitätsabnahme. Frühere Auditwerte
+werden nicht auf die neue Umgebung übertragen.
 
-Docker meldet für die lokal gebauten amd64-Images:
+[Aufbau, Diensttabelle und Auswertung](local-idle-2026-11-03T202543Z-ebc545/README.md),
+[rohe Cgroup-/Host-/DB-/Queue-Proben](local-idle-2026-11-03T202543Z-ebc545/samples.jsonl),
+[Metadaten](local-idle-2026-11-03T202543Z-ebc545/metadata.json),
+[Zusammenfassung](local-idle-2026-11-03T202543Z-ebc545/summary.json),
+[CSV](local-idle-2026-11-03T202543Z-ebc545/services.csv).
 
-| App | Imagegröße laut Docker |
-| --- | ---: |
-| gswb | 190.572.022 Byte |
-| schulwissen | 424.460.181 Byte |
-| Dashboard | 148.122.678 Byte |
-| Zackboing | 249.196.589 Byte |
-| Schulhelfer | 235.182.541 Byte |
-| Losverkauf | 162.449.871 Byte |
+Auf TUXEDO OS 24.04, Ryzen 7 7840HS und 16 logischen CPUs wurden nach 30 Sekunden
+Aufwärmen 25 Stichproben über 120 Sekunden erfasst. Die 18 Dienste umfassen die
+zehn Apps, vier Datenbanken, separaten PDF-/Benachrichtigungsdienst, Caddy und
+Mailpit. Dashboard, Dauer-Steuerdienst, Produktiv-Relay sowie Host-/Desktopkosten
+sind nicht in den Dienstsummen enthalten.
 
-[gswb-Rohdaten](../implementation/evidence/gswb-image.json),
-[schulwissen-Rohdaten](../implementation/evidence/schulwissen-image.json),
-[Dashboard-Rohdaten](../implementation/evidence/dashboard-image.json),
-[Zackboing-Rohdaten](../implementation/evidence/zackboing-image.json),
-[Schulhelfer-Rohdaten](../implementation/evidence/schulhelfer-image.json),
-[Losverkauf-Rohdaten](../implementation/evidence/losverkauf-image.json).
-Die fünf Python-Images verwenden das fixierte Python-3.12.12-Basisimage. gswb installiert aus einem
-Hash-Lockfile, schulwissen aus uv.lock. schulwissen enthält zusätzlich Pango und
-Schriften sowie komprimierte Produktions-Static-Dateien. Zackboing verwendet
-Node 22.23.4 und better-sqlite3 11.10.0; der Compiler ist nur in der Buildstufe.
+Beobachtet: gemeinsames Maximum memory.current **1,525 GiB**, anonymer
+Cgroup-Speicher maximal **1,020 GiB**, CPU-Intervallmittel **0,378 Kerne**,
+Maximum **0,573 Kerne**. Speicheransichten werden nicht addiert.
+Kein beobachteter OOM-Abbruch oder Neustart. Der PDF-Renderer blieb kalt;
+keine aktive Person, kein Import oder Backup lief im Messfenster.
 
-Die Werte sind Docker-Imagemetadaten, kein zusätzlicher physischer Plattenverbrauch
-und kein RAM-Verbrauch. Gemeinsame Layer dürfen nicht mehrfach als belegte SSD-
-Kapazität addiert werden.
+Die Datenbasis ist klein und synthetisch. Docker-exec-Proben und Healthchecks
+sind Teil der beobachteten Last. Ein fremder PostgreSQL-Dienst wurde nicht
+einbezogen oder verändert, seine Last kann aber Hostwerte beeinflussen.
 
-Keine Leerlauf-/Spitzen-RAM-, CPU-, p50/p95/p99-, I/O- oder Queue-Messung vorgenommen.
-Kein 60-Minuten-Dauerlauf. Playwright-Imagegröße von abgen nicht gemessen.
-Die geschätzten 16 GB RAM/4 vCPU werden dadurch weder bestätigt noch widerlegt.
+## Imagegrößen
+
+[Aktuelles Docker-Inventar](local-idle-2026-11-03T202543Z-ebc545/images.json) enthält die einzelnen
+Runtime-Imagegrößen, einschließlich abgen-PDF, und die zusätzliche Inventur des
+Playwright-Basisimages: **2.542.930.822 Byte**. Das Dashboard wurde nur inventarisiert,
+nicht in dieser Laufzeitstichprobe gemessen. Imagegrößen sind weder RAM-Verbrauch
+noch addierbarer physischer Plattenverbrauch; gemeinsame Layer werden geteilt.
+
+## Weiter offen
+
+Die geschätzten 16 GB RAM, 4 dedizierte vCPU und 160–200 GB SSD für zehn Apps bleiben
+Planungswerte. Kein Leerlaufnachweis auf dem vorgesehenen Ubuntu-Zielserver, kein
+separater Lastgenerator, keine CRUD-Latenz-/Fehlerratenmessung, kein 60-Minuten-
+Dauerlauf und keine Konkurrenz von PDF, Import, Mailqueue und konsistentem Backup.
+Queuealter und Plattenlatenz fehlen ebenfalls. Ein belastbares Mindestprofil
+oder eine geänderte Kaufempfehlung lässt sich aus dieser Stichprobe nicht ableiten.

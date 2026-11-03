@@ -1,0 +1,325 @@
+{
+  "services": {
+    "gswb/app": {
+      "memoryCurrentMinBytes": 172269568,
+      "memoryCurrentMaxBytes": 172752896,
+      "memoryAnonMaxBytes": 134991872,
+      "workingSetApproxMaxBytes": 160141312,
+      "cpuMeanCores": 0.006737259091780951,
+      "cpuMaxCores": 0.04437578850574044,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 0,
+        "wbytes": 0
+      },
+      "throttledUsecDelta": 0
+    },
+    "schulwissen/app": {
+      "memoryCurrentMinBytes": 129880064,
+      "memoryCurrentMaxBytes": 145006592,
+      "memoryAnonMaxBytes": 138711040,
+      "workingSetApproxMaxBytes": 145006592,
+      "cpuMeanCores": 0.03428377734219484,
+      "cpuMaxCores": 0.03754431129979135,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 0,
+        "wbytes": 0
+      },
+      "throttledUsecDelta": 1041
+    },
+    "zackboing/app": {
+      "memoryCurrentMinBytes": 93003776,
+      "memoryCurrentMaxBytes": 93908992,
+      "memoryAnonMaxBytes": 18849792,
+      "workingSetApproxMaxBytes": 89268224,
+      "cpuMeanCores": 0.012395413043749392,
+      "cpuMaxCores": 0.015843120003217703,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 0,
+        "wbytes": 0
+      },
+      "throttledUsecDelta": 0
+    },
+    "schulhelfer/app": {
+      "memoryCurrentMinBytes": 96919552,
+      "memoryCurrentMaxBytes": 109101056,
+      "memoryAnonMaxBytes": 74436608,
+      "workingSetApproxMaxBytes": 92987392,
+      "cpuMeanCores": 0.03535940406001648,
+      "cpuMaxCores": 0.03931677174299391,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 0,
+        "wbytes": 0
+      },
+      "throttledUsecDelta": 2869
+    },
+    "losverkauf/app": {
+      "memoryCurrentMinBytes": 53518336,
+      "memoryCurrentMaxBytes": 66097152,
+      "memoryAnonMaxBytes": 57769984,
+      "workingSetApproxMaxBytes": 62201856,
+      "cpuMeanCores": 0.05272688370922127,
+      "cpuMaxCores": 0.05610963100129716,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 0,
+        "wbytes": 0
+      },
+      "throttledUsecDelta": 34676
+    },
+    "grundschultafel/app": {
+      "memoryCurrentMinBytes": 61304832,
+      "memoryCurrentMaxBytes": 63885312,
+      "memoryAnonMaxBytes": 48807936,
+      "workingSetApproxMaxBytes": 56729600,
+      "cpuMeanCores": 0.012955381584168077,
+      "cpuMaxCores": 0.014207533384744762,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 0,
+        "wbytes": 0
+      },
+      "throttledUsecDelta": 0
+    },
+    "fahrradausbildung/app": {
+      "memoryCurrentMinBytes": 299024384,
+      "memoryCurrentMaxBytes": 302157824,
+      "memoryAnonMaxBytes": 228397056,
+      "workingSetApproxMaxBytes": 277508096,
+      "cpuMeanCores": 0.03873289955716547,
+      "cpuMaxCores": 0.04807084559687114,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 0,
+        "wbytes": 0
+      },
+      "throttledUsecDelta": 1863
+    },
+    "leseflux/app": {
+      "memoryCurrentMinBytes": 59490304,
+      "memoryCurrentMaxBytes": 60575744,
+      "memoryAnonMaxBytes": 28774400,
+      "workingSetApproxMaxBytes": 53358592,
+      "cpuMeanCores": 0.02028610880463996,
+      "cpuMaxCores": 0.025565467512613543,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 0,
+        "wbytes": 0
+      },
+      "throttledUsecDelta": 7685
+    },
+    "kompetenz-manager/app": {
+      "memoryCurrentMinBytes": 163848192,
+      "memoryCurrentMaxBytes": 166092800,
+      "memoryAnonMaxBytes": 137240576,
+      "workingSetApproxMaxBytes": 151887872,
+      "cpuMeanCores": 0.03559304499401098,
+      "cpuMaxCores": 0.04371152256010444,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 0,
+        "wbytes": 0
+      },
+      "throttledUsecDelta": 0
+    },
+    "abgen/app": {
+      "memoryCurrentMinBytes": 71524352,
+      "memoryCurrentMaxBytes": 73564160,
+      "memoryAnonMaxBytes": 50704384,
+      "workingSetApproxMaxBytes": 59801600,
+      "cpuMeanCores": 0.01273883182414308,
+      "cpuMaxCores": 0.015248850089118287,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 0,
+        "wbytes": 0
+      },
+      "throttledUsecDelta": 0
+    },
+    "kompetenz-manager/worker": {
+      "memoryCurrentMinBytes": 68800512,
+      "memoryCurrentMaxBytes": 98209792,
+      "memoryAnonMaxBytes": 92049408,
+      "workingSetApproxMaxBytes": 96202752,
+      "cpuMeanCores": 0.04495982283713896,
+      "cpuMaxCores": 0.20475766815046048,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 0,
+        "wbytes": 0
+      },
+      "throttledUsecDelta": 4196982
+    },
+    "abgen/pdf": {
+      "memoryCurrentMinBytes": 162889728,
+      "memoryCurrentMaxBytes": 165089280,
+      "memoryAnonMaxBytes": 74764288,
+      "workingSetApproxMaxBytes": 149250048,
+      "cpuMeanCores": 0.02967522141978425,
+      "cpuMaxCores": 0.04048233129622437,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 286720,
+        "wbytes": 0
+      },
+      "throttledUsecDelta": 0
+    },
+    "schulwissen/db": {
+      "memoryCurrentMinBytes": 25415680,
+      "memoryCurrentMaxBytes": 26509312,
+      "memoryAnonMaxBytes": 7823360,
+      "workingSetApproxMaxBytes": 25968640,
+      "cpuMeanCores": 0.01041599089615091,
+      "cpuMaxCores": 0.013346237790453153,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 4096,
+        "wbytes": 4096
+      },
+      "throttledUsecDelta": 0
+    },
+    "fahrradausbildung/db": {
+      "memoryCurrentMinBytes": 31072256,
+      "memoryCurrentMaxBytes": 31928320,
+      "memoryAnonMaxBytes": 7512064,
+      "workingSetApproxMaxBytes": 27131904,
+      "cpuMeanCores": 0.00982694709828894,
+      "cpuMaxCores": 0.011315092502306437,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 290816,
+        "wbytes": 69632
+      },
+      "throttledUsecDelta": 0
+    },
+    "leseflux/postgres": {
+      "memoryCurrentMinBytes": 28291072,
+      "memoryCurrentMaxBytes": 30363648,
+      "memoryAnonMaxBytes": 5615616,
+      "workingSetApproxMaxBytes": 25694208,
+      "cpuMeanCores": 0.0097393589300601,
+      "cpuMaxCores": 0.011135179456997338,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 872448,
+        "wbytes": 61440
+      },
+      "throttledUsecDelta": 0
+    },
+    "abgen/postgres": {
+      "memoryCurrentMinBytes": 57933824,
+      "memoryCurrentMaxBytes": 60837888,
+      "memoryAnonMaxBytes": 7069696,
+      "workingSetApproxMaxBytes": 54779904,
+      "cpuMeanCores": 0.009702131962139846,
+      "cpuMaxCores": 0.011187347899479486,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 1978368,
+        "wbytes": 16384
+      },
+      "throttledUsecDelta": 0
+    },
+    "infra/proxy": {
+      "memoryCurrentMinBytes": 12943360,
+      "memoryCurrentMaxBytes": 14295040,
+      "memoryAnonMaxBytes": 12750848,
+      "workingSetApproxMaxBytes": 14286848,
+      "cpuMeanCores": 5.485595910897673e-05,
+      "cpuMaxCores": 0.00045937298182299074,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 0,
+        "wbytes": 0
+      },
+      "throttledUsecDelta": 0
+    },
+    "infra/mailpit": {
+      "memoryCurrentMinBytes": 6770688,
+      "memoryCurrentMaxBytes": 7036928,
+      "memoryAnonMaxBytes": 5652480,
+      "workingSetApproxMaxBytes": 7036928,
+      "cpuMeanCores": 0.0014189724723049576,
+      "cpuMaxCores": 0.004932622011397586,
+      "oomEventsDelta": 0,
+      "oomKillsDelta": 0,
+      "restartCountDelta": 0,
+      "ioBytesDelta": {
+        "rbytes": 0,
+        "wbytes": 0
+      },
+      "throttledUsecDelta": 0
+    }
+  },
+  "aggregate": {
+    "memoryCurrentMaxBytes": 1637384192,
+    "memoryAnonMaxBytes": 1095512064,
+    "workingSetApproxMaxBytes": 1499213824,
+    "cpuMeanCores": 0.3776023055860675,
+    "cpuMaxCores": 0.5733999451331007,
+    "oomKillsDelta": 0,
+    "restartCountDelta": 0
+  },
+  "sampleCount": 25,
+  "observedSeconds": 120.00586894399999,
+  "complete": true,
+  "scope": "Local development-host idle observation; not target-server or capacity acceptance",
+  "allServicesHealthyOrWithoutHealthcheck": true,
+  "oomKilledFlagObserved": false,
+  "probeFailures": 0,
+  "workloads": {
+    "abgenPdfActiveSamples": 0,
+    "losverkaufPendingMax": 0,
+    "kompetenzUnmailedMax": 0,
+    "postgresOtherConnectionsMax": {
+      "schulwissen": 2,
+      "fahrradausbildung": 2,
+      "leseflux": 1,
+      "abgen": 1
+    }
+  },
+  "host": {
+    "minimumAvailableMemoryBytes": 24983556096,
+    "maximumCpuIowaitPercent": 0.0502828409805154,
+    "maximumCpuStealPercent": 0.0
+  },
+  "pilotStoppedDataRetained": true
+}

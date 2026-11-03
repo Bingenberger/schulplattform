@@ -187,3 +187,22 @@ Auf diesem Entwicklungshost wurden ausschließlich Container und Netze bekannter
 gestoppter eigener Testumgebungen entfernt, um die vorhandenen Docker-Adresspools
 nicht auszuschöpfen. Volumes, Schlüssel und fremde Dienste bleiben erhalten.
 Die Plattform konfiguriert die globalen Docker-Adresspools nicht um.
+
+## Begrenzte lokale Leerlaufmessung
+
+```sh
+.venv/bin/python scripts/measure_pilot_idle.py --state-dir .work/pilot-v21 --seconds 120 --warmup 30 --interval 5
+```
+
+Voraussetzung: abgeschlossene Zehn-App-Installation und lesbare Cgroup-v2-Dateien
+auf demselben Docker-Host. Der Collector prüft die konkreten Compose-Projekt-/
+Service-Labels und Hauptprozessidentitäten. Er erfasst ausschließlich eigene
+18 Dienste, keine frei angegebenen Container. PostgreSQL-Abfragen zählen den
+Collector selbst nicht mit; SQLite-Proben verwenden mode=ro und importieren
+keine App/Scheduler. Die ausgewählte Umgebung wird gestartet und anschließend
+ohne Volumenlöschung gestoppt.
+
+Rohdaten enthalten keine Umgebungsvariablen, Cookies, SQL-Nutzdaten oder Secretwerte.
+Prozessneustart, unvollständige Reihen und nicht lesbare Controllerdaten werden
+als Fehler behandelt. Fehlende native Queueproben bleiben ausdrücklich unbekannt.
+[Auswertung und Grenzen](../messungen/README.md); Zielserver-/Last-/Dauerläufe fehlen.

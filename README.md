@@ -120,3 +120,8 @@ Abgen ergänzt nach scripts/build_abgen.py den Zehnerpilot in einem neuen Zustan
 
 Eigenes PostgreSQL 18, privater Chromium-Dienst und dauerhafter Yjs-Zustand; die
 Erstmigration erzeugt kein Konto. [Standalone, Domain-/QR-/WSS-Rückfall, Dashboard und Restore](docs/implementation/abgen.md).
+
+Weitere Nachweise: [Schulwissen-Restore mit echter HTTP-/Medien-/Rechteprüfung](docs/implementation/schulwissen-restore.md) und
+[erste lokale Leerlaufstichprobe aller zehn Apps](docs/messungen/README.md).
+Die Messwerkzeuge erfassen Cgroup-, Host-, DB- und ausgewählte Queuewerte; der
+120-Sekunden-Lauf ersetzt keine Zielserver-, Last- oder Dauerlaufabnahme.
