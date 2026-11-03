@@ -28,11 +28,12 @@ INFRASTRUCTURE = {
 }
 
 
-APP_PORTS = {"gswb": 8000, "schulwissen": 8000, "zackboing": 3000, "schulhelfer": 8000, "losverkauf": 8000}
-DEFAULT_DOMAINS = {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost", "zackboing": "quiz.localhost", "schulhelfer": "helfer.localhost", "losverkauf": "lose.localhost"}
+APP_PORTS = {"gswb": 8000, "schulwissen": 8000, "zackboing": 3000, "schulhelfer": 8000, "losverkauf": 8000, "grundschultafel": 3000}
+DEFAULT_DOMAINS = {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost", "zackboing": "quiz.localhost", "schulhelfer": "helfer.localhost", "losverkauf": "lose.localhost", "grundschultafel": "tafel.localhost"}
 APP_SELECTIONS = (("gswb", "schulwissen"), ("gswb", "schulwissen", "zackboing"),
                   ("gswb", "schulwissen", "zackboing", "schulhelfer"),
-                  ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf"))
+                  ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf"),
+                  ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel"))
 
 class Pilot:
     def __init__(self, directory, apps=None):
@@ -78,6 +79,7 @@ class Pilot:
             "GSWB_EDITOR_HASH_FILE": str(self.directory / "runtime/gswb-editor"),
             "SCHULHELFER_SECRET_FILE": str(self.directory / "runtime/helfer-key"),
             "LOSVERKAUF_SECRETS_DIR": str(self.directory / "runtime/losverkauf"),
+            "TAFEL_SECRET_FILE": str(self.directory / "runtime/tafel-key"),
         }
         self.log = self.directory / "operations.jsonl"
 
@@ -120,6 +122,8 @@ class Pilot:
             values["losverkauf/parent-token"] = store.get_or_create("lose-parent")
             values["losverkauf/admin-name"] = ""  # configured locally, no default administrator
             values["losverkauf/admin-hash"] = ""
+        if "grundschultafel" in self.apps:
+            values["tafel-key"] = store.get_or_create("tafel-key")
         values["gswb-editor"] = ""  # editor remains closed until separately provisioned
         values["wissen-db"] = "postgresql://schulwissen:" + values["postgres-app"] + "@db:5432/schulwissen"
         for name, value in values.items():
@@ -170,6 +174,9 @@ class Pilot:
             infrastructure["services"]["proxy"]["networks"].append("lose-proxy")
             infrastructure["services"]["mailpit"]["networks"]["lose-proxy"] = {"aliases": ["mailpit"]}
             infrastructure["networks"]["lose-proxy"] = {"internal": True}
+        if "grundschultafel" in self.apps:
+            infrastructure["services"]["proxy"]["networks"].append("tafel-proxy")
+            infrastructure["networks"]["tafel-proxy"] = {"internal": True}
         for service in infrastructure["services"].values():
             service["logging"] = {"driver": "json-file", "options": {"max-size": "10m", "max-file": "3"}}
         (self.directory / "infra.json").write_text(json.dumps(infrastructure, indent=2))
@@ -250,6 +257,25 @@ networks:
   proxy:
     external: true
     name: {net}_lose-proxy
+""")
+        if "grundschultafel" in self.apps:
+            (self.directory / "grundschultafel.yml").write_text(f"""
+services:
+  app:
+    image: grundschultafel:0.1.0-dev
+    ports: !reset []
+    environment:
+      BASE_URL: https://tafel.localhost:{port}
+      GALLERY_ORIGIN: ""
+      TAFEL_YOUTUBE_ENABLED: "0"
+    networks:
+      default: {{}}
+      proxy:
+        aliases: [grundschultafel]
+networks:
+  proxy:
+    external: true
+    name: {net}_tafel-proxy
 """)
         # No administrative database credential is passed to the application.
         (self.directory / "init-postgres.sh").write_text("""#!/bin/sh
@@ -383,6 +409,8 @@ networks:
             self.compose_command("schulhelfer", "run", "--rm", "--no-deps", "app", "python", "-m", "app.migrate")
         if "losverkauf" in self.apps:
             self.compose_command("losverkauf", "run", "--rm", "--no-deps", "app", "python", "-m", "los_migrate")
+        if "grundschultafel" in self.apps:
+            self.compose_command("grundschultafel", "run", "--rm", "--no-deps", "app", "node", "scripts/migrate.mjs")
         self.compose_command("gswb", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
         self.compose_command("schulwissen", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
         if "zackboing" in self.apps:
@@ -393,6 +421,9 @@ networks:
 
         if "losverkauf" in self.apps:
             self.compose_command("losverkauf", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
+
+        if "grundschultafel" in self.apps:
+            self.compose_command("grundschultafel", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
 
     def ready(self, identity):
         try:
@@ -494,6 +525,9 @@ networks:
                 raise StateError("Anonymous ticket administration accepted")
             if self.request(domains["losverkauf"], "/")[0] != 403:
                 raise StateError("Ticket parent token gate bypassed")
+        if "grundschultafel" in self.apps:
+            if self.request(domains["grundschultafel"], "/api/admin/users")[0] != 401:
+                raise StateError("Anonymous whiteboard administration accepted")
         results["negative-access"] = True
         atomic_json(self.directory / "verified.json", {"installation": identity, "checks": results})
 

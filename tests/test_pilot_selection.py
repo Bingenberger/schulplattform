@@ -31,7 +31,7 @@ def test_legacy_configuration_keeps_two_apps_without_rewrite(root):
     assert config.read_bytes() == before
 
 
-@pytest.mark.parametrize("selected", [("gswb", "schulwissen", "zackboing"), ("gswb", "schulwissen", "zackboing", "schulhelfer"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf")])
+@pytest.mark.parametrize("selected", [("gswb", "schulwissen", "zackboing"), ("gswb", "schulwissen", "zackboing", "schulhelfer"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel")])
 def test_optional_apps_persist_and_excluded_app_never_creates_state(root, selected):
     directory = root / "three"
     assert Pilot(directory, apps=selected).apps == selected

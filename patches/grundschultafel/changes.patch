@@ -1,7 +1,7 @@
 From 79e4991283c2fd765dcfecfdd996185e74c1841a Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Mon, 2 Nov 2026 11:23:36 +0100
-Subject: [PATCH] Replace default login with local single-use bootstrap
+Subject: [PATCH 1/2] Replace default login with local single-use bootstrap
 
 ---
  PLATFORM.md                               | 20 +++++++++
@@ -303,6 +303,2432 @@ index de480b9..52a5cc2 100644
    await saveUsers(users);
  }
  
+-- 
+2.43.0
+
+
+From 4307aeeb5c172ee4a6ed8763ead2828281e9b66e Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Tue, 3 Nov 2026 08:34:23 +0100
+Subject: [PATCH 2/2] Add isolated Next runtime, transactional files and
+ revocable personal sessions
+
+---
+ .dockerignore                              |  11 ++
+ .gitignore                                 |   2 +
+ Dockerfile                                 |  30 ++++
+ PLATFORM.md                                | 135 ++++++++++++++---
+ README.md                                  | 161 +--------------------
+ docker-compose.yml                         |  35 +++++
+ next.config.ts                             |  10 +-
+ public/timer/index.html                    |   7 +-
+ scripts/bootstrap.mjs                      |  37 +++--
+ scripts/migrate.mjs                        |  33 +++++
+ scripts/prepare-secret.mjs                 |   8 +
+ scripts/start.mjs                          |  15 ++
+ scripts/test-runtime.cjs                   |  97 +++++++++++++
+ src/app/api/admin/users/route.ts           |  89 ++++--------
+ src/app/api/auth/change-password/route.ts  |  70 +++------
+ src/app/api/auth/login/route.ts            | 131 ++++-------------
+ src/app/api/auth/logout/route.ts           |   2 +-
+ src/app/api/auth/me/route.ts               |   1 +
+ src/app/api/auth/users/route.ts            |   1 +
+ src/app/api/backgrounds/route.ts           |   6 +-
+ src/app/api/gallery/folders/route.ts       |   6 +-
+ src/app/api/gallery/image/route.ts         |  17 ++-
+ src/app/api/gallery/route.ts               |   4 +-
+ src/app/api/ip/route.ts                    |   1 +
+ src/app/api/journal/route.ts               |   8 +-
+ src/app/api/mobile-upload/route.ts         | 107 +++-----------
+ src/app/api/mobile-upload/session/route.ts |  12 ++
+ src/app/api/notebooks/[id]/route.ts        | 107 +++++---------
+ src/app/api/notebooks/route.ts             |  72 +++------
+ src/app/api/rs/route.ts                    |   6 +-
+ src/app/api/youtube/route.ts               |   6 +-
+ src/app/assets/[...segments]/route.ts      |  22 +++
+ src/app/globals.css                        |   1 +
+ src/app/health/live/route.ts               |   3 +
+ src/app/health/ready/route.ts              |   4 +
+ src/app/layout.tsx                         |  13 +-
+ src/app/upload/page.tsx                    |   2 +-
+ src/components/Toolbar.tsx                 |  10 +-
+ src/lib/cjs.d.ts                           |   1 +
+ src/lib/file-store.cjs                     |  60 ++++++++
+ src/lib/gallery.ts                         |   8 +-
+ src/lib/mobile-store.cjs                   |  63 ++++++++
+ src/lib/platform.ts                        |  24 +++
+ src/lib/session-store.cjs                  |  40 +++++
+ src/lib/session.ts                         |  84 +++++------
+ src/lib/users.ts                           | 149 +++++++------------
+ src/middleware.ts                          |  80 ++++------
+ 47 files changed, 936 insertions(+), 855 deletions(-)
+ create mode 100644 .dockerignore
+ create mode 100644 Dockerfile
+ create mode 100644 docker-compose.yml
+ create mode 100644 scripts/migrate.mjs
+ create mode 100644 scripts/prepare-secret.mjs
+ create mode 100644 scripts/start.mjs
+ create mode 100644 scripts/test-runtime.cjs
+ create mode 100644 src/app/api/mobile-upload/session/route.ts
+ create mode 100644 src/app/assets/[...segments]/route.ts
+ create mode 100644 src/app/health/live/route.ts
+ create mode 100644 src/app/health/ready/route.ts
+ create mode 100644 src/lib/cjs.d.ts
+ create mode 100644 src/lib/file-store.cjs
+ create mode 100644 src/lib/mobile-store.cjs
+ create mode 100644 src/lib/platform.ts
+ create mode 100644 src/lib/session-store.cjs
+
+diff --git a/.dockerignore b/.dockerignore
+new file mode 100644
+index 0000000..e4f5473
+--- /dev/null
++++ b/.dockerignore
+@@ -0,0 +1,11 @@
++*
++!package.json
++!package-lock.json
++!next.config.ts
++!tsconfig.json
++!postcss.config.mjs
++!src/
++!src/**
++!public/timer/index.html
++!scripts/
++!scripts/**
+diff --git a/.gitignore b/.gitignore
+index 4ed0c8b..3691146 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -48,3 +48,5 @@ yarn-error.log*
+ # typescript
+ *.tsbuildinfo
+ next-env.d.ts
++
++.private/
+diff --git a/Dockerfile b/Dockerfile
+new file mode 100644
+index 0000000..efcd09d
+--- /dev/null
++++ b/Dockerfile
+@@ -0,0 +1,30 @@
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS dependencies
++ENV npm_config_cache=/tmp/npm-cache npm_config_devdir=/tmp/node-gyp npm_config_nodedir=/usr/local NEXT_TELEMETRY_DISABLED=1
++WORKDIR /build
++COPY package.json package-lock.json ./
++RUN npm ci --no-audit --no-fund
++
++FROM dependencies AS builder
++COPY next.config.ts tsconfig.json postcss.config.mjs ./
++COPY src ./src
++COPY public/timer/index.html ./public/timer/index.html
++RUN npm run build -- --webpack
++
++FROM builder AS tests
++COPY scripts ./scripts
++USER 10001:10001
++
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS runtime
++ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0 TAFEL_DATA_DIR=/data TAFEL_ASSET_DIR=/data/assets
++WORKDIR /app
++COPY --from=builder /build/.next/standalone ./
++COPY --from=builder /build/.next/static ./.next/static
++COPY --from=builder /build/public ./public
++COPY --from=dependencies /build/node_modules/bcryptjs ./node_modules/bcryptjs
++COPY scripts/start.mjs scripts/migrate.mjs scripts/bootstrap.mjs ./scripts/
++COPY src/lib/file-store.cjs ./src/lib/file-store.cjs
++RUN groupadd --gid 10001 tafel && useradd --uid 10001 --gid 10001 --no-create-home tafel \
++    && mkdir -p /data && chown 10001:10001 /data && chmod 700 /data
++USER 10001:10001
++EXPOSE 3000
++CMD ["node", "scripts/start.mjs"]
+diff --git a/PLATFORM.md b/PLATFORM.md
+index e270540..ae54db6 100644
+--- a/PLATFORM.md
++++ b/PLATFORM.md
+@@ -1,20 +1,115 @@
+-# Lokaler Erstzugang
+-
+-Ein HTTP-Aufruf legt keinen Standardadministrator mehr an. Auf einer neuen
+-Installation lokal `node scripts/bootstrap.mjs PERSOENLICHER_NAME` ausführen.
+-Der zufällige Code erscheint ausschließlich auf dem kontrollierenden Terminal,
+-gilt 15 Minuten und kann nur für eine erfolgreiche Anmeldung verwendet werden.
+-Die normale Anmeldung bietet dafür „Erstzugang mit Einmalcode“. Beim anschließenden
+-PIN-Wechsel denselben Code unter dieser Option eingeben und eine eigene PIN setzen.
+-
+-Bestehende Nutzerdateien werden nicht überschrieben. Nach Verbrauch/Verlust des
+-Codes ohne abgeschlossenen PIN-Wechsel ist eine lokale administrative Wiederherstellung
+-erforderlich; es gibt keinen offenen HTTP-Neustart des Bootstrapverfahrens.
+-Vorhandene Konten und Daten-IDs bleiben erhalten. Bereits vorhandene alte Standardkonten
+-werden nicht automatisch gelöscht oder verändert; sie müssen individuell geprüft werden.
+-
+-`users.json` wird mit privaten Rechten atomar ersetzt. Das verhindert halbe Dateien,
+-ersetzt aber noch keine Transaktion für konkurrierende vollständige Nutzerlisten.
+-Die Gerätebindung der 30-Tage-Sitzung ist noch nicht umgesetzt.
+-
+-Tests: `node scripts/test-users.cjs`; `node node_modules/typescript/bin/tsc --noEmit`.
++# Standalone-Betrieb und Plattformvertrag
++
++## Lokaler Containerstart
++
++Node 22.23.4 (Basisimage mit Digest), Next 16.1.6, amd64. Installation aus
++package-lock.json, Next standalone, UID/GID 10001, schreibgeschütztes Root-Dateisystem.
++Der lokale Entwicklungstag ersetzt noch kein signiertes Registry-Release.
++
++Im Checkout ausführen:
++
++~~~sh
++node scripts/prepare-secret.mjs
++export TAFEL_SECRET_FILE="$PWD/.private/session-key"
++export BASE_URL="http://localhost:3000"
++docker compose build
++docker compose run --rm --no-deps app node scripts/migrate.mjs
++docker compose up -d --no-build
++docker compose exec app node scripts/bootstrap.mjs PERSOENLICHER_NAME
++~~~
++
++Das Setup-Skript legt ausschließlich die private Schlüsseldatei an, ohne ihren Inhalt
++auszugeben oder eine vorhandene Datei zu ersetzen. SESSION_SECRET_FILE wird erst im
++Startprozess gelesen; der Schlüssel steht nicht in Docker.Config.Env.
++Für den Schulbetrieb HTTPS am eigenen Reverse Proxy und BASE_URL als exakte
++öffentliche Origin konfigurieren. Backend standardmäßig nur 127.0.0.1:3000.
++TAFEL_PORT ändert den lokalen Hostport. BASE_URL erzeugt QR-Links zur Laufzeit;
++ein Domainwechsel braucht einen Containerneustart, keinen Frontend-Rebuild.
++
++Der Bootstrap-Code erscheint nur auf dem kontrollierenden Terminal, gilt 15 Minuten
++und erlaubt eine Anmeldung. Danach unter „Erstzugang mit Einmalcode“ eine persönliche
++sechsstellige PIN setzen. Kein gemeinsames Gerätekonto. Kein HTTP-Aufruf erzeugt
++Konten. Nach Verlust/Verbrauch ohne PIN-Wechsel ist lokale administrative
++Wiederherstellung nötig. Vorhandene Nutzer werden niemals durch Bootstrap ersetzt.
++Alte Standardkonten müssen Betreiber individuell prüfen.
++
++## Persistenz und Migration
++
++/data (10001:10001, Verzeichnisse 0700, Dateien 0600) enthält users.json,
++schema.json (Version 1), login-attempts.json, verbrauchte Bootstrap-Marker,
++Sitzungsdatensätze, Uploadtickets, UUID-Notizbuchverzeichnisse und assets/.
++TAFEL_DATA_DIR und TAFEL_ASSET_DIR erlauben andere Pfade; beide vollständig sichern.
++Migration ist ein expliziter exklusiver Job. Start führt weder Migration noch
++Kontenerstellung aus. /health/live braucht keine Daten; /health/ready verlangt
++lesbare gültige Nutzerdaten und Schema 1. Externe Dienste sind dafür nicht erforderlich.
++
++Nutzeränderungen halten eine prozessübergreifende Sperre über Lesen, bcrypt und
++atomaren Austausch. Notizbücher werden ebenfalls gesperrt und atomar ersetzt;
++PUT höchstens 20 MiB, Konfliktsemantik bleibt letzter erfolgreicher Schreibzugriff.
++Keine Versionszusammenführung gleichzeitig bearbeiteter Inhalte. Sperren toter
++Prozesse werden anhand PID freigegeben; bei PID-Wiederverwendung kann lokale
++Wiederherstellung nötig sein.
++
++Für eine vorhandene Installation zuerst alle Schreiber stoppen und private Kopie
++von Daten, Medien und Schlüssel anlegen. Alte users.json und Benutzer-UUID-Verzeichnisse
++unter TAFEL_DATA_DIR übernehmen. Optionale eigene alte public/assets-Dateien mit
++~~~sh
++node scripts/migrate.mjs --import-assets /PFAD/ZUR/EIGENEN/ALTEN/ASSETKOPIE
++~~~
++importieren (im Container die Kopie eigens schreibgeschützt einbinden).
++Identische Dateien bleiben bestehen; Konflikte, Links, Spezialdateien und fremde
++Schema-Versionen brechen ab. IDs und Notizbuchinhalt werden nicht umgeschrieben.
++Alte flache mobile Uploads ohne verlässliche Eigentümerzuordnung werden erhalten,
++aber nicht automatisch öffentlich oder einer Lehrkraft zugänglich gemacht.
++
++Das Image enthält keine ungeklärten Unterrichtsbilder, Logos oder Schriftdateien;
++Systemschrift und der vorhandene HTML-Timer funktionieren ohne Schrift-CDN.
++Eigene Hintergründe/Journal/RS/Galeriebilder werden in den jeweiligen assets-Unterordnern
++durch den Betreiber bereitgestellt. Lizenzentscheidung für App und Medien bleibt nötig;
++das Original-README untersagt Weitergabe.
++
++## Sitzungen und Uploads
++
++Acht Stunden lokale Sitzung: signiertes JWT plus zufälliges HttpOnly-Gerätecookie und
++serverseitiger Datensatz mit gehashten Kennungen. Beide Cookies sind SameSite=Strict,
++unter HTTPS Secure. Ein kopiertes JWT allein reicht nicht. Dies ist keine
++Hardwarebindung: ein Angreifer mit beiden Cookies kann die Sitzung übernehmen.
++Reset der PIN, Löschung und Abmeldung widerrufen die betroffenen Sitzungen.
++Alte JWTs ohne Datensatz verlangen neue Anmeldung. Höchstens zehn Sitzungen pro Konto.
++Fünf fehlgeschlagene Anmeldungen sperren den Kontonamen 15 Minuten; Sperre bleibt beim
++Neustart. Unbekannte Namen teilen einen begrenzten Fehlversuchseintrag.
++
++Angemeldete Lehrkraft stellt ein 15-Minuten-Ticket für den Smartphone-QR-Link aus.
++Das Telefon braucht kein SSO und keine Fachsitzung. Nur ausgestellte Tickets erlauben
++einmaligen Upload; Polling und gespeicherte Datei sind ausschließlich für den
++Eigentümer zugänglich. PNG/JPEG/WebP mit Dateisignatur, höchstens 5 MiB, zufälliger
++Dateiname, keine ausführbaren Uploadpfade. Keine vollständige Bilddecoder-Prüfung.
++Maximal 20 offene Tickets pro Lehrkraft, global 2000; 200 Dateien / 100 MiB je
++Lehrkraft. Verbrauchte Bilddateien verbleiben für Referenzen, keine automatische
++Löschung alter Unterrichtsdateien. QR-Zugänge gehören nicht hinter zusätzliche Anmeldung.
++
++GALLERY_ORIGIN ist standardmäßig leer; externe Galerie dann 503. Bei expliziter
++Aktivierung nur die konfigurierte Origin, keine Redirects, Zeit-/Größenlimits.
++YouTube-Suche benötigt TAFEL_YOUTUBE_ENABLED=1 und YOUTUBE_API_KEY; sonst 503.
++Direkt eingefügte Video-URLs können weiterhin externe Browserabrufe verursachen.
++Keine externe SMTP-Verbindung.
++
++## Sicherung, Wiederherstellung und Prüfung
++
++Alle Schreiber stoppen, dann vollständige deklarierte Daten-/Assetpfade samt
++Schema, Benutzern, Verbrauchsmarkern und separat Schlüssel sichern. Erst in leeres,
++isoliertes Ziel mit gleicher UID/GID und vertrauenswürdigem Prüfsummenmanifest
++zurückspielen. Danach Schema, UUIDs, Eigentümerschaft und verweigerte Zugriffe prüfen.
++Ein Restore kann alte Sitzungs-/Bootstrapzustände zurückbringen: für Produktion
++Widerruf und Schlüsselwechsel als eigenen Wiederherstellungsschritt planen.
++Image-Rollback ersetzt keinen Daten-Rollback. Offsite-Verschlüsselung und Rotation
++werden durch dieses App-Compose nicht bereitgestellt.
++
++~~~sh
++node scripts/test-users.cjs
++node scripts/test-runtime.cjs
++node node_modules/typescript/bin/tsc --noEmit
++~~~
++
++Die Plattform legt ein eigenes Override darüber. Standalone bleibt unabhängig;
++OIDC ist für diese App nicht vorgesehen.
+diff --git a/README.md b/README.md
+index b022b18..ab9a143 100644
+--- a/README.md
++++ b/README.md
+@@ -50,164 +50,11 @@ Nutzerdaten und Notizbücher werden als JSON-Dateien im `data/`-Verzeichnis gesp
+ 
+ ---
+ 
+-## Installation (Ubuntu-Server)
++## Installation und Betrieb
+ 
+-### 1. Voraussetzungen
+-
+-```bash
+-sudo apt update && sudo apt upgrade -y
+-sudo apt install -y curl git nginx
+-
+-# Node.js 22 via nvm
+-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+-source ~/.bashrc
+-nvm install 22
+-```
+-
+-### 2. Code holen
+-
+-```bash
+-git clone https://github.com/DEIN-USERNAME/TafelPopafel.git /var/www/tafelpopafel
+-cd /var/www/tafelpopafel
+-```
+-
+-### 3. Abhängigkeiten & Build
+-
+-```bash
+-npm ci
+-npm run build
+-```
+-
+-### 4. Umgebungsvariablen
+-
+-```bash
+-nano /var/www/tafelpopafel/.env.local
+-```
+-
+-```env
+-SESSION_SECRET=<zufälliger-64-Zeichen-String>
+-YOUTUBE_API_KEY=<Google-API-Key>
+-```
+-
+-`SESSION_SECRET` generieren:
+-```bash
+-openssl rand -hex 32
+-```
+-
+-Der `YOUTUBE_API_KEY` ist optional. Ohne ihn können Videos nur per direktem Link eingefügt werden, nicht per Suche.
+-
+-### 5. Datenverzeichnis anlegen
+-
+-```bash
+-mkdir -p /var/www/tafelpopafel/data/admin
+-mkdir -p /var/www/tafelpopafel/public/assets/uploads
+-chmod -R 755 /var/www/tafelpopafel/data
+-chmod -R 755 /var/www/tafelpopafel/public/assets/uploads
+-```
+-
+-### 6. Systemd-Dienst
+-
+-```bash
+-sudo nano /etc/systemd/system/tafelpopafel.service
+-```
+-
+-```ini
+-[Unit]
+-Description=TafelPopafel
+-After=network.target
+-
+-[Service]
+-Type=simple
+-User=www-data
+-WorkingDirectory=/var/www/tafelpopafel
+-ExecStart=/usr/bin/node_modules/.bin/next start -p 3000
+-Restart=on-failure
+-Environment=NODE_ENV=production
+-
+-[Install]
+-WantedBy=multi-user.target
+-```
+-
+-> Pfad zu `next` ggf. anpassen: `which next` oder `/var/www/tafelpopafel/node_modules/.bin/next`
+-
+-```bash
+-sudo systemctl daemon-reload
+-sudo systemctl enable --now tafelpopafel
+-```
+-
+-### 7. Nginx als Reverse Proxy
+-
+-```bash
+-sudo nano /etc/nginx/sites-available/tafelpopafel
+-```
+-
+-```nginx
+-server {
+-    listen 80;
+-    server_name tafel.meineschule.de;
+-
+-    client_max_body_size 50M;
+-
+-    location / {
+-        proxy_pass http://localhost:3000;
+-        proxy_http_version 1.1;
+-        proxy_set_header Upgrade $http_upgrade;
+-        proxy_set_header Connection 'upgrade';
+-        proxy_set_header Host $host;
+-        proxy_set_header X-Real-IP $remote_addr;
+-        proxy_cache_bypass $http_upgrade;
+-    }
+-}
+-```
+-
+-```bash
+-sudo ln -s /etc/nginx/sites-available/tafelpopafel /etc/nginx/sites-enabled/
+-sudo nginx -t && sudo systemctl reload nginx
+-```
+-
+-### 8. HTTPS (empfohlen)
+-
+-```bash
+-sudo apt install -y certbot python3-certbot-nginx
+-sudo certbot --nginx -d tafel.meineschule.de
+-```
+-
+----
+-
+-## Erster Start
+-
+-Beim ersten Start wird automatisch ein Admin-Konto angelegt:
+-
+-- **Benutzername:** `admin`
+-- **PIN:** `123456`
+-
+-Das System erzwingt beim ersten Login eine Änderung der PIN.
+-
+-Weitere Lehrerkonten können über `/admin` angelegt werden.
+-
+----
+-
+-## Lokale Entwicklung
+-
+-```bash
+-npm install
+-npm run dev
+-```
+-
+-Die App ist dann unter [http://localhost:3000](http://localhost:3000) erreichbar.
+-
+----
+-
+-## Datensicherung
+-
+-Die gesamten Nutzerdaten (Notizbücher, Accounts) liegen in `data/` und sollten regelmäßig gesichert werden:
+-
+-```bash
+-rsync -av /var/www/tafelpopafel/data/ /backup/tafelpopafel/data/
+-rsync -av /var/www/tafelpopafel/public/assets/uploads/ /backup/tafelpopafel/uploads/
+-```
+-
+----
++Die eigenständige Compose-Installation, Migration, persönliche Erstzugänge,
++Sitzungswiderruf und Sicherung sind in [PLATFORM.md](PLATFORM.md) beschrieben.
++Es gibt kein automatisch angelegtes Standardkonto.
+ 
+ ## Lizenz
+ 
+diff --git a/docker-compose.yml b/docker-compose.yml
+new file mode 100644
+index 0000000..a851f82
+--- /dev/null
++++ b/docker-compose.yml
+@@ -0,0 +1,35 @@
++services:
++  app:
++    build: {context: ., target: runtime}
++    image: grundschultafel:0.1.0-dev
++    user: "10001:10001"
++    init: true
++    stop_grace_period: 30s
++    read_only: true
++    cap_drop: [ALL]
++    security_opt: [no-new-privileges:true]
++    tmpfs: ["/tmp:size=64m,mode=1777"]
++    mem_limit: 512m
++    cpus: 1.0
++    pids_limit: 128
++    environment:
++      SESSION_SECRET_FILE: /run/secrets/session-key
++      BASE_URL: ${BASE_URL:-http://localhost:3000}
++      TAFEL_DATA_DIR: /data
++      TAFEL_ASSET_DIR: /data/assets
++      GALLERY_ORIGIN: ${GALLERY_ORIGIN:-}
++      TAFEL_YOUTUBE_ENABLED: "0"
++    volumes:
++      - data:/data
++      - ${TAFEL_SECRET_FILE:?private session key file required}:/run/secrets/session-key:ro
++    ports: ["127.0.0.1:${TAFEL_PORT:-3000}:3000"]
++    healthcheck:
++      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
++      interval: 5s
++      timeout: 3s
++      retries: 6
++    logging:
++      driver: json-file
++      options: {max-size: 10m, max-file: "3"}
++volumes:
++  data:
+diff --git a/next.config.ts b/next.config.ts
+index d6ceb5e..c0ad69e 100644
+--- a/next.config.ts
++++ b/next.config.ts
+@@ -1,9 +1,3 @@
+-import type { NextConfig } from "next";
+-
+-const nextConfig: NextConfig = {
+-  devIndicators: {
+-    position: 'top-right'
+-  }
+-};
+-
++import type {NextConfig} from 'next';
++const nextConfig:NextConfig={output:'standalone',experimental:{cpus:1,proxyClientMaxBodySize:'24mb'},poweredByHeader:false,images:{unoptimized:true}};
+ export default nextConfig;
+diff --git a/public/timer/index.html b/public/timer/index.html
+index c7aa473..1c1dadc 100644
+--- a/public/timer/index.html
++++ b/public/timer/index.html
+@@ -4,9 +4,8 @@
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     <title>KlassenTimer</title>
+-    <link rel="stylesheet" href="assets/bootstrap-icons/font/bootstrap-icons.css">
+-    <style>
+-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Nunito:wght@500;700&display=swap');
++    <style>.bi::before{content:"•"}.bi-play-fill::before{content:"▶"}.bi-pause-fill::before{content:"Ⅱ"}.bi-arrow-counterclockwise::before{content:"↺"}.bi-x-lg::before{content:"×"}.bi-volume-up-fill::before{content:"♪"}</style>
++    <style>600;700;800&family=Nunito:wght@500;700&display=swap');
+ 
+         :root {
+             --bg-1: #f5f8ff;
+@@ -1013,7 +1012,7 @@
+                                 <div class="narrative-road">
+                                     <div class="narrative-finish" aria-hidden="true"></div>
+                                     <div class="narrative-car" id="narrativeCar" aria-hidden="true">
+-                                        <img src="assets/images/auto.webp" alt="" onload="this.parentElement.classList.add('use-image')" onerror="this.remove()">
++
+                                         <i class="bi bi-car-front-fill"></i>
+                                     </div>
+                                 </div>
+diff --git a/scripts/bootstrap.mjs b/scripts/bootstrap.mjs
+index 6a5581f..665982b 100644
+--- a/scripts/bootstrap.mjs
++++ b/scripts/bootstrap.mjs
+@@ -1,24 +1,23 @@
+-// Run locally: node scripts/bootstrap.mjs PERSONAL_USERNAME
+-// Refuses existing installations. Secret is written only to the controlling TTY.
+ import fs from 'node:fs';
+ import crypto from 'node:crypto';
+ import path from 'node:path';
+ import bcrypt from 'bcryptjs';
+-
+-const username = process.argv[2];
+-if (!username || !/^[\p{L}\p{N}_.@-]{3,80}$/u.test(username)) {
+-  throw new Error('Specify a personal username (3–80 characters).');
++import store from '../src/lib/file-store.cjs';
++export async function bootstrap(username) {
++  if(!/^[\p{L}\p{N}_.@-]{3,80}$/u.test(username)||!store.ready())throw new Error('Personal name and migrated store required');
++  return store.lock('users',async()=>{
++    if(store.users().length)throw new Error('Existing users cannot be replaced');
++    const token=crypto.randomBytes(24).toString('base64url');
++    const user={id:crypto.randomUUID(),username,role:'admin',passwordHash:await bcrypt.hash(token,10),
++      createdAt:new Date().toISOString(),mustChangePassword:true,bootstrapExpiresAt:Date.now()+900000};
++    store.atomic(path.join(store.dataDir(),'users.json'),[user]);
++    return token;
++  });
++}
++if(process.argv[1]===new URL(import.meta.url).pathname) {
++  try{
++    const tty=fs.openSync('/dev/tty','w');
++    const token=await bootstrap(process.argv[2]);
++    fs.writeSync(tty,'Einmaliger Erstzugang, 15 Minuten gültig:\n'+token+'\nDanach persönliche PIN setzen.\n');fs.closeSync(tty);
++  }catch{process.exitCode=1;console.error('Lokaler Erstzugang fehlgeschlagen; Terminal, Migration und vorhandene Konten prüfen.');}
+ }
+-const tty = fs.openSync('/dev/tty', 'w');
+-const directory = path.join(process.cwd(), 'data');
+-fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+-const token = crypto.randomBytes(24).toString('base64url');
+-const user = { id: crypto.randomUUID(), username, role: 'admin',
+-  passwordHash: await bcrypt.hash(token, 10), createdAt: new Date().toISOString(),
+-  mustChangePassword: true, bootstrapExpiresAt: Date.now() + 15 * 60 * 1000 };
+-const destination = path.join(directory, 'users.json');
+-const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
+-fs.writeFileSync(temporary, JSON.stringify([user]), { mode: 0o600, flag: 'wx' });
+-try { fs.linkSync(temporary, destination); } finally { fs.unlinkSync(temporary); }
+-fs.writeSync(tty, `Initial login for ${username}; valid for 15 minutes:\n${token}\nChange it immediately after login.\n`);
+-fs.closeSync(tty);
+diff --git a/scripts/migrate.mjs b/scripts/migrate.mjs
+new file mode 100644
+index 0000000..1a1bf06
+--- /dev/null
++++ b/scripts/migrate.mjs
+@@ -0,0 +1,33 @@
++// Explicit local file-schema job, optionally importing an owned legacy asset tree.
++import fs from 'node:fs';
++import path from 'node:path';
++import crypto from 'node:crypto';
++import store from '../src/lib/file-store.cjs';
++const hash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
++function copy(source,target){
++  const stat=fs.lstatSync(source);
++  if(stat.isSymbolicLink()||(!stat.isDirectory()&&!stat.isFile()))throw new Error('Only regular owned files/directories may be imported');
++  if(stat.isDirectory()){
++    fs.mkdirSync(target,{recursive:true,mode:0o700});
++    for(const name of fs.readdirSync(source))copy(path.join(source,name),path.join(target,name));
++  }else{
++    if(fs.existsSync(target)){if(hash(source)!==hash(target))throw new Error('Existing asset differs; refusing replacement');return;}
++    const descriptor=fs.openSync(target,'wx',0o600);
++    try{fs.writeFileSync(descriptor,fs.readFileSync(source));fs.fsyncSync(descriptor);}finally{fs.closeSync(descriptor);}
++  }
++}
++await store.lock('migration',async()=>{
++  const metadata=path.join(store.dataDir(),'schema.json');
++  if(fs.existsSync(metadata)&&JSON.parse(fs.readFileSync(metadata,'utf8')).version!==1)throw new Error('Unsupported file schema');
++  store.users();
++  fs.mkdirSync(store.assetDir(),{recursive:true,mode:0o700});
++  const index=process.argv.indexOf('--import-assets');
++  if(index!==-1){
++    const source=process.argv[index+1];if(!source)throw new Error('Explicit legacy asset path required');
++    copy(path.resolve(source),store.assetDir());
++  }
++  for(const name of ['backgrounds','journal','rs','gallery','uploads'])fs.mkdirSync(path.join(store.assetDir(),name),{recursive:true,mode:0o700});
++  fs.mkdirSync(path.join(store.dataDir(),'sessions'),{recursive:true,mode:0o700});
++  if(!fs.existsSync(metadata))store.atomic(metadata,{version:1});
++});
++console.log('File schema verified; existing accounts and identifiers preserved.');
+diff --git a/scripts/prepare-secret.mjs b/scripts/prepare-secret.mjs
+new file mode 100644
+index 0000000..3350065
+--- /dev/null
++++ b/scripts/prepare-secret.mjs
+@@ -0,0 +1,8 @@
++import fs from 'node:fs';
++import path from 'node:path';
++import crypto from 'node:crypto';
++process.umask(0o077);
++const directory=path.resolve('.private');
++fs.mkdirSync(directory,{mode:0o700});
++fs.writeFileSync(path.join(directory,'session-key'),crypto.randomBytes(48).toString('base64url'),{mode:0o444,flag:'wx'});
++console.log('Private key file created. Set TAFEL_SECRET_FILE to its absolute path.');
+diff --git a/scripts/start.mjs b/scripts/start.mjs
+new file mode 100644
+index 0000000..1a705a6
+--- /dev/null
++++ b/scripts/start.mjs
+@@ -0,0 +1,15 @@
++import fs from 'node:fs';
++import {createRequire} from 'node:module';
++import {spawn} from 'node:child_process';
++const require=createRequire(import.meta.url);
++if(process.env.SESSION_SECRET_FILE) {
++  if(process.env.SESSION_SECRET) throw new Error('Configure one session key source');
++  process.env.SESSION_SECRET=fs.readFileSync(process.env.SESSION_SECRET_FILE,'utf8').trim();
++}
++if(!process.env.SESSION_SECRET||process.env.SESSION_SECRET.length<32) throw new Error('Private session key required');
++const origin=new URL(process.env.BASE_URL||'http://localhost:3000');
++if(!['http:','https:'].includes(origin.protocol)||origin.username||origin.password||origin.pathname!=='/'||origin.search||origin.hash) throw new Error('Invalid public origin');
++process.umask(0o077);
++const child=spawn(process.execPath,['server.js'],{stdio:'inherit',env:{...process.env,HOSTNAME:'0.0.0.0'}});
++for(const signal of ['SIGTERM','SIGINT']) process.on(signal,()=>child.kill(signal));
++child.on('exit',(code)=>process.exit(code??1));
+diff --git a/scripts/test-runtime.cjs b/scripts/test-runtime.cjs
+new file mode 100644
+index 0000000..7b0454c
+--- /dev/null
++++ b/scripts/test-runtime.cjs
+@@ -0,0 +1,97 @@
++const assert=require('node:assert/strict');
++const fs=require('node:fs');
++const os=require('node:os');
++const path=require('node:path');
++const crypto=require('node:crypto');
++const cp=require('node:child_process');
++const root=path.resolve(__dirname,'..');
++const temporary=fs.mkdtempSync(path.join(os.tmpdir(),'tafel-contract-'));
++process.env.TAFEL_DATA_DIR=path.join(temporary,'data');
++process.env.TAFEL_ASSET_DIR=path.join(temporary,'assets');
++const store=require('../src/lib/file-store.cjs');
++const sessions=require('../src/lib/session-store.cjs');
++const mobile=require('../src/lib/mobile-store.cjs');
++const device=()=>crypto.randomBytes(32).toString('base64url');
++const command=(args,ok=true)=>{
++ const result=cp.spawnSync(process.execPath,args,{cwd:root,env:process.env,encoding:'utf8'});
++ assert.equal(result.status===0,ok,result.stderr);
++ return result;
++};
++let count=0;
++async function test(name,fn){await fn();console.log('PASS '+name);count++;}
++(async()=>{
++ try {
++ await test('read does not initialize accounts or schema',async()=>{
++  assert.deepEqual(store.users(),[]);assert.equal(store.ready(),false);
++  assert.equal(fs.existsSync(store.dataDir()),false);
++ });
++ await test('explicit migration preserves IDs and notebook bytes, is idempotent and rejects future schema',async()=>{
++  store.atomic(path.join(store.dataDir(),'users.json'),[{id:'teacher-1',username:'Teacher',passwordHash:'fixture-hash',role:'teacher'}]);
++  store.atomic(path.join(store.dataDir(),'teacher-1','notebook.json'),{fixture:'preserved'});
++  const before=fs.readFileSync(path.join(store.dataDir(),'teacher-1','notebook.json'));
++  command(['scripts/migrate.mjs']);assert.equal(store.ready(),true);
++  command(['scripts/migrate.mjs']);assert.equal(store.users()[0].id,'teacher-1');
++  assert.deepEqual(fs.readFileSync(path.join(store.dataDir(),'teacher-1','notebook.json')),before);
++  store.atomic(path.join(store.dataDir(),'schema.json'),{version:2});
++  command(['scripts/migrate.mjs'],false);assert.equal(store.ready(),false);
++  store.atomic(path.join(store.dataDir(),'schema.json'),{version:1});
++ });
++ await test('migration imports owned assets without overwrite and rejects links',async()=>{
++  const source=path.join(temporary,'legacy');fs.mkdirSync(source);
++  fs.writeFileSync(path.join(source,'fixture.txt'),'preserved');
++  command(['scripts/migrate.mjs','--import-assets',source]);
++  command(['scripts/migrate.mjs','--import-assets',source]);
++  fs.writeFileSync(path.join(source,'fixture.txt'),'changed');
++  command(['scripts/migrate.mjs','--import-assets',source],false);
++  assert.equal(fs.readFileSync(path.join(store.assetDir(),'fixture.txt'),'utf8'),'preserved');
++  fs.unlinkSync(path.join(source,'fixture.txt'));fs.symlinkSync('/etc/passwd',path.join(source,'link'));
++  command(['scripts/migrate.mjs','--import-assets',source],false);
++ });
++ await test('separate processes serialize full read-modify-write without lost updates',async()=>{
++  const program="const s=require('./src/lib/file-store.cjs');s.lock('users',async()=>{const u=s.users();await new Promise(r=>setTimeout(r,30));u.push({id:'worker-'+process.argv[1],username:'worker-'+process.argv[1],passwordHash:'fixture',role:'teacher'});s.atomic(require('node:path').join(s.dataDir(),'users.json'),u)}).catch(()=>process.exitCode=1)";
++  await Promise.all(Array.from({length:8},(_,i)=>new Promise((resolve,reject)=>{
++   const child=cp.spawn(process.execPath,['-e',program,String(i)],{cwd:root,env:process.env,stdio:'ignore'});
++   child.once('error',reject);child.once('exit',code=>code===0?resolve():reject(new Error('Child lock failed')));
++  })));
++  assert.equal(store.users().length,9);
++  assert.equal(fs.statSync(path.join(store.dataDir(),'users.json')).mode&0o777,0o600);
++  assert.equal(fs.readdirSync(store.dataDir()).some(x=>x.startsWith('.lock-')),false);
++ });
++ await test('session device binding, expiry, credential reset, deletion and explicit revocation',async()=>{
++  const user=store.users()[0],key=device(),sid=await sessions.issue(user,key);
++  assert.equal(sessions.verify(sid,key).id,user.id);
++  assert.equal(sessions.verify(sid,device()),null);assert.equal(sessions.verify(sid,''),null);
++  const file=path.join(store.dataDir(),'sessions',sessions.digest(sid)+'.json');
++  const raw=fs.readFileSync(file,'utf8');assert.equal(raw.includes(sid),false);assert.equal(raw.includes(key),false);
++  let rows=store.users();rows[0].passwordHash='changed';store.atomic(path.join(store.dataDir(),'users.json'),rows);
++  assert.equal(sessions.verify(sid,key),null);
++  const fresh=await sessions.issue(rows[0],key);sessions.revoke(fresh);assert.equal(sessions.verify(fresh,key),null);
++  const expiry=await sessions.issue(rows[0],key),expiryfile=path.join(store.dataDir(),'sessions',sessions.digest(expiry)+'.json');
++  const metadata=JSON.parse(fs.readFileSync(expiryfile));metadata.expires=0;store.atomic(expiryfile,metadata);assert.equal(sessions.verify(expiry,key),null);
++  const deleted=await sessions.issue(rows[0],key);store.atomic(path.join(store.dataDir(),'users.json'),rows.slice(1));assert.equal(sessions.verify(deleted,key),null);
++ });
++ await test('mobile tickets reject arbitrary, expired, foreign and repeated use',async()=>{
++  const bytes=Buffer.from('89504e470d0a1a0a00000000','hex'),ticket=await mobile.issue('worker-1');
++  await assert.rejects(mobile.upload(device(),bytes));
++  const url=await mobile.upload(ticket,bytes);assert.match(url,/^\/assets\/uploads\/worker-1\/[a-f0-9-]+\.png$/);
++  await assert.rejects(mobile.upload(ticket,bytes));await assert.rejects(mobile.poll(ticket,'worker-2'));
++  assert.equal(await mobile.poll(ticket,'worker-1'),'data:image/png;base64,'+bytes.toString('base64'));
++  assert.equal(await mobile.poll(ticket,'worker-1'),null);
++  const expired=await mobile.issue('worker-1',Date.now()-16*60*1000);await assert.rejects(mobile.upload(expired,bytes));
++  const pending=await mobile.issue('worker-1');await assert.rejects(mobile.upload(pending,Buffer.from('<script>')));await assert.rejects(mobile.upload(pending,Buffer.alloc(5*1024*1024+1)));
++  const file=path.join(store.assetDir(),url.slice('/assets/'.length));assert.equal(fs.statSync(file).mode&0o777,0o600);
++ });
++ await test('mobile outstanding ticket quota is finite',async()=>{
++  for(let i=0;i<20;i++)await mobile.issue('quota-user');
++  await assert.rejects(mobile.issue('quota-user'),/slots busy/);
++  await assert.rejects(mobile.issue('../invalid'));
++ });
++ await test('bootstrap refuses account overwrite and headless token disclosure',async()=>{
++  command(['scripts/bootstrap.mjs'],false);
++  const result=command(['--input-type=module','-e',"import {bootstrap} from './scripts/bootstrap.mjs';try{await bootstrap('fixture-admin');process.exitCode=3}catch{console.log('Existing accounts refused')}"]);
++  assert.match(result.stdout,/Existing accounts refused/);
++  assert.equal(result.stdout.includes('password'),false);
++ });
++ console.log('PASS '+count+' file-runtime contracts');
++ }finally{fs.rmSync(temporary,{recursive:true,force:true});}
++})().catch(error=>{console.error(error);process.exitCode=1;});
+diff --git a/src/app/api/admin/users/route.ts b/src/app/api/admin/users/route.ts
+index e035576..0073554 100644
+--- a/src/app/api/admin/users/route.ts
++++ b/src/app/api/admin/users/route.ts
+@@ -1,61 +1,36 @@
+-import { NextRequest, NextResponse } from 'next/server';
+-import { createUser, deleteUser, getUsers, updateUserPassword } from '@/lib/users';
+-import { getSession } from '@/lib/session';
+-
+-export async function GET() {
+-  const users = await getUsers();
+-  return NextResponse.json(
+-    users.map(u => ({ id: u.id, username: u.username, role: u.role, createdAt: u.createdAt }))
+-  );
++export const dynamic='force-dynamic';
++import {NextResponse} from 'next/server';
++import {createUser,deleteUser,getUsers,updateUserPassword} from '@/lib/users';
++import {getSession} from '@/lib/session';
++import {boundedJson} from '@/lib/platform';
++async function allowed(){return (await getSession())?.role==='admin';}
++const denied=()=>NextResponse.json({error:'Forbidden'},{status:403});
++export async function GET(){
++  if(!await allowed())return denied();
++  return NextResponse.json((await getUsers()).map(u=>({id:u.id,username:u.username,role:u.role,createdAt:u.createdAt})));
+ }
+-
+-export async function POST(request: NextRequest) {
+-  try {
+-    const { username, password, role } = await request.json();
+-    if (!username || !password) {
+-      return NextResponse.json({ error: 'Benutzername und Passwort sind erforderlich' }, { status: 400 });
+-    }
+-    const newUser = await createUser(username, password, role || 'teacher');
+-    return NextResponse.json({ success: true, user: { id: newUser.id, username: newUser.username, role: newUser.role } });
+-  } catch (error: any) {
+-    return NextResponse.json({ error: error.message || 'Fehler beim Erstellen des Nutzers' }, { status: 500 });
+-  }
++export async function POST(request:Request){
++  if(!await allowed())return denied();
++  try{
++    const {username,password,role}=await boundedJson(request);
++    const user=await createUser(username,password,role||'teacher');
++    return NextResponse.json({success:true,user:{id:user.id,username:user.username,role:user.role}});
++  }catch{return NextResponse.json({error:'Benutzer konnte nicht angelegt werden'},{status:400});}
+ }
+-
+-export async function PATCH(request: NextRequest) {
+-  try {
+-    const { username, newPassword } = await request.json();
+-    if (!username || !newPassword) {
+-      return NextResponse.json({ error: 'Benutzername und neue PIN erforderlich' }, { status: 400 });
+-    }
+-    if (newPassword.length !== 6) {
+-      return NextResponse.json({ error: 'PIN muss 6 Stellen haben' }, { status: 400 });
+-    }
+-    await updateUserPassword(username, newPassword);
+-    return NextResponse.json({ success: true });
+-  } catch (error: any) {
+-    return NextResponse.json({ error: error.message || 'Fehler beim Ändern der PIN' }, { status: 500 });
+-  }
++export async function PATCH(request:Request){
++  if(!await allowed())return denied();
++  try{
++    const {username,newPassword}=await boundedJson(request);
++    await updateUserPassword(username,newPassword);
++    return NextResponse.json({success:true});
++  }catch{return NextResponse.json({error:'PIN konnte nicht geändert werden'},{status:400});}
+ }
+-
+-export async function DELETE(request: NextRequest) {
+-  try {
+-    const { username } = await request.json();
+-    if (!username) {
+-      return NextResponse.json({ error: 'Benutzername erforderlich' }, { status: 400 });
+-    }
+-    // Prevent deleting the admin account
+-    if (username.toLowerCase() === 'admin') {
+-      return NextResponse.json({ error: 'Das Admin-Konto kann nicht gelöscht werden' }, { status: 400 });
+-    }
+-    // Prevent deleting the currently logged-in user
+-    const session = await getSession();
+-    if (session?.username?.toLowerCase() === username.toLowerCase()) {
+-      return NextResponse.json({ error: 'Das eigene Konto kann nicht gelöscht werden' }, { status: 400 });
+-    }
+-    await deleteUser(username);
+-    return NextResponse.json({ success: true });
+-  } catch (error: any) {
+-    return NextResponse.json({ error: error.message || 'Fehler beim Löschen' }, { status: 500 });
+-  }
++export async function DELETE(request:Request){
++  const session=await getSession();
++  if(session?.role!=='admin')return denied();
++  try{
++    const {username}=await boundedJson(request);
++    if(typeof username!=='string'||username.toLowerCase()===session.username.toLowerCase())return NextResponse.json({error:'Eigenes Konto bleibt erhalten'},{status:400});
++    await deleteUser(username);return NextResponse.json({success:true});
++  }catch{return NextResponse.json({error:'Konto konnte nicht entfernt werden'},{status:400});}
+ }
+diff --git a/src/app/api/auth/change-password/route.ts b/src/app/api/auth/change-password/route.ts
+index 9bb2873..5787927 100644
+--- a/src/app/api/auth/change-password/route.ts
++++ b/src/app/api/auth/change-password/route.ts
+@@ -1,53 +1,21 @@
+-import { NextRequest, NextResponse } from 'next/server';
+-import { getSession, createSession } from '@/lib/session';
+-import { getUsers, saveUsers } from '@/lib/users';
++import {NextResponse} from 'next/server';
++import {getSession,createSession} from '@/lib/session';
++import {mutateUsers} from '@/lib/users';
++import {boundedJson} from '@/lib/platform';
+ import bcrypt from 'bcryptjs';
+-
+-export async function POST(request: NextRequest) {
+-  const session = await getSession();
+-  if (!session) {
+-    return NextResponse.json({ error: 'Nicht angemeldet' }, { status: 401 });
+-  }
+-
+-  const { currentPassword, newPassword } = await request.json();
+-
+-  if (!currentPassword || !newPassword) {
+-    return NextResponse.json({ error: 'Aktuelle und neue PIN sind erforderlich' }, { status: 400 });
+-  }
+-
+-  if (!/^\d{6}$/.test(newPassword)) {
+-    return NextResponse.json({ error: 'Die neue PIN muss genau 6 Ziffern enthalten' }, { status: 400 });
+-  }
+-
+-  const users = await getUsers();
+-  const userIndex = users.findIndex(u => u.id === session.id);
+-  if (userIndex === -1) {
+-    return NextResponse.json({ error: 'Benutzer nicht gefunden' }, { status: 404 });
+-  }
+-
+-  const user = users[userIndex];
+-  if (user.bootstrapExpiresAt !== undefined && user.bootstrapExpiresAt <= Date.now()) {
+-    return NextResponse.json({ error: 'Erstzugang abgelaufen' }, { status: 401 });
+-  }
+-  const currentMatches = await bcrypt.compare(currentPassword, user.passwordHash);
+-  if (!currentMatches) {
+-    return NextResponse.json({ error: 'Aktuelle PIN ist falsch' }, { status: 401 });
+-  }
+-
+-  users[userIndex] = {
+-    ...user,
+-    passwordHash: await bcrypt.hash(newPassword, 10),
+-    mustChangePassword: false,
+-    bootstrapExpiresAt: undefined,
+-  };
+-  await saveUsers(users);
+-
+-  await createSession({
+-    id: session.id,
+-    username: session.username,
+-    role: session.role,
+-    mustChangePassword: false,
+-  });
+-
+-  return NextResponse.json({ success: true });
++export async function POST(request:Request) {
++  const session=await getSession();
++  if(!session) return NextResponse.json({error:'Unauthorized'},{status:401});
++  try {
++    const {currentPassword,newPassword}=await boundedJson(request);
++    if(typeof currentPassword!=='string'||typeof newPassword!=='string'||!/^\d{6}$/.test(newPassword)) return NextResponse.json({error:'Neue PIN muss 6 Ziffern enthalten'},{status:400});
++    const changed=await mutateUsers(async users=>{
++      const user=users.find(u=>u.id===session.id);
++      if(!user||(user.bootstrapExpiresAt!==undefined&&user.bootstrapExpiresAt<=Date.now())||!await bcrypt.compare(currentPassword,user.passwordHash)) throw new Error('Credential mismatch');
++      user.passwordHash=await bcrypt.hash(newPassword,10);user.mustChangePassword=false;delete user.bootstrapExpiresAt;
++      return user;
++    });
++    await createSession({...session,mustChangePassword:false},changed.passwordHash);
++    return NextResponse.json({success:true});
++  } catch {return NextResponse.json({error:'PIN-Wechsel fehlgeschlagen'},{status:400});}
+ }
+diff --git a/src/app/api/auth/login/route.ts b/src/app/api/auth/login/route.ts
+index b355648..b0d9b3d 100644
+--- a/src/app/api/auth/login/route.ts
++++ b/src/app/api/auth/login/route.ts
+@@ -1,103 +1,36 @@
+-import { NextRequest, NextResponse } from 'next/server';
+-import { getUser, consumeBootstrap } from '@/lib/users';
+-import { createSession } from '@/lib/session';
+-import bcrypt from 'bcryptjs';
+-
+-interface AttemptRecord {
+-  count: number;
+-  firstAttempt: number;
+-  lockedUntil: number;
+-}
+-
+-const loginAttempts = new Map<string, AttemptRecord>();
+-const MAX_ATTEMPTS = 5;
+-const LOCKOUT_MS = 15 * 60 * 1000;
+-const WINDOW_MS = 15 * 60 * 1000;
+-
+-function getIp(req: NextRequest): string {
+-  return req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown';
+-}
+-
+-function checkRateLimit(ip: string): { allowed: boolean; retryAfterSeconds?: number } {
+-  const now = Date.now();
+-  const record = loginAttempts.get(ip);
+-  if (!record) return { allowed: true };
+-  if (record.lockedUntil > now) {
+-    return { allowed: false, retryAfterSeconds: Math.ceil((record.lockedUntil - now) / 1000) };
+-  }
+-  if (now - record.firstAttempt > WINDOW_MS) {
+-    loginAttempts.delete(ip);
+-    return { allowed: true };
+-  }
+-  return { allowed: true };
+-}
+-
+-function recordFailedAttempt(ip: string): void {
+-  const now = Date.now();
+-  const record = loginAttempts.get(ip);
+-  if (!record || now - record.firstAttempt > WINDOW_MS) {
+-    loginAttempts.set(ip, { count: 1, firstAttempt: now, lockedUntil: 0 });
+-    return;
+-  }
+-  const newCount = record.count + 1;
+-  loginAttempts.set(ip, {
+-    ...record,
+-    count: newCount,
+-    lockedUntil: newCount >= MAX_ATTEMPTS ? now + LOCKOUT_MS : 0,
++import {NextResponse} from 'next/server';
++import {authenticate,getUser} from '@/lib/users';
++import {createSession} from '@/lib/session';
++import {boundedJson} from '@/lib/platform';
++import * as store from '@/lib/file-store.cjs';
++import path from 'node:path';
++import fs from 'node:fs';
++async function attempt(username:string, failed?:boolean) {
++  return store.lock('attempts',async()=>{
++    const file=path.join(store.dataDir(),'login-attempts.json');
++    let rows:Record<string,{count:number,until:number,start:number}>={};
++    try{rows=JSON.parse(fs.readFileSync(file,'utf8'));}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
++    const key=(await getUser(username))?username.toLowerCase():'_unknown';
++    const now=Date.now();const row=rows[key];
++    if(failed===undefined)return !row||row.until<=now;
++    if(!failed)delete rows[key];
++    else {
++      const current=!row||now-row.start>900000?{count:0,until:0,start:now}:row;
++      current.count++;if(current.count>=5)current.until=now+900000;rows[key]=current;
++    }
++    for(const name of Object.keys(rows))if(now-rows[name].start>1800000&&rows[name].until<=now)delete rows[name];
++    store.atomic(file,rows);return true;
+   });
+ }
+-
+-function clearAttempts(ip: string): void {
+-  loginAttempts.delete(ip);
+-}
+-
+-export async function POST(request: NextRequest) {
+-  const ip = getIp(request);
+-
+-  const rateCheck = checkRateLimit(ip);
+-  if (!rateCheck.allowed) {
+-    const minutes = Math.ceil(rateCheck.retryAfterSeconds! / 60);
+-    return NextResponse.json(
+-      { error: `Zu viele Versuche. Bitte in ${minutes} Minute(n) erneut versuchen.` },
+-      { status: 429 }
+-    );
+-  }
+-
++export async function POST(request:Request) {
+   try {
+-    const { username, password } = await request.json();
+-
+-    if (!username || !password) {
+-      return NextResponse.json({ error: 'Benutzername und Passwort sind erforderlich' }, { status: 400 });
+-    }
+-
+-    const user = await getUser(username);
+-
+-    if (!user || (user.bootstrapExpiresAt !== undefined && user.bootstrapExpiresAt <= Date.now())) {
+-      recordFailedAttempt(ip);
+-      return NextResponse.json({ error: 'Ungültige Anmeldedaten' }, { status: 401 });
+-    }
+-
+-    const passwordMatches = await bcrypt.compare(password, user.passwordHash);
+-
+-    if (!passwordMatches || !await consumeBootstrap(user)) {
+-      recordFailedAttempt(ip);
+-      return NextResponse.json({ error: 'Ungültige Anmeldedaten' }, { status: 401 });
+-    }
+-
+-    clearAttempts(ip);
+-
+-    await createSession({
+-      id: user.id,
+-      username: user.username,
+-      role: user.role,
+-      mustChangePassword: user.mustChangePassword ?? false,
+-    });
+-
+-    const redirect = user.mustChangePassword ? '/change-password' : '/';
+-    return NextResponse.json({ success: true, redirect });
+-
+-  } catch (error) {
+-    console.error('Login error:', error);
+-    return NextResponse.json({ error: 'Ein Fehler ist aufgetreten' }, { status: 500 });
+-  }
++    const {username,password}=await boundedJson(request);
++    if(typeof username!=='string'||typeof password!=='string'||username.length>80||password.length>256) return NextResponse.json({error:'Ungültige Anmeldedaten'},{status:400});
++    if(!await attempt(username))return NextResponse.json({error:'Zu viele Versuche. Bitte später erneut versuchen.'},{status:429,headers:{'Retry-After':'900'}});
++    const user=await authenticate(username,password);
++    if(!user){await attempt(username,true);return NextResponse.json({error:'Ungültige Anmeldedaten'},{status:401});}
++    await attempt(username,false);
++    await createSession({id:user.id,username:user.username,role:user.role,mustChangePassword:user.mustChangePassword??false},user.passwordHash);
++    return NextResponse.json({success:true,redirect:user.mustChangePassword?'/change-password':'/'});
++  }catch{return NextResponse.json({error:'Anmeldung fehlgeschlagen'},{status:400});}
+ }
+diff --git a/src/app/api/auth/logout/route.ts b/src/app/api/auth/logout/route.ts
+index 6fee5a8..a826933 100644
+--- a/src/app/api/auth/logout/route.ts
++++ b/src/app/api/auth/logout/route.ts
+@@ -6,7 +6,7 @@ export async function POST() {
+     await clearSession();
+     return NextResponse.json({ success: true, redirect: '/login' });
+   } catch (error) {
+-    console.error('Logout error:', error);
++    console.error('Logout unavailable');
+     return NextResponse.json({ error: 'Fehler beim Abmelden' }, { status: 500 });
+   }
+ }
+diff --git a/src/app/api/auth/me/route.ts b/src/app/api/auth/me/route.ts
+index 9f6095f..8250062 100644
+--- a/src/app/api/auth/me/route.ts
++++ b/src/app/api/auth/me/route.ts
+@@ -1,3 +1,4 @@
++export const dynamic='force-dynamic';
+ import { NextResponse } from 'next/server';
+ import { getSession } from '@/lib/session';
+ 
+diff --git a/src/app/api/auth/users/route.ts b/src/app/api/auth/users/route.ts
+index fc60f37..834a8d0 100644
+--- a/src/app/api/auth/users/route.ts
++++ b/src/app/api/auth/users/route.ts
+@@ -1,3 +1,4 @@
++export const dynamic='force-dynamic';
+ import { NextResponse } from 'next/server';
+ import { getUsers } from '@/lib/users';
+ 
+diff --git a/src/app/api/backgrounds/route.ts b/src/app/api/backgrounds/route.ts
+index a222bff..34cbce0 100644
+--- a/src/app/api/backgrounds/route.ts
++++ b/src/app/api/backgrounds/route.ts
+@@ -1,10 +1,12 @@
++export const dynamic='force-dynamic';
++import * as store from '@/lib/file-store.cjs';
+ import { NextResponse } from 'next/server';
+ import { promises as fs } from 'fs';
+ import path from 'path';
+ 
+ export async function GET() {
+   try {
+-    const backgroundsDir = path.join(process.cwd(), 'public', 'assets', 'backgrounds');
++    const backgroundsDir = path.join(store.assetDir(), 'backgrounds');
+     
+     // Check if directory exists
+     try {
+@@ -21,7 +23,7 @@ export async function GET() {
+ 
+     return NextResponse.json({ backgrounds });
+   } catch (error) {
+-    console.error('Error fetching backgrounds:', error);
++    console.error('Asset operation failed');
+     return NextResponse.json({ error: 'Failed to fetch backgrounds' }, { status: 500 });
+   }
+ }
+diff --git a/src/app/api/gallery/folders/route.ts b/src/app/api/gallery/folders/route.ts
+index e8560cf..cf6dcea 100644
+--- a/src/app/api/gallery/folders/route.ts
++++ b/src/app/api/gallery/folders/route.ts
+@@ -1,10 +1,12 @@
++export const dynamic='force-dynamic';
++import * as store from '@/lib/file-store.cjs';
+ import { NextResponse } from 'next/server';
+ import { promises as fs } from 'fs';
+ import path from 'path';
+ 
+ export async function GET() {
+   try {
+-    const galleryDir = path.join(process.cwd(), 'public', 'assets', 'gallery');
++    const galleryDir = path.join(store.assetDir(), 'gallery');
+ 
+     try {
+       await fs.access(galleryDir);
+@@ -32,7 +34,7 @@ export async function GET() {
+ 
+     return NextResponse.json({ folders });
+   } catch (error) {
+-    console.error('Error fetching local gallery folders:', error);
++    console.error('Asset operation failed');
+     return NextResponse.json({ error: 'Failed to fetch local gallery folders' }, { status: 500 });
+   }
+ }
+diff --git a/src/app/api/gallery/image/route.ts b/src/app/api/gallery/image/route.ts
+index b2de070..7932eda 100644
+--- a/src/app/api/gallery/image/route.ts
++++ b/src/app/api/gallery/image/route.ts
+@@ -1,3 +1,6 @@
++import {GALLERY_ORIGIN} from '@/lib/gallery';
++import {boundedBody} from '@/lib/platform';
++export const dynamic='force-dynamic';
+ import { NextRequest, NextResponse } from 'next/server';
+ 
+ export async function GET(request: NextRequest) {
+@@ -9,8 +12,9 @@ export async function GET(request: NextRequest) {
+       return NextResponse.json({ error: 'Invalid gallery asset request' }, { status: 400 });
+     }
+ 
++    if(!GALLERY_ORIGIN)return NextResponse.json({error:'Galerie derzeit nicht verfügbar'},{status:503});
+     const remoteUrl = new URL(src);
+-    if (remoteUrl.origin !== 'https://pix.foerster.rocks') {
++    if (remoteUrl.origin !== new URL(GALLERY_ORIGIN).origin || remoteUrl.username || remoteUrl.password || !/^\/static\/(display|thumbnails)\//.test(remoteUrl.pathname)) {
+       return NextResponse.json({ error: 'Invalid gallery asset source' }, { status: 400 });
+     }
+ 
+@@ -18,23 +22,24 @@ export async function GET(request: NextRequest) {
+       headers: {
+         'User-Agent': 'TafelPopafel/1.0'
+       },
+-      cache: 'force-cache',
++      cache: 'no-store',redirect:'error',signal:AbortSignal.timeout(5000),
+     });
+ 
+     if (!remoteRes.ok) {
+       return NextResponse.json({ error: 'Gallery asset not found' }, { status: 404 });
+     }
+ 
+-    const buffer = await remoteRes.arrayBuffer();
++    if(!['image/png','image/jpeg','image/webp','image/gif'].includes((remoteRes.headers.get('content-type')||'').split(';')[0]))return NextResponse.json({error:'Bildformat nicht verfügbar'},{status:415});
++    const buffer = await boundedBody(remoteRes as any,16*1024*1024);
+ 
+-    return new NextResponse(buffer, {
++    return new NextResponse(new Uint8Array(buffer), {
+       headers: {
+         'Content-Type': remoteRes.headers.get('content-type') || 'image/webp',
+-        'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
++        'Cache-Control': 'private, no-store', 'X-Content-Type-Options':'nosniff',
+       },
+     });
+   } catch (error) {
+-    console.error('Error serving gallery asset:', error);
++    console.error('Gallery asset unavailable');
+     return NextResponse.json({ error: 'Gallery asset not found' }, { status: 404 });
+   }
+ }
+diff --git a/src/app/api/gallery/route.ts b/src/app/api/gallery/route.ts
+index 4d32601..03f74b7 100644
+--- a/src/app/api/gallery/route.ts
++++ b/src/app/api/gallery/route.ts
+@@ -1,15 +1,17 @@
++export const dynamic='force-dynamic';
+ import { NextRequest, NextResponse } from 'next/server';
+ import { searchGallery } from '@/lib/gallery';
+ 
+ export async function GET(request: NextRequest) {
+   try {
++    if(!process.env.GALLERY_ORIGIN)return NextResponse.json({error:'Galerie derzeit nicht verfügbar'},{status:503});
+     const searchParams = request.nextUrl.searchParams;
+     const query = searchParams.get('q') || '';
+     const page = Math.max(1, Number(searchParams.get('page') || '1'));
+     const result = await searchGallery(query, page);
+     return NextResponse.json(result);
+   } catch (error) {
+-    console.error('Error fetching gallery search:', error);
++    console.error('Gallery search unavailable');
+     return NextResponse.json({ error: 'Failed to fetch gallery' }, { status: 500 });
+   }
+ }
+diff --git a/src/app/api/ip/route.ts b/src/app/api/ip/route.ts
+index 66fb67c..32d9676 100644
+--- a/src/app/api/ip/route.ts
++++ b/src/app/api/ip/route.ts
+@@ -1,3 +1,4 @@
++export const dynamic='force-dynamic';
+ import { NextResponse } from 'next/server';
+ import os from 'os';
+ 
+diff --git a/src/app/api/journal/route.ts b/src/app/api/journal/route.ts
+index 3a0a3ce..0a3be66 100644
+--- a/src/app/api/journal/route.ts
++++ b/src/app/api/journal/route.ts
+@@ -1,16 +1,18 @@
++export const dynamic='force-dynamic';
++import * as store from '@/lib/file-store.cjs';
+ import { NextResponse } from 'next/server';
+ import fs from 'fs/promises';
+ import path from 'path';
+ 
+ export async function GET() {
+   try {
+-    const dirPath = path.join(process.cwd(), 'public', 'assets', 'journal');
++    const dirPath = path.join(store.assetDir(), 'journal');
+     
+     // Check if directory exists, if not create it
+     try {
+       await fs.access(dirPath);
+     } catch {
+-      await fs.mkdir(dirPath, { recursive: true });
++      return NextResponse.json({images:[]});
+     }
+ 
+     const files = await fs.readdir(dirPath);
+@@ -28,7 +30,7 @@ export async function GET() {
+     const urls = images.map(file => `/assets/journal/${file}`);
+     return NextResponse.json({ images: urls });
+   } catch (error) {
+-    console.error('Error reading journal directory:', error);
++    console.error('Asset operation failed');
+     return NextResponse.json({ error: 'Failed to read images' }, { status: 500 });
+   }
+ }
+diff --git a/src/app/api/mobile-upload/route.ts b/src/app/api/mobile-upload/route.ts
+index 77d2892..029d9d4 100644
+--- a/src/app/api/mobile-upload/route.ts
++++ b/src/app/api/mobile-upload/route.ts
+@@ -1,90 +1,25 @@
+-import { NextResponse } from 'next/server';
+-import { promises as fs } from 'fs';
+-import path from 'path';
+-
+-// Pending uploads are stored as files so all worker processes can see them.
+-// File name: <token>.pending, content: the public URL of the uploaded image.
+-const pendingDir = path.join(process.cwd(), 'data', 'pending-uploads');
+-
+-async function ensurePendingDir() {
+-  try { await fs.access(pendingDir); } catch { await fs.mkdir(pendingDir, { recursive: true }); }
+-}
+-
+-function sanitizeToken(token: string) {
+-  return token.replace(/[^a-zA-Z0-9-]/g, '');
+-}
+-
+-export async function POST(request: Request) {
++export const dynamic='force-dynamic';
++import {NextResponse} from 'next/server';
++import {getSession} from '@/lib/session';
++import {boundedBody} from '@/lib/platform';
++import * as mobile from '@/lib/mobile-store.cjs';
++export async function POST(request:Request) {
+   try {
+-    const formData = await request.formData();
+-    const rawToken = formData.get('token') as string;
+-    const file = formData.get('image') as File;
+-
+-    if (!rawToken || !file) {
+-      return NextResponse.json({ error: 'Missing token or image' }, { status: 400 });
+-    }
+-    const token = sanitizeToken(rawToken);
+-
+-    const bytes = await file.arrayBuffer();
+-    const buffer = Buffer.from(bytes);
+-
+-    const uploadDir = path.join(process.cwd(), 'public', 'assets', 'uploads');
+-    try { await fs.access(uploadDir); } catch { await fs.mkdir(uploadDir, { recursive: true }); }
+-
+-    const filename = `${token}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+-    const filePath = path.join(uploadDir, filename);
+-    await fs.writeFile(filePath, buffer);
+-
+-    const publicUrl = `/assets/uploads/${filename}`;
+-
+-    // Write token → URL mapping to disk so all workers can read it
+-    await ensurePendingDir();
+-    const pendingPath = path.join(pendingDir, `${token}.pending`);
+-    await fs.writeFile(pendingPath, publicUrl, 'utf-8');
+-    console.log(`[mobile-upload] POST OK: wrote ${pendingPath}`);
+-
+-    return NextResponse.json({ success: true, url: publicUrl });
+-  } catch (error) {
+-    console.error('[mobile-upload] POST error:', error);
+-    return NextResponse.json({ error: 'Failed to process upload' }, { status: 500 });
+-  }
++    const bytes=await boundedBody(request,6*1024*1024);
++    const form=await new Response(bytes as BodyInit,{headers:{'Content-Type':request.headers.get('content-type')||''}}).formData();
++    const token=form.get('token');
++    const image=form.get('image');
++    if(typeof token!=='string'||!(image instanceof File)) throw new Error('Invalid upload');
++    const url=await mobile.upload(token,Buffer.from(await image.arrayBuffer()));
++    return NextResponse.json({success:true,url});
++  } catch {return NextResponse.json({error:'Upload ungültig, abgelaufen oder belegt. PNG, JPEG oder WebP bis 5 MiB verwenden.'},{status:400});}
+ }
+-
+-export async function GET(request: Request) {
++export async function GET(request:Request) {
++  const session=await getSession();
++  if(!session) return NextResponse.json({error:'Unauthorized'},{status:401});
+   try {
+-    const url = new URL(request.url);
+-    const rawToken = url.searchParams.get('token');
+-
+-    if (!rawToken) {
+-      return NextResponse.json({ error: 'Token is required' }, { status: 400 });
+-    }
+-    const token = sanitizeToken(rawToken);
+-    const pendingFile = path.join(pendingDir, `${token}.pending`);
+-
+-    try {
+-      const relativeUrl = (await fs.readFile(pendingFile, 'utf-8')).trim();
+-      await fs.unlink(pendingFile); // consume once
+-
+-      // Read the image file and return as data URL.
+-      // Next.js does not reliably serve dynamically-written public/ files in production,
+-      // so we serve the bytes here directly instead of returning a path.
+-      const imagePath = path.join(process.cwd(), 'public', relativeUrl);
+-      const imageBuffer = await fs.readFile(imagePath);
+-      const ext = path.extname(relativeUrl).slice(1).toLowerCase();
+-      const mime = (ext === 'jpg' || ext === 'jpeg') ? 'image/jpeg'
+-        : ext === 'png' ? 'image/png'
+-        : ext === 'webp' ? 'image/webp'
+-        : 'image/jpeg';
+-      const dataUrl = `data:${mime};base64,${imageBuffer.toString('base64')}`;
+-
+-      console.log(`[mobile-upload] GET: returning data URL for ${relativeUrl} (${imageBuffer.length} bytes)`);
+-      return NextResponse.json({ imageUrl: dataUrl });
+-    } catch {
+-      // Pending file doesn't exist yet — upload not received
+-      return NextResponse.json({ imageUrl: null });
+-    }
+-  } catch (error) {
+-    console.error('[mobile-upload] GET error:', error);
+-    return NextResponse.json({ error: 'Failed to poll upload' }, { status: 500 });
+-  }
++    const token=new URL(request.url).searchParams.get('token');
++    const imageUrl=await mobile.poll(token,session.id);
++    return NextResponse.json({imageUrl});
++  } catch {return NextResponse.json({error:'Upload nicht verfügbar'},{status:404});}
+ }
+diff --git a/src/app/api/mobile-upload/session/route.ts b/src/app/api/mobile-upload/session/route.ts
+new file mode 100644
+index 0000000..f10026f
+--- /dev/null
++++ b/src/app/api/mobile-upload/session/route.ts
+@@ -0,0 +1,12 @@
++import {NextResponse} from 'next/server';
++import {getSession} from '@/lib/session';
++import {publicOrigin} from '@/lib/platform';
++import * as mobile from '@/lib/mobile-store.cjs';
++export async function POST() {
++  const session=await getSession();
++  if(!session) return NextResponse.json({error:'Unauthorized'},{status:401});
++  try {
++    const token=await mobile.issue(session.id);
++    return NextResponse.json({token,url:publicOrigin()+'/upload?token='+token,expiresIn:900});
++  } catch {return NextResponse.json({error:'Upload derzeit belegt'},{status:429});}
++}
+diff --git a/src/app/api/notebooks/[id]/route.ts b/src/app/api/notebooks/[id]/route.ts
+index e80bdb5..7eb2007 100644
+--- a/src/app/api/notebooks/[id]/route.ts
++++ b/src/app/api/notebooks/[id]/route.ts
+@@ -1,80 +1,39 @@
+-import { NextRequest, NextResponse } from 'next/server';
+-import { promises as fs } from 'fs';
+-import path from 'path';
+-import { getSession } from '@/lib/session';
+-
+-export async function GET(
+-  request: NextRequest,
+-  { params }: { params: Promise<{ id: string }> }
+-) {
++export const dynamic='force-dynamic';
++import {NextResponse} from 'next/server';
++import {getSession} from '@/lib/session';
++import {boundedJson} from '@/lib/platform';
++import * as store from '@/lib/file-store.cjs';
++import fs from 'node:fs/promises';
++import path from 'node:path';
++import {createHash} from 'node:crypto';
++async function target(params:Promise<{id:string}>) {
++  const session=await getSession();
++  if(!session)return null;
++  const id=(await params).id;
++  if(!store.segment(id))throw new Error('Invalid notebook id');
++  return {session,id,file:path.join(store.dataDir(),session.id,id+'.json')};
++}
++export async function GET(_request:Request,{params}:{params:Promise<{id:string}>}){
+   try {
+-    const session = await getSession();
+-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+-
+-    const USER_DATA_DIR = path.join(process.cwd(), 'data', session.id);
+-    const id = (await params).id;
+-    const filePath = path.join(USER_DATA_DIR, `${id}.json`);
+-    
+-    // Check if file exists to prevent throwing hard error
+-    try {
+-      await fs.access(filePath);
+-    } catch {
+-      return NextResponse.json({ error: 'Notebook not found' }, { status: 404 });
+-    }
+-
+-    const data = await fs.readFile(filePath, 'utf-8');
+-    return NextResponse.json(JSON.parse(data));
+-  } catch (error) {
+-    console.error('Error loading notebook:', error);
+-    return NextResponse.json({ error: 'Failed to load notebook' }, { status: 500 });
+-  }
++    const row=await target(params);if(!row)return NextResponse.json({error:'Unauthorized'},{status:401});
++    const raw=await fs.readFile(row.file,'utf8');
++    return NextResponse.json(JSON.parse(raw));
++  }catch{return NextResponse.json({error:'Notizbuch nicht verfügbar'},{status:404});}
+ }
+-
+-export async function PUT(
+-  request: NextRequest,
+-  { params }: { params: Promise<{ id: string }> }
+-) {
++export async function PUT(request:Request,{params}:{params:Promise<{id:string}>}){
+   try {
+-    const session = await getSession();
+-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+-
+-    const USER_DATA_DIR = path.join(process.cwd(), 'data', session.id);
+-    const id = (await params).id;
+-    const body = await request.json();
+-    
+-    await fs.mkdir(USER_DATA_DIR, { recursive: true });
+-    
+-    const filePath = path.join(USER_DATA_DIR, `${id}.json`);
+-    await fs.writeFile(filePath, JSON.stringify(body), 'utf-8');
+-    
+-    return NextResponse.json({ success: true, id });
+-  } catch (error) {
+-    console.error('Error saving notebook:', error);
+-    return NextResponse.json({ error: 'Failed to save notebook' }, { status: 500 });
+-  }
++    const row=await target(params);if(!row)return NextResponse.json({error:'Unauthorized'},{status:401});
++    const body=await boundedJson(request,20*1024*1024);
++    const lock='notebook-'+createHash('sha256').update(row.session.id+':'+row.id).digest('hex');
++    await store.lock(lock,async()=>store.atomic(row.file,body));
++    return NextResponse.json({success:true,id:row.id});
++  }catch{return NextResponse.json({error:'Notizbuch konnte nicht gespeichert werden'},{status:400});}
+ }
+-
+-export async function DELETE(
+-  request: NextRequest,
+-  { params }: { params: Promise<{ id: string }> }
+-) {
++export async function DELETE(_request:Request,{params}:{params:Promise<{id:string}>}){
+   try {
+-    const session = await getSession();
+-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+-
+-    const USER_DATA_DIR = path.join(process.cwd(), 'data', session.id);
+-    const id = (await params).id;
+-    const filePath = path.join(USER_DATA_DIR, `${id}.json`);
+-    
+-    try {
+-      await fs.access(filePath);
+-      await fs.unlink(filePath);
+-      return NextResponse.json({ success: true });
+-    } catch {
+-      return NextResponse.json({ error: 'Notebook not found' }, { status: 404 });
+-    }
+-  } catch (error) {
+-    console.error('Error deleting notebook:', error);
+-    return NextResponse.json({ error: 'Failed to delete notebook' }, { status: 500 });
+-  }
++    const row=await target(params);if(!row)return NextResponse.json({error:'Unauthorized'},{status:401});
++    const lock='notebook-'+createHash('sha256').update(row.session.id+':'+row.id).digest('hex');
++    await store.lock(lock,async()=>fs.unlink(row.file));
++    return NextResponse.json({success:true});
++  }catch{return NextResponse.json({error:'Notizbuch nicht verfügbar'},{status:404});}
+ }
+diff --git a/src/app/api/notebooks/route.ts b/src/app/api/notebooks/route.ts
+index 211dedc..df7589e 100644
+--- a/src/app/api/notebooks/route.ts
++++ b/src/app/api/notebooks/route.ts
+@@ -1,55 +1,23 @@
+-import { NextResponse } from 'next/server';
+-import { promises as fs } from 'fs';
+-import path from 'path';
+-import { getSession } from '@/lib/session';
+-
+-export async function GET() {
++export const dynamic='force-dynamic';
++import {NextResponse} from 'next/server';
++import {getSession} from '@/lib/session';
++import * as store from '@/lib/file-store.cjs';
++import fs from 'node:fs/promises';
++import path from 'node:path';
++export async function GET(){
++  const session=await getSession();
++  if(!session)return NextResponse.json({error:'Unauthorized'},{status:401});
++  const directory=path.join(store.dataDir(),session.id);
+   try {
+-    const session = await getSession();
+-    if (!session) {
+-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+-    }
+-
+-    const USER_DATA_DIR = path.join(process.cwd(), 'data', session.id);
+-    await fs.mkdir(USER_DATA_DIR, { recursive: true });
+-    
+-    const files = await fs.readdir(USER_DATA_DIR);
+-    
+-    // We need to read the content to get the actual name stored inside the JSON
+-    const notebooksPromises = files
+-      .filter(f => f.endsWith('.json'))
+-      .map(async (file) => {
+-        const filePath = path.join(USER_DATA_DIR, file);
+-        const stats = await fs.stat(filePath);
+-        const id = file.replace('.json', '');
+-        let name = id.replace(/_/g, ' ');
+-
+-        try {
+-          const content = await fs.readFile(filePath, 'utf-8');
+-          const data = JSON.parse(content);
+-          if (data.name) {
+-            name = data.name;
+-          }
+-        } catch (e) {
+-          // fallback to filename if reading fails
+-        }
+-
+-        return {
+-          id,
+-          name,
+-          updatedAt: stats.mtime.toISOString()
+-        };
+-      });
+-
+-    // Resolve all promises
+-    const resolvedNotebooks = await Promise.all(notebooksPromises);
+-
+-    // Sort by most recent
+-    resolvedNotebooks.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+-
+-    return NextResponse.json({ notebooks: resolvedNotebooks });
+-  } catch (error) {
+-    console.error('Error fetching notebooks:', error);
+-    return NextResponse.json({ error: 'Failed to fetch notebooks' }, { status: 500 });
++    const files=(await fs.readdir(directory)).filter(file=>file.endsWith('.json')&&store.segment(file.slice(0,-5)));
++    const notebooks=await Promise.all(files.map(async file=>{
++      const target=path.join(directory,file);
++      const raw=JSON.parse(await fs.readFile(target,'utf8'));
++      return {id:file.slice(0,-5),name:typeof raw.name==='string'?raw.name:file.slice(0,-5),updatedAt:(await fs.stat(target)).mtime.toISOString()};
++    }));
++    return NextResponse.json({notebooks:notebooks.sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))});
++  }catch(error){
++    if((error as NodeJS.ErrnoException).code==='ENOENT')return NextResponse.json({notebooks:[]});
++    return NextResponse.json({error:'Notizbücher derzeit nicht verfügbar'},{status:503});
+   }
+ }
+diff --git a/src/app/api/rs/route.ts b/src/app/api/rs/route.ts
+index a325664..dd710f4 100644
+--- a/src/app/api/rs/route.ts
++++ b/src/app/api/rs/route.ts
+@@ -1,10 +1,12 @@
++export const dynamic='force-dynamic';
++import * as store from '@/lib/file-store.cjs';
+ import { NextResponse } from 'next/server';
+ import { promises as fs } from 'fs';
+ import path from 'path';
+ 
+ export async function GET() {
+   try {
+-    const rsDir = path.join(process.cwd(), 'public', 'assets', 'rs');
++    const rsDir = path.join(store.assetDir(), 'rs');
+ 
+     try {
+       await fs.access(rsDir);
+@@ -22,7 +24,7 @@ export async function GET() {
+ 
+     return NextResponse.json({ images });
+   } catch (error) {
+-    console.error('Error fetching RS symbols:', error);
++    console.error('Asset operation failed');
+     return NextResponse.json({ error: 'Failed to fetch RS symbols' }, { status: 500 });
+   }
+ }
+diff --git a/src/app/api/youtube/route.ts b/src/app/api/youtube/route.ts
+index b2af0ae..b1a6dbd 100644
+--- a/src/app/api/youtube/route.ts
++++ b/src/app/api/youtube/route.ts
+@@ -1,3 +1,4 @@
++export const dynamic='force-dynamic';
+ import { NextResponse } from 'next/server';
+ 
+ export async function GET(request: Request) {
+@@ -9,6 +10,7 @@ export async function GET(request: Request) {
+       return NextResponse.json({ error: 'Search query is required' }, { status: 400 });
+     }
+ 
++    if(process.env.TAFEL_YOUTUBE_ENABLED!=='1')return NextResponse.json({error:'Videosuche derzeit nicht verfügbar'},{status:503});
+     const API_KEY = process.env.YOUTUBE_API_KEY;
+     if (!API_KEY) {
+       return NextResponse.json({ error: 'YouTube API key not configured' }, { status: 500 });
+@@ -19,14 +21,14 @@ export async function GET(request: Request) {
+     );
+ 
+     if (!response.ok) {
+-      console.error('YouTube API Error:', await response.text());
++      console.error('Video search unavailable');
+       throw new Error(`YouTube API returned ${response.status}`);
+     }
+ 
+     const data = await response.json();
+     return NextResponse.json({ items: data.items });
+   } catch (error) {
+-    console.error('Error fetching from YouTube:', error);
++    console.error('Video search unavailable');
+     return NextResponse.json({ error: 'Failed to fetch videos' }, { status: 500 });
+   }
+ }
+diff --git a/src/app/assets/[...segments]/route.ts b/src/app/assets/[...segments]/route.ts
+new file mode 100644
+index 0000000..893a851
+--- /dev/null
++++ b/src/app/assets/[...segments]/route.ts
+@@ -0,0 +1,22 @@
++import {NextResponse} from 'next/server';
++import {getSession} from '@/lib/session';
++import * as store from '@/lib/file-store.cjs';
++import fs from 'node:fs/promises';
++import path from 'node:path';
++export async function GET(_request:Request,{params}:{params:Promise<{segments:string[]}>}){
++  const session=await getSession();
++  if(!session)return new NextResponse(null,{status:401});
++  try{
++    const segments=(await params).segments;
++    if(!segments.length||segments.some(value=>!store.segment(value)))throw new Error('Invalid asset');
++    if(!['backgrounds','journal','rs','gallery','uploads'].includes(segments[0]))throw new Error('Invalid category');
++    if(segments[0]==='uploads'&&segments[1]!==session.id)throw new Error('Private asset');
++    const root=path.resolve(store.assetDir());
++    const file=await fs.realpath(path.join(root,...segments));
++    if(!file.startsWith(root+path.sep)||(await fs.stat(file)).size>16*1024*1024)throw new Error('Invalid asset');
++    const types:Record<string,string>={'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.gif':'image/gif','.svg':'image/svg+xml'};
++    const mime=types[path.extname(file).toLowerCase()];if(!mime)throw new Error('Invalid type');
++    return new NextResponse(new Uint8Array(await fs.readFile(file)),{headers:{'Content-Type':mime,'X-Content-Type-Options':'nosniff',
++      'Cache-Control':'private, no-store','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; sandbox"}});
++  }catch{return new NextResponse(null,{status:404});}
++}
+diff --git a/src/app/globals.css b/src/app/globals.css
+index 8a0749a..02999ee 100644
+--- a/src/app/globals.css
++++ b/src/app/globals.css
+@@ -1,4 +1,5 @@
+ :root {
++  --font-quicksand: system-ui;
+   --background: #f8fafc;
+   --foreground: #0f172a;
+   --primary: #3b82f6;
+diff --git a/src/app/health/live/route.ts b/src/app/health/live/route.ts
+new file mode 100644
+index 0000000..5413c03
+--- /dev/null
++++ b/src/app/health/live/route.ts
+@@ -0,0 +1,3 @@
++import {NextResponse} from 'next/server';
++export const dynamic='force-dynamic';
++export async function GET(){return NextResponse.json({status:'live'});}
+diff --git a/src/app/health/ready/route.ts b/src/app/health/ready/route.ts
+new file mode 100644
+index 0000000..e940ba5
+--- /dev/null
++++ b/src/app/health/ready/route.ts
+@@ -0,0 +1,4 @@
++import {NextResponse} from 'next/server';
++import {ready} from '@/lib/platform';
++export const dynamic='force-dynamic';
++export async function GET(){return NextResponse.json({status:ready()?'ready':'migration-required'},{status:ready()?200:503});}
+diff --git a/src/app/layout.tsx b/src/app/layout.tsx
+index cc48c6f..528baf6 100644
+--- a/src/app/layout.tsx
++++ b/src/app/layout.tsx
+@@ -1,12 +1,6 @@
+ import type { Metadata } from "next";
+-import { Quicksand } from "next/font/google";
+ import "./globals.css";
+ 
+-const quicksand = Quicksand({
+-  variable: "--font-quicksand",
+-  subsets: ["latin"],
+-});
+-
+ export const metadata: Metadata = {
+   title: "TafelPopafel",
+   description: "Eine interaktive Tafel für den Unterricht.",
+@@ -19,12 +13,9 @@ export default function RootLayout({
+ }>) {
+   return (
+     <html lang="de">
+-      <head>
+-        <link rel="stylesheet" media="screen" href="https://fontlibrary.org/face/grundschrift" type="text/css"/>
+-      </head>
+       <body
+-        className={`${quicksand.variable} antialiased`}
+-        style={{ fontFamily: "var(--font-quicksand), sans-serif" }}
++        className="antialiased"
++        style={{ fontFamily: "system-ui, sans-serif" }}
+       >
+         {children}
+       </body>
+diff --git a/src/app/upload/page.tsx b/src/app/upload/page.tsx
+index af13e8e..d8c5e41 100644
+--- a/src/app/upload/page.tsx
++++ b/src/app/upload/page.tsx
+@@ -78,7 +78,7 @@ export default function MobileUploadPage() {
+           <>
+             <input 
+               type="file" 
+-              accept="image/*" 
++              accept="image/png,image/jpeg,image/webp"
+               capture="environment" // Suggests back camera on mobile
+               ref={fileInputRef} 
+               style={{ display: 'none' }} 
+diff --git a/src/components/Toolbar.tsx b/src/components/Toolbar.tsx
+index 83eee5e..4511268 100644
+--- a/src/components/Toolbar.tsx
++++ b/src/components/Toolbar.tsx
+@@ -38,6 +38,7 @@ export default function Toolbar() {
+   const [showFillSettings, setShowFillSettings] = useState(false);
+   const [showInsertMenu, setShowInsertMenu] = useState(false);
+   const [qrToken, setQrToken] = useState<string>('');
++  const [qrUrl,setQrUrl] = useState<string>('');
+ 
+   const closeInsertRelatedMenus = () => {
+     setShowInsertMenu(false);
+@@ -86,8 +87,11 @@ export default function Toolbar() {
+     return () => clearInterval(interval);
+   }, [showQrModal, qrToken, triggerAddImage]);
+ 
+-  const handleOpenQr = () => {
+-    setQrToken(uuidv4());
++  const handleOpenQr = async () => {
++    const response = await fetch('/api/mobile-upload/session',{method:'POST'});
++    if(!response.ok)return;
++    const ticket=await response.json();
++    setQrToken(ticket.token);setQrUrl(ticket.url);
+     setShowQrModal(true);
+     closeInsertRelatedMenus();
+     setShowToolbox(false);
+@@ -847,7 +851,7 @@ export default function Toolbar() {
+             </p>
+             <div style={{ padding: '10px', background: 'white', borderRadius: '8px' }}>
+               <QRCodeCanvas
+-                value={`${typeof window !== 'undefined' ? window.location.origin : ''}/upload?token=${qrToken}`}
++                value={qrUrl}
+                 size={200}
+                 level={"M"}
+                 includeMargin={true}
+diff --git a/src/lib/cjs.d.ts b/src/lib/cjs.d.ts
+new file mode 100644
+index 0000000..96a96ca
+--- /dev/null
++++ b/src/lib/cjs.d.ts
+@@ -0,0 +1 @@
++declare module '*.cjs';
+diff --git a/src/lib/file-store.cjs b/src/lib/file-store.cjs
+new file mode 100644
+index 0000000..dd58b2d
+--- /dev/null
++++ b/src/lib/file-store.cjs
+@@ -0,0 +1,60 @@
++// Shared local file primitives for the server and console jobs.
++const fs = require('node:fs');
++const path = require('node:path');
++const crypto = require('node:crypto');
++process.umask(0o077);
++const dataDir = () => path.resolve(process.env.TAFEL_DATA_DIR || path.join(process.cwd(), 'data'));
++const assetDir = () => path.resolve(process.env.TAFEL_ASSET_DIR || path.join(dataDir(), 'assets'));
++const segment = value => typeof value === 'string' && /^[\p{L}\p{N}][\p{L}\p{N}_. -]{0,127}$/u.test(value);
++function atomic(file, value) {
++  fs.mkdirSync(path.dirname(file), {recursive:true,mode:0o700});
++  const temporary = file + '.' + crypto.randomUUID() + '.tmp';
++  const fd = fs.openSync(temporary, 'wx', 0o600);
++  try { fs.writeFileSync(fd, typeof value === 'string' ? value : JSON.stringify(value)); fs.fsyncSync(fd); }
++  finally { fs.closeSync(fd); }
++  try { fs.renameSync(temporary,file); const dir = fs.openSync(path.dirname(file),'r'); try {fs.fsyncSync(dir);} finally {fs.closeSync(dir);} }
++  finally {if (fs.existsSync(temporary)) fs.unlinkSync(temporary);}
++}
++async function lock(name, action) {
++  if (!/^[a-zA-Z0-9-]+$/.test(name)) throw new Error('Invalid operation lock');
++  fs.mkdirSync(dataDir(),{recursive:true,mode:0o700});
++  const dir = path.join(dataDir(),'.lock-'+name);
++  const deadline = Date.now()+5000;
++  while (true) {
++    try {
++      fs.mkdirSync(dir,{mode:0o700});
++      fs.writeFileSync(path.join(dir,'pid'),String(process.pid),{mode:0o600,flag:'wx'});
++      break;
++    } catch(error) {
++      if (error.code !== 'EEXIST') throw error;
++      try {
++        const owner = Number(fs.readFileSync(path.join(dir,'pid'),'utf8'));
++        let alive = true;
++        try {process.kill(owner,0);} catch(e) {if(e.code === 'ESRCH') alive=false;}
++        if (!alive) {fs.unlinkSync(path.join(dir,'pid'));fs.rmdirSync(dir);continue;}
++      } catch(e) {
++        if (e.code === 'ENOENT' && fs.existsSync(dir) && Date.now()-fs.statSync(dir).mtimeMs>2000) {
++          try {fs.rmdirSync(dir);} catch {}
++        }
++      }
++      if (Date.now()>deadline) throw new Error('Store busy');
++      await new Promise(resolve=>setTimeout(resolve,10));
++    }
++  }
++  try {return await action();}
++  finally {fs.unlinkSync(path.join(dir,'pid'));fs.rmdirSync(dir);}
++}
++function users() {
++  try {
++    if(fs.statSync(path.join(dataDir(),'users.json')).size>4*1024*1024)throw new Error('User store limit');
++    const rows = JSON.parse(fs.readFileSync(path.join(dataDir(),'users.json'),'utf8'));
++    if (!Array.isArray(rows) || rows.some(u=>!segment(u.id)||typeof u.username!=='string'||typeof u.passwordHash!=='string'||!['admin','teacher'].includes(u.role))) throw new Error('Invalid user store');
++    if(new Set(rows.map(u=>u.id)).size!==rows.length||new Set(rows.map(u=>u.username.toLowerCase())).size!==rows.length)throw new Error('Duplicate identity');
++    return rows;
++  } catch(error) {if(error.code==='ENOENT') return [];throw error;}
++}
++function ready() {
++  try {return JSON.parse(fs.readFileSync(path.join(dataDir(),'schema.json'),'utf8')).version===1 && Array.isArray(users());}
++  catch {return false;}
++}
++module.exports = {dataDir,assetDir,segment,atomic,lock,users,ready};
+diff --git a/src/lib/gallery.ts b/src/lib/gallery.ts
+index 51fdb5f..156c5a9 100644
+--- a/src/lib/gallery.ts
++++ b/src/lib/gallery.ts
+@@ -1,3 +1,4 @@
++import {boundedBody} from './platform';
+ export type GalleryAssetKind = 'display' | 'thumbnails';
+ 
+ export interface GallerySearchItem {
+@@ -9,7 +10,7 @@ export interface GallerySearchItem {
+   displayUrl: string;
+ }
+ 
+-const GALLERY_ORIGIN = 'https://pix.foerster.rocks';
++export const GALLERY_ORIGIN = process.env.GALLERY_ORIGIN || '';
+ 
+ function htmlDecode(value: string) {
+   return value
+@@ -88,18 +89,19 @@ function parseGalleryItems(html: string): GallerySearchItem[] {
+ }
+ 
+ export async function searchGallery(query: string, page: number) {
++  if(!GALLERY_ORIGIN)throw new Error('Gallery unavailable');
+   const res = await fetch(buildSearchUrl(query.trim(), page), {
+     headers: {
+       'User-Agent': 'TafelPopafel/1.0'
+     },
+-    cache: 'no-store',
++    cache: 'no-store', redirect:'error', signal:AbortSignal.timeout(5000),
+   });
+ 
+   if (!res.ok) {
+     throw new Error(`Galerie-Suche fehlgeschlagen: ${res.status}`);
+   }
+ 
+-  const html = await res.text();
++  const html = new TextDecoder().decode(await boundedBody(res as any,16*1024*1024));
+   const items = parseGalleryItems(html);
+   const totalPages = extractTotalPages(html, page);
+ 
+diff --git a/src/lib/mobile-store.cjs b/src/lib/mobile-store.cjs
+new file mode 100644
+index 0000000..c7a9539
+--- /dev/null
++++ b/src/lib/mobile-store.cjs
+@@ -0,0 +1,63 @@
++const fs=require('node:fs');
++const path=require('node:path');
++const crypto=require('node:crypto');
++const store=require('./file-store.cjs');
++const digest=x=>crypto.createHash('sha256').update(x).digest('hex');
++const valid=x=>typeof x==='string'&&/^[A-Za-z0-9_-]{43}$/.test(x);
++const folder=()=>path.join(store.dataDir(),'mobile-tickets');
++const file=token=>path.join(folder(),digest(token)+'.json');
++const read=token=>JSON.parse(fs.readFileSync(file(token),'utf8'));
++async function issue(owner,now=Date.now()) {
++  if(!store.segment(owner)) throw new Error('Invalid owner');
++  return store.lock('mobile',async()=>{
++    fs.mkdirSync(folder(),{recursive:true,mode:0o700});
++    let total=0,mine=0;
++    for(const name of fs.readdirSync(folder())) {
++      if(!/^[a-f0-9]{64}\.json$/.test(name)) continue;
++      const target=path.join(folder(),name);
++      const row=JSON.parse(fs.readFileSync(target,'utf8'));
++      if(row.expires<=now) {fs.unlinkSync(target);continue;}
++      if(row.state!=='consumed') {total++;if(row.owner===owner)mine++;}
++    }
++    if(total>=2000||mine>=20) throw new Error('Upload slots busy');
++    const token=crypto.randomBytes(32).toString('base64url');
++    store.atomic(file(token),{owner,expires:now+15*60*1000,state:'waiting'});
++    return token;
++  });
++}
++function format(bytes) {
++  if(bytes.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex'))) return {ext:'png',mime:'image/png'};
++  if(bytes[0]===255&&bytes[1]===216&&bytes[2]===255) return {ext:'jpg',mime:'image/jpeg'};
++  if(bytes.subarray(0,4).toString()==='RIFF'&&bytes.subarray(8,12).toString()==='WEBP') return {ext:'webp',mime:'image/webp'};
++  throw new Error('Unsupported image');
++}
++async function upload(token,bytes,now=Date.now()) {
++  if(!valid(token)||!Buffer.isBuffer(bytes)||!bytes.length||bytes.length>5*1024*1024) throw new Error('Invalid upload');
++  const type=format(bytes);
++  return store.lock('mobile',async()=>{
++    const row=read(token);
++    if(row.expires<=now||row.state!=='waiting') throw new Error('Upload ticket expired or used');
++    const directory=path.join(store.assetDir(),'uploads',row.owner);
++    fs.mkdirSync(directory,{recursive:true,mode:0o700});
++    const existing=fs.readdirSync(directory);
++    const size=existing.reduce((n,name)=>n+fs.statSync(path.join(directory,name)).size,0);
++    if(existing.length>=200||size+bytes.length>100*1024*1024) throw new Error('Upload storage busy');
++    const name=crypto.randomUUID()+'.'+type.ext;
++    fs.writeFileSync(path.join(directory,name),bytes,{mode:0o600,flag:'wx'});
++    row.name=name;row.mime=type.mime;row.state='available';
++    store.atomic(file(token),row);
++    return '/assets/uploads/'+row.owner+'/'+name;
++  });
++}
++async function poll(token,owner,now=Date.now()) {
++  if(!valid(token)) throw new Error('Invalid upload ticket');
++  return store.lock('mobile',async()=>{
++    const row=read(token);
++    if(row.owner!==owner||row.expires<=now) throw new Error('Upload ticket unavailable');
++    if(row.state!=='available') return null;
++    const bytes=fs.readFileSync(path.join(store.assetDir(),'uploads',owner,row.name));
++    row.state='consumed';store.atomic(file(token),row);
++    return 'data:'+row.mime+';base64,'+bytes.toString('base64');
++  });
++}
++module.exports={issue,upload,poll,format,valid};
+diff --git a/src/lib/platform.ts b/src/lib/platform.ts
+new file mode 100644
+index 0000000..acbed91
+--- /dev/null
++++ b/src/lib/platform.ts
+@@ -0,0 +1,24 @@
++import * as store from './file-store.cjs';
++export const ready=()=>store.ready();
++export function publicOrigin() {
++  const value=process.env.BASE_URL||'http://localhost:3000';
++  const url=new URL(value);
++  if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.search||url.hash||url.pathname!=='/') throw new Error('BASE_URL requires an HTTP(S) origin');
++  return url.origin;
++}
++export async function boundedBody(request:Request,limit:number):Promise<Uint8Array> {
++  const chunks:Uint8Array[]=[];let size=0;
++  if(!request.body) return new Uint8Array();
++  const reader=request.body.getReader();
++  try {
++    while(true) {
++      const {done,value}=await reader.read();if(done) break;
++      size+=value.byteLength;if(size>limit) throw new Error('Body limit');
++      chunks.push(value);
++    }
++  } finally {reader.releaseLock();}
++  const result=new Uint8Array(size);let offset=0;
++  for(const part of chunks) {result.set(part,offset);offset+=part.byteLength;}
++  return result;
++}
++export async function boundedJson(request:Request,limit=16384) {return JSON.parse(new TextDecoder().decode(await boundedBody(request,limit)));}
+diff --git a/src/lib/session-store.cjs b/src/lib/session-store.cjs
+new file mode 100644
+index 0000000..210cfb4
+--- /dev/null
++++ b/src/lib/session-store.cjs
+@@ -0,0 +1,40 @@
++const fs=require('node:fs');
++const path=require('node:path');
++const crypto=require('node:crypto');
++const store=require('./file-store.cjs');
++const digest=v=>crypto.createHash('sha256').update(v).digest('hex');
++const valid=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{43}$/.test(v);
++const filename=sid=>path.join(store.dataDir(),'sessions',digest(sid)+'.json');
++const version=user=>digest(user.passwordHash);
++async function issue(user,device) {
++  if(!valid(device)) throw new Error('Invalid device cookie');
++  return store.lock('sessions',async()=>{
++    const directory=path.join(store.dataDir(),'sessions');
++    fs.mkdirSync(directory,{recursive:true,mode:0o700});
++    const files=fs.readdirSync(directory).filter(f=>/^[a-f0-9]{64}\.json$/.test(f));
++    let current=0;
++    for(const file of files) {
++      const target=path.join(directory,file);
++      const row=JSON.parse(fs.readFileSync(target,'utf8'));
++      if(row.expires<=Date.now()) fs.unlinkSync(target);
++      else if(row.id===user.id) current++;
++    }
++    if(files.length>4000||current>=10) throw new Error('Session slots busy');
++    const sid=crypto.randomBytes(32).toString('base64url');
++    store.atomic(filename(sid),{id:user.id,deviceHash:digest(device),version:version(user),expires:Date.now()+8*60*60*1000});
++    return sid;
++  });
++}
++function verify(sid,device) {
++  if(!valid(sid)||!valid(device)) return null;
++  try {
++    const row=JSON.parse(fs.readFileSync(filename(sid),'utf8'));
++    if(row.expires<=Date.now()||row.deviceHash!==digest(device)) return null;
++    const user=store.users().find(u=>u.id===row.id);
++    if(!user||row.version!==version(user)) return null;
++    if(user.bootstrapExpiresAt!==undefined&&user.bootstrapExpiresAt<=Date.now()) return null;
++    return user;
++  } catch {return null;}
++}
++function revoke(sid) {if(valid(sid)) try {fs.unlinkSync(filename(sid));} catch(error) {if(error.code!=='ENOENT')throw error;}}
++module.exports={issue,verify,revoke,digest,valid};
+diff --git a/src/lib/session.ts b/src/lib/session.ts
+index 98ffc52..b66b628 100644
+--- a/src/lib/session.ts
++++ b/src/lib/session.ts
+@@ -1,58 +1,52 @@
+ import { SignJWT, jwtVerify } from 'jose';
+ import { cookies } from 'next/headers';
++import { randomBytes } from 'node:crypto';
++import * as records from './session-store.cjs';
++import { getUsers } from './users';
+ 
+-function getKey(): Uint8Array {
+-  const secret = process.env.SESSION_SECRET;
+-  if (!secret) throw new Error('SESSION_SECRET environment variable is not set');
+-  return new TextEncoder().encode(secret);
++function getKey():Uint8Array {
++  const value=process.env.SESSION_SECRET;
++  if(!value||value.length<32) throw new Error('Private SESSION_SECRET required');
++  return new TextEncoder().encode(value);
+ }
+-
+-export interface SessionPayload {
+-  id: string;
+-  username: string;
+-  role: 'admin' | 'teacher';
+-  mustChangePassword?: boolean;
+-}
+-
+-export async function encrypt(payload: SessionPayload) {
+-  return await new SignJWT(payload as any)
+-    .setProtectedHeader({ alg: 'HS256' })
+-    .setIssuedAt()
+-    .setExpirationTime('30d')
+-    .sign(getKey());
++export interface SessionPayload {id:string;username:string;role:'admin'|'teacher';mustChangePassword?:boolean;sid?:string}
++export async function encrypt(payload:SessionPayload) {
++  return new SignJWT(payload as any).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime('8h').sign(getKey());
+ }
+-
+-export async function decrypt(input: string): Promise<SessionPayload | null> {
++export async function decrypt(input:string):Promise<SessionPayload|null> {
+   try {
+-    const { payload } = await jwtVerify(input, getKey(), {
+-      algorithms: ['HS256'],
+-    });
++    const {payload}=await jwtVerify(input,getKey(),{algorithms:['HS256']});
++    if(!records.valid(payload.sid)) return null;
+     return payload as unknown as SessionPayload;
+-  } catch {
+-    return null;
+-  }
++  } catch {return null;}
++}
++export async function sessionFor(token:string|undefined,device:string|undefined):Promise<SessionPayload|null> {
++  if(!token||!device) return null;
++  const claims=await decrypt(token);
++  if(!claims) return null;
++  const user=records.verify(claims.sid,device);
++  if(!user||user.id!==claims.id) return null;
++  return {id:user.id,username:user.username,role:user.role,mustChangePassword:user.mustChangePassword??false};
+ }
+-
+ export async function getSession() {
+-  const cookieStore = await cookies();
+-  const sessionCookie = cookieStore.get('session');
+-  if (!sessionCookie) return null;
+-  return await decrypt(sessionCookie.value);
++  const jar=await cookies();
++  return sessionFor(jar.get('session')?.value,jar.get('tafel_device')?.value);
+ }
+-
+-export async function createSession(payload: SessionPayload) {
+-  const sessionToken = await encrypt(payload);
+-  const cookieStore = await cookies();
+-  cookieStore.set('session', sessionToken, {
+-    httpOnly: true,
+-    secure: process.env.NODE_ENV === 'production',
+-    sameSite: 'lax',
+-    path: '/',
+-    maxAge: 30 * 24 * 60 * 60,
+-  });
++export async function createSession(payload:SessionPayload,credentialHash?:string) {
++  const user=(await getUsers()).find(u=>u.id===payload.id);
++  if(!user || (credentialHash && credentialHash!==user.passwordHash)) throw new Error('Credential changed');
++  const jar=await cookies();
++  const previous=await decrypt(jar.get('session')?.value||'');
++  if(previous?.sid) records.revoke(previous.sid);
++  const device=randomBytes(32).toString('base64url');
++  const sid=await records.issue(user,device);
++  const options={httpOnly:true,secure:(process.env.BASE_URL||'').startsWith('https://'),sameSite:'strict' as const,path:'/',maxAge:8*60*60};
++  jar.set('tafel_device',device,options);
++  jar.set('session',await encrypt({...payload,sid}),options);
+ }
+-
+ export async function clearSession() {
+-  const cookieStore = await cookies();
+-  cookieStore.delete('session');
++  const jar=await cookies();
++  const claims=await decrypt(jar.get('session')?.value||'');
++  if(claims?.sid) records.revoke(claims.sid);
++  jar.delete('session');jar.delete('tafel_device');
+ }
+diff --git a/src/lib/users.ts b/src/lib/users.ts
+index 52a5cc2..09aebc1 100644
+--- a/src/lib/users.ts
++++ b/src/lib/users.ts
+@@ -1,110 +1,65 @@
+-import { promises as fs } from 'fs';
+-import path from 'path';
+ import bcrypt from 'bcryptjs';
+ import { randomUUID } from 'node:crypto';
+-
+-const DATA_DIR = path.join(process.cwd(), 'data');
+-const USERS_FILE = path.join(DATA_DIR, 'users.json');
++import path from 'node:path';
++import * as store from './file-store.cjs';
+ 
+ export interface User {
+-  id: string;
+-  username: string;
+-  passwordHash: string;
+-  role: 'admin' | 'teacher';
+-  createdAt: string;
+-  mustChangePassword?: boolean;
+-  bootstrapExpiresAt?: number;
++  id: string; username: string; passwordHash: string; role: 'admin'|'teacher'; createdAt: string;
++  mustChangePassword?: boolean; bootstrapExpiresAt?: number;
+ }
+-
+-// Initial administrators are provisioned exclusively through the local CLI.
+-export async function initUsersFile() {
+-  await fs.mkdir(DATA_DIR, { recursive: true });
+-
+-  // Do not create an account in response to an unauthenticated HTTP request.
++export async function initUsersFile() { /* No account or schema creation in requests. */ }
++export async function getUsers(): Promise<User[]> { return store.users(); }
++export async function saveUsers(users: User[]): Promise<void> {
++  await store.lock('users', async()=>store.atomic(path.join(store.dataDir(),'users.json'),users));
+ }
+-
+-export async function getUsers(): Promise<User[]> {
+-  await initUsersFile();
+-  try {
+-    const data = await fs.readFile(USERS_FILE, 'utf-8');
+-    return JSON.parse(data) as User[];
+-  } catch (error) {
+-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+-    throw error;
+-  }
++export async function mutateUsers<T>(action: (users: User[])=>Promise<T>): Promise<T> {
++  return store.lock('users',async()=>{
++    const users = await getUsers();
++    const result=await action(users);
++    store.atomic(path.join(store.dataDir(),'users.json'),users);
++    return result;
++  });
+ }
+-
+-export async function saveUsers(users: User[]): Promise<void> {
+-  await initUsersFile();
+-  const temporary = `${USERS_FILE}.${randomUUID()}.tmp`;
+-  const handle = await fs.open(temporary, 'wx', 0o600);
+-  try {
+-    await handle.writeFile(JSON.stringify(users, null, 2), 'utf-8');
+-    await handle.sync();
+-  } finally {
+-    await handle.close();
+-  }
+-  await fs.rename(temporary, USERS_FILE);
++export async function getUser(username:string):Promise<User|undefined> {
++  return (await getUsers()).find(u=>u.username.toLowerCase()===username.toLowerCase());
+ }
+-
+-export async function getUser(username: string): Promise<User | undefined> {
+-  const users = await getUsers();
+-  // case insensitive username check
+-  return users.find(u => u.username.toLowerCase() === username.toLowerCase());
++export async function consumeBootstrap(user:User):Promise<boolean> {
++  if(user.bootstrapExpiresAt===undefined) return true;
++  if(user.bootstrapExpiresAt<=Date.now()||!store.segment(user.id)) return false;
++  const fs=await import('node:fs/promises');
++  try {const handle=await fs.open(path.join(store.dataDir(),'bootstrap-consumed-'+user.id),'wx',0o600);await handle.close();return true;}
++  catch(error){if((error as NodeJS.ErrnoException).code==='EEXIST') return false;throw error;}
+ }
+-
+-export async function consumeBootstrap(user: User): Promise<boolean> {
+-  if (user.bootstrapExpiresAt === undefined) return true;
+-  if (user.bootstrapExpiresAt <= Date.now()) return false;
+-  if (!/^[a-zA-Z0-9-]+$/.test(user.id)) return false;
+-  try {
+-    const handle = await fs.open(path.join(DATA_DIR, `bootstrap-consumed-${user.id}`), 'wx', 0o600);
+-    await handle.close();
+-    return true;
+-  } catch (error) {
+-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
+-    throw error;
+-  }
++export async function authenticate(username:string,password:string):Promise<User|null> {
++  return store.lock('users',async()=>{
++    const user=await getUser(username);
++    if(!user || (user.bootstrapExpiresAt!==undefined&&user.bootstrapExpiresAt<=Date.now()) ||
++        !await bcrypt.compare(password,user.passwordHash) || !await consumeBootstrap(user)) return null;
++    return user;
++  });
+ }
+-
+-export async function deleteUser(username: string): Promise<void> {
+-  const users = await getUsers();
+-  const filtered = users.filter(u => u.username.toLowerCase() !== username.toLowerCase());
+-  if (filtered.length === users.length) throw new Error('Benutzer nicht gefunden');
+-  await saveUsers(filtered);
++export async function deleteUser(username:string):Promise<void> {
++  await mutateUsers(async users=>{
++    const index=users.findIndex(u=>u.username.toLowerCase()===username.toLowerCase());
++    if(index<0) throw new Error('Benutzer nicht gefunden');
++    if(users[index].role==='admin'&&users.filter(u=>u.role==='admin').length===1) throw new Error('Letzter Admin bleibt erhalten');
++    users.splice(index,1);
++  });
+ }
+-
+-export async function updateUserPassword(username: string, newPasswordPlain: string): Promise<void> {
+-  const users = await getUsers();
+-  const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+-  if (!user) throw new Error('Benutzer nicht gefunden');
+-  user.passwordHash = await bcrypt.hash(newPasswordPlain, 10);
+-  user.mustChangePassword = false;
+-  delete user.bootstrapExpiresAt;
+-  await saveUsers(users);
++export async function updateUserPassword(username:string,password:string):Promise<void> {
++  if(!/^\d{6}$/.test(password)) throw new Error('PIN muss 6 Ziffern enthalten');
++  await mutateUsers(async users=>{
++    const user=users.find(u=>u.username.toLowerCase()===username.toLowerCase());
++    if(!user) throw new Error('Benutzer nicht gefunden');
++    user.passwordHash=await bcrypt.hash(password,10);user.mustChangePassword=false;delete user.bootstrapExpiresAt;
++  });
+ }
+-
+-export async function createUser(username: string, passwordPlain: string, role: 'admin' | 'teacher' = 'teacher'): Promise<User> {
+-  const users = await getUsers();
+-  if (users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
+-    throw new Error('Benutzername existiert bereits');
+-  }
+-
+-  const hash = await bcrypt.hash(passwordPlain, 10);
+-  const newUser: User = {
+-    id: crypto.randomUUID(),
+-    username,
+-    passwordHash: hash,
+-    role,
+-    createdAt: new Date().toISOString()
+-  };
+-
+-  users.push(newUser);
+-  await saveUsers(users);
+-  
+-  // Create a separate directory for the user's notebooks
+-  const userDir = path.join(DATA_DIR, newUser.id);
+-  await fs.mkdir(userDir, { recursive: true });
+-
+-  return newUser;
++export async function createUser(username:string,password:string,role:'admin'|'teacher'='teacher'):Promise<User> {
++  if(typeof username!=='string'||!/^[\p{L}\p{N}_.@-]{3,80}$/u.test(username)||!/^\d{6}$/.test(password)||!['admin','teacher'].includes(role)) throw new Error('Ungültiger Benutzer oder PIN');
++  return mutateUsers(async users=>{
++    if(users.length>=200)throw new Error('Benutzerplätze belegt');
++    if(users.some(u=>u.username.toLowerCase()===username.toLowerCase())) throw new Error('Benutzername existiert bereits');
++    const user:User={id:randomUUID(),username,passwordHash:await bcrypt.hash(password,10),role,createdAt:new Date().toISOString()};
++    users.push(user);return user;
++  });
+ }
+diff --git a/src/middleware.ts b/src/middleware.ts
+index 9db6393..e238464 100644
+--- a/src/middleware.ts
++++ b/src/middleware.ts
+@@ -1,57 +1,39 @@
+ import { NextResponse } from 'next/server';
+ import type { NextRequest } from 'next/server';
+-import { getSession } from './lib/session';
+-
+-// Define public routes
+-const publicRoutes = ['/login', '/api/auth/login', '/api/auth/users', '/upload', '/api/mobile-upload'];
+-const adminRoutes = ['/admin', '/api/admin'];
+-
+-export async function middleware(req: NextRequest) {
+-  const path = req.nextUrl.pathname;
+-  const isPublicRoute = publicRoutes.some(r => path.startsWith(r));
+-  const isAdminRoute = adminRoutes.some(r => path.startsWith(r));
+-
+-  // Bypass next internal files and assets
+-  if (path.startsWith('/_next') || path.startsWith('/favicon.ico')) {
+-    return NextResponse.next();
+-  }
+-
+-  const session = await getSession();
+-
+-  // Redirect to login if unauthenticated and not on a public route
+-  if (!session && !isPublicRoute) {
+-    // Return 401 for API routes instead of redirect
+-    if (path.startsWith('/api/')) {
+-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+-    }
+-    return NextResponse.redirect(new URL('/login', req.nextUrl));
++import { sessionFor } from './lib/session';
++import { ready,publicOrigin } from './lib/platform';
++
++const publicRoute=(path:string)=>['/login','/api/auth/login','/api/auth/users','/upload','/api/mobile-upload'].includes(path);
++async function access(req:NextRequest) {
++  const path=req.nextUrl.pathname;
++  if(path==='/health/live'||path==='/health/ready') return NextResponse.next();
++  if(!ready()) return NextResponse.json({error:'Einrichtung noch nicht abgeschlossen'},{status:503});
++  if(!['GET','HEAD','OPTIONS'].includes(req.method)) {
++    const origin=req.headers.get('origin');
++    if(origin&&origin!==publicOrigin()) return NextResponse.json({error:'Unzulässiger Ursprung'},{status:403});
+   }
+-
+-  // Redirect to dashboard if logged in but trying to access login
+-  if (session && path === '/login') {
+-    return NextResponse.redirect(new URL('/', req.nextUrl));
++  if(path.startsWith('/_next/')||path==='/favicon.ico') return NextResponse.next();
++  const session=await sessionFor(req.cookies.get('session')?.value,req.cookies.get('tafel_device')?.value);
++  if(!session&&!publicRoute(path)) {
++    if(path.startsWith('/api/')||path.startsWith('/assets/')) return NextResponse.json({error:'Unauthorized'},{status:401});
++    return NextResponse.redirect(new URL('/login',publicOrigin()));
+   }
+-
+-  // Force password change for users who must set a new password
+-  const changePasswordPaths = ['/change-password', '/api/auth/change-password', '/api/auth/logout'];
+-  if (session?.mustChangePassword && !changePasswordPaths.some(p => path.startsWith(p))) {
+-    if (path.startsWith('/api/')) {
+-      return NextResponse.json({ error: 'Passwortänderung erforderlich' }, { status: 403 });
+-    }
+-    return NextResponse.redirect(new URL('/change-password', req.nextUrl));
++  if(session&&path==='/login') return NextResponse.redirect(new URL('/',publicOrigin()));
++  const change=['/change-password','/api/auth/change-password','/api/auth/logout'];
++  if(session?.mustChangePassword&&!change.includes(path)) {
++    if(path.startsWith('/api/')) return NextResponse.json({error:'PIN-Wechsel erforderlich'},{status:403});
++    return NextResponse.redirect(new URL('/change-password',publicOrigin()));
+   }
+-
+-  // Restrict admin routes to actual admins
+-  if (session && isAdminRoute && session.role !== 'admin') {
+-    if (path.startsWith('/api/')) {
+-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+-    }
+-    return NextResponse.redirect(new URL('/', req.nextUrl));
++  if(session&&(path==='/admin'||path.startsWith('/api/admin/'))&&session.role!=='admin') {
++    return NextResponse.json({error:'Forbidden'},{status:403});
+   }
+-
+   return NextResponse.next();
+ }
+-
+-export const config = {
+-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+-};
++export async function middleware(req:NextRequest){
++  const response=await access(req);
++  response.headers.set('Cache-Control','private, no-store');
++  response.headers.set('Referrer-Policy','no-referrer');
++  response.headers.set('X-Content-Type-Options','nosniff');
++  return response;
++}
++export const config={runtime:'nodejs',matcher:['/((?!_next/static|_next/image|favicon.ico).*)']};
 -- 
 2.43.0
 

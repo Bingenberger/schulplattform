@@ -21,7 +21,12 @@ from schulplattform.deployment import Gate, Server
 from schulplattform.pilot import Pilot, INFRASTRUCTURE
 from schulplattform.pilot_engine import PilotEngine
 
-pilot = Pilot(ROOT / ".work/pilot-v2")
+import argparse
+parser=argparse.ArgumentParser()
+parser.add_argument("--state-dir", default=".work/pilot-v2")
+args=parser.parse_args()
+pilot = Pilot(ROOT / args.state_dir)
+control_app = "grundschultafel" if "grundschultafel" in pilot.apps else "gswb"
 directory = ROOT / ".work" / ("dashboard-test-" + secrets.token_hex(5))
 directory.mkdir(mode=0o700)
 sockets = directory / "sockets"
@@ -42,6 +47,9 @@ catalogue = {
              "url": "https://woerter.localhost:" + str(pilot.config["port"]), "public": True},
     "schulwissen": {"name": "Schulwissen", "description": "Schulinterne Inhalte",
                    "url": "https://wissen.localhost:" + str(pilot.config["port"]), "public": False}}
+if "grundschultafel" in pilot.apps:
+    catalogue["grundschultafel"]={"name":"Grundschultafel","description":"Persönliche Lehrertafel",
+        "url":"https://tafel.localhost:"+str(pilot.config["port"]), "public":False}
 (directory / "apps.json").write_text(json.dumps(catalogue))
 (directory / "Caddyfile").write_text("{\n admin localhost:2019\n local_certs\n}\nverwaltung.localhost {\n reverse_proxy dashboard:8000\n}\n")
 compose_data = {
@@ -130,7 +138,7 @@ try:
     assert status == 200 and "Wörterbuch" in html
     assert catalogue["schulwissen"]["url"] not in html
     assert request("/admin")[0] == 302
-    assert request("/admin/actions/gswb/start", "POST", {})[0] == 403
+    assert request("/admin/actions/"+control_app+"/start", "POST", {})[0] == 403
     status, html = request("/login")
     assert status == 200
     assert request("/login", "POST", {"csrf": token(html), "username": "synthetic.operator",
@@ -143,13 +151,13 @@ try:
     assert status == 200 and "Plattform verwalten" in html
     assert password not in html and seed not in html and key.decode() not in html
     csrf = token(html)
-    assert request("/admin/actions/gswb/shell", "POST", {"csrf": csrf})[0] == 404
-    assert request("/admin/actions/gswb/start", "POST", {"csrf": csrf})[0] == 302
-    assert PilotEngine(pilot).status("gswb")["health"] == "healthy"
-    assert request("/admin/actions/gswb/stop", "POST", {})[0] == 403
-    assert PilotEngine(pilot).status("gswb")["running"]
-    assert request("/admin/actions/gswb/stop", "POST", {"csrf": csrf})[0] == 302
-    assert not PilotEngine(pilot).status("gswb")["running"]
+    assert request("/admin/actions/"+control_app+"/shell", "POST", {"csrf": csrf})[0] == 404
+    assert request("/admin/actions/"+control_app+"/start", "POST", {"csrf": csrf})[0] == 302
+    assert PilotEngine(pilot).status(control_app)["health"] == "healthy"
+    assert request("/admin/actions/"+control_app+"/stop", "POST", {})[0] == 403
+    assert PilotEngine(pilot).status(control_app)["running"]
+    assert request("/admin/actions/"+control_app+"/stop", "POST", {"csrf": csrf})[0] == 302
+    assert not PilotEngine(pilot).status(control_app)["running"]
     assert request("/logout", "POST", {"csrf": csrf})[0] == 302
     assert request("/admin")[0] == 302
     web = run(base + ["ps", "-q", "dashboard"]).strip()
@@ -161,7 +169,7 @@ try:
     report = {"scope": "synthetic admin, real dashboard container, real authenticated Unix service and pilot actions",
               "imageId": info["Image"],
               "tls": True, "totpRequired": True, "anonymousAdminDenied": True, "csrfEnforced": True,
-              "unknownActionDenied": True, "appStartAndStop": True, "logoutRevokes": True,
+              "unknownActionDenied": True, "appStartAndStop": True, "controlledApp": control_app, "logoutRevokes": True,
               "noDockerSocket": True, "nonRootReadOnly": True, "noCredentialsInHtmlOrEnv": True,
               "appAccessProjectionEnforced": True}
 finally:

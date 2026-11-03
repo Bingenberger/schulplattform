@@ -1,4 +1,4 @@
-"""Local SQLite + directory snapshots; caller must pause all application writers.
+"""Local SQLite + file/directory snapshots; caller must pause all application writers.
 
 No encryption, retention or remote transport is provided here. Restore requires an
 isolated empty target and a separately trusted archive checksum. Links and special
@@ -33,14 +33,15 @@ def checksum(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def create(root, stream, database=None, directories=()):
+def create(root, stream, database=None, directories=(), files=()):
     root = Path(root)
     if root.is_symlink() or not root.is_dir():
         raise ValueError("Invalid source root")
     paths = [relative(item) for item in directories]
+    regular = [relative(item) for item in files]
     if database is not None:
         relative(database)
-    selected = paths + ([database] if database else [])
+    selected = paths + regular + ([database] if database else [])
     if len(set(selected)) != len(selected) or any(
             a != b and PurePosixPath(a) in PurePosixPath(b).parents for a in selected for b in selected):
         raise ValueError("Overlapping snapshot paths")
@@ -90,6 +91,14 @@ def create(root, stream, database=None, directories=()):
                 if not source.is_dir():
                     raise ValueError("Declared directory missing")
                 add(archive, source, directory)
+            for name in regular:
+                source = root / name
+                for part in (Path(name), *Path(name).parents):
+                    if (root / part).is_symlink():
+                        raise ValueError("Symlink file path")
+                if not source.is_file():
+                    raise ValueError("Declared regular file missing")
+                add(archive, source, name)
             manifest = {"format": 1, "uid": os.getuid(), "gid": os.getgid(),
                         "database": {"path": database, **metadata} if metadata else None,
                         "entries": entries}
@@ -182,13 +191,14 @@ def main():
     create_parser.add_argument("root")
     create_parser.add_argument("--database")
     create_parser.add_argument("--directory", action="append", default=[])
+    create_parser.add_argument("--file", action="append", default=[])
     restore_parser = commands.add_parser("restore")
     restore_parser.add_argument("archive")
     restore_parser.add_argument("target")
     restore_parser.add_argument("--sha256", required=True)
     args = parser.parse_args()
     if args.action == "create":
-        create(args.root, sys.stdout.buffer, args.database, args.directory)
+        create(args.root, sys.stdout.buffer, args.database, args.directory, args.file)
     else:
         restore(args.archive, args.target, args.sha256)
 

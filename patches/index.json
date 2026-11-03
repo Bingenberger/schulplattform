@@ -20,7 +20,7 @@
   {
     "app": "grundschultafel",
     "baseCommit": "496466cac7cc2b3e48a6acd2940ebc91029c145f",
-    "implementationCommit": "79e4991283c2fd765dcfecfdd996185e74c1841a",
+    "implementationCommit": "4307aeeb5c172ee4a6ed8763ead2828281e9b66e",
     "patch": "patches/grundschultafel/changes.patch"
   },
   {

@@ -23,10 +23,12 @@ packages = {
         'public/teacher.html', 'public/js/teacher.js',
         'test/session-expiry.js', 'test/bootstrap.js', 'test/e2e.js',
         'test/run-fixtures.js', 'test/platform-contract.js']),
-    'grundschultafel': ('Replace default login with local single-use bootstrap', [
-        'src/lib/users.ts', 'src/app/api/auth/change-password/route.ts',
-        'src/app/api/auth/login/route.ts', 'src/app/change-password/page.tsx',
-        'src/app/login/page.tsx', 'scripts/bootstrap.mjs', 'scripts/test-users.cjs', 'PLATFORM.md']),
+    'grundschultafel': ('Add isolated Next runtime, transactional files and revocable personal sessions', [
+        'Dockerfile', '.dockerignore', '.gitignore', 'docker-compose.yml', 'next.config.ts', 'PLATFORM.md', 'README.md',
+        'src/lib', 'src/middleware.ts', 'src/app/api', 'src/app/assets', 'src/app/health',
+        'src/app/change-password/page.tsx', 'src/app/login/page.tsx', 'src/app/upload/page.tsx',
+        'src/app/layout.tsx', 'src/app/globals.css', 'src/components/Toolbar.tsx',
+        'public/timer/index.html', 'scripts']),
     'schulhelfer': ('Add isolated standalone runtime, explicit migrations and private local setup', [
         'Dockerfile', '.dockerignore', '.gitignore', 'docker-compose.yml',
         'requirements.txt', 'requirements.lock', 'requirements-test.lock', 'PLATFORM.md', 'README.md',

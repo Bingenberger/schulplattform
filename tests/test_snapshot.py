@@ -87,3 +87,32 @@ def test_snapshot_rejects_source_symlinks_and_overlapping_database_selection(tmp
         create(tmp_path, io.BytesIO(), directories=["uploads"])
     with pytest.raises(ValueError, match="Overlapping"):
         create(tmp_path, io.BytesIO(), "uploads/db", ["uploads"])
+
+
+def test_file_store_snapshot_preserves_top_level_metadata_and_nested_ownership(tmp_path):
+    source, target = tmp_path / "source", tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    (source / "teacher-a").mkdir()
+    (source / "teacher-a/book.json").write_text('{"pages":[]}')
+    (source / "users.json").write_text('[{"id":"teacher-a","role":"teacher"}]')
+    (source / "schema.json").write_text('{"version":1}')
+    archive = tmp_path / "files.tar"
+    with archive.open("wb") as stream:
+        create(source, stream, directories=["teacher-a"], files=["users.json", "schema.json"])
+    manifest = restore(archive, target, checksum(archive))
+    assert manifest["database"] is None
+    assert json.loads((target / "users.json").read_text())[0]["id"] == "teacher-a"
+    assert (target / "teacher-a/book.json").read_bytes() == (source / "teacher-a/book.json").read_bytes()
+    assert (target / "users.json").stat().st_mode & 0o777 == 0o600
+
+
+def test_regular_file_selection_rejects_parent_links_directories_and_overlap(tmp_path):
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data/users.json").write_text("[]")
+    (tmp_path / "link").symlink_to(tmp_path / "data", target_is_directory=True)
+    for path in ["link/users.json", "data"]:
+        with pytest.raises(ValueError):
+            create(tmp_path, io.BytesIO(), files=[path])
+    with pytest.raises(ValueError, match="Overlapping"):
+        create(tmp_path, io.BytesIO(), directories=["data"], files=["data/users.json"])
