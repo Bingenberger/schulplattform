@@ -1,0 +1,141 @@
+[
+  {
+    "command": [
+      "docker",
+      "ps",
+      "-q",
+      "--filter",
+      "label=com.docker.compose.project=sp-leseflux-standalone-9256b23bf4"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-leseflux-standalone-9256b23bf4",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/leseflux/docker-compose.yml",
+      "up",
+      "-d",
+      "--no-build",
+      "--wait",
+      "postgres"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-leseflux-standalone-9256b23bf4",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/leseflux/docker-compose.yml",
+      "ps",
+      "-q",
+      "postgres"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-leseflux-restore-be4f1c0712",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/leseflux/docker-compose.yml",
+      "up",
+      "-d",
+      "--no-build",
+      "--wait",
+      "postgres"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-leseflux-restore-be4f1c0712",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/leseflux/docker-compose.yml",
+      "ps",
+      "-q",
+      "postgres"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-leseflux-restore-be4f1c0712",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/leseflux/docker-compose.yml",
+      "up",
+      "-d",
+      "--no-build",
+      "--wait",
+      "app"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-leseflux-restore-be4f1c0712",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/leseflux/docker-compose.yml",
+      "exec",
+      "-T",
+      "app",
+      "node",
+      "-"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-leseflux-restore-be4f1c0712",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/leseflux/docker-compose.yml",
+      "ps",
+      "-q",
+      "app"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "docker",
+      "inspect",
+      "5ebe3f7d9a6ccb9319c01dea7f0ec833c6a762162f1ad3ce3ec867faa6bdb56e"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-leseflux-restore-be4f1c0712",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/leseflux/docker-compose.yml",
+      "stop"
+    ],
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "/home/emrichschule/schulplattform/.work/docker-compose",
+      "-p",
+      "sp-leseflux-standalone-9256b23bf4",
+      "-f",
+      "/home/emrichschule/schulplattform/.work/apps/leseflux/docker-compose.yml",
+      "stop"
+    ],
+    "exitCode": 0
+  }
+]

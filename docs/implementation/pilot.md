@@ -142,3 +142,15 @@ Der Erstlauf führt nur python -m app.migrate aus, keinen Konto- oder Seedjob.
 Workerlimits, QR-Domainwechsel und PG-/Vorlagenrestore. Vor Domainwechsel
 Postengeräte vollständig synchronisieren: IndexedDB/PWA bleibt an die alte
 Browser-Origin gebunden. Serverbackup enthält keine ungesendeten Geräteereignisse.
+
+## Optionaler achter Dienst: Leseflux
+
+Nach scripts/build_leseflux.py in einem neuen Zustandsordner mit --apps
+gswb,schulwissen,zackboing,schulhelfer,losverkauf,grundschultafel,fahrradausbildung,leseflux
+installieren. Geprüfte Umgebung: .work/pilot-v18. Eigene PostgreSQL-Instanz und
+beschränkte Approlle, private DB-/JWT-Dateien sowie internes Proxynetz. Der
+Erstlauf führt Migration und reinen Inhaltsjob aus, erzeugt aber keine Konten.
+Persönlicher Erstadmin wird separat interaktiv eingerichtet.
+
+[Leseflux-Abnahme](leseflux.md) dokumentiert widerrufbare lokale Kinder-/Lehrkraftzugänge,
+Bestandskarten, CSRF, Domainrückfall, vollständige Fachdatensicherung und Grenzen.

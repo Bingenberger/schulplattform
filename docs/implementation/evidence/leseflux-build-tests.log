@@ -1,0 +1,64 @@
+$ docker build --platform linux/amd64 --memory 1536m --target tests -t leseflux-tests:0.1.0-dev .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  1.252MB
+Step 1/19 : FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS dependencies
+ ---> c469fbffcbb0
+Step 2/19 : ENV npm_config_cache=/tmp/npm-cache NEXT_TELEMETRY_DISABLED=1
+ ---> Using cache
+ ---> bad08e5d75d7
+Step 3/19 : WORKDIR /build
+ ---> Using cache
+ ---> d30397b4784f
+Step 4/19 : RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+ ---> Using cache
+ ---> 855956baabe8
+Step 5/19 : COPY package.json package-lock.json ./
+ ---> Using cache
+ ---> 941b78fea7ff
+Step 6/19 : COPY apps/api/package.json ./apps/api/
+ ---> Using cache
+ ---> 6fcbf54831fa
+Step 7/19 : COPY apps/web/package.json ./apps/web/
+ ---> Using cache
+ ---> f4bc93bdc5a8
+Step 8/19 : COPY packages/shared/package.json ./packages/shared/
+ ---> Using cache
+ ---> 75d80b770c60
+Step 9/19 : RUN npm ci --no-audit --no-fund && rm -rf /tmp/npm-cache
+ ---> Using cache
+ ---> d9afd2002e51
+Step 10/19 : FROM dependencies AS builder
+ ---> d9afd2002e51
+Step 11/19 : COPY tsconfig.base.json ./
+ ---> Using cache
+ ---> be149840138f
+Step 12/19 : COPY packages/shared ./packages/shared
+ ---> Using cache
+ ---> d14e82d20f27
+Step 13/19 : COPY apps/api ./apps/api
+ ---> Using cache
+ ---> 1d2e71444c36
+Step 14/19 : COPY apps/web ./apps/web
+ ---> Using cache
+ ---> 3898e7214367
+Step 15/19 : RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build ./node_modules/.bin/prisma generate --schema apps/api/prisma/schema.prisma
+ ---> Using cache
+ ---> 27c1d556f733
+Step 16/19 : RUN npm run build && npm run typecheck -w apps/api
+ ---> Using cache
+ ---> 2b67bd977a80
+Step 17/19 : FROM builder AS tests
+ ---> 2b67bd977a80
+Step 18/19 : COPY contract_tests ./contract_tests
+ ---> Using cache
+ ---> e3a72ea42bac
+Step 19/19 : USER 10001:10001
+ ---> Using cache
+ ---> 20a980d03ae2
+Successfully built 20a980d03ae2
+Successfully tagged leseflux-tests:0.1.0-dev
+
+exit_code=0

@@ -1,0 +1,2097 @@
+From 53810f329f6f2614da7c4fe51ac32c1c83a91a3c Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Tue, 3 Nov 2026 12:04:53 +0100
+Subject: [PATCH 1/2] Add isolated Node runtime, explicit Prisma migration and
+ revocable local sessions
+
+---
+ .dockerignore                                 |  39 +++++
+ .gitignore                                    |   2 +
+ CLAUDE.md                                     |  12 +-
+ Dockerfile                                    |  37 +++++
+ PLATFORM.md                                   |  92 +++++++++++
+ README.md                                     | 101 +-----------
+ apps/api/Dockerfile                           |  50 +++---
+ .../migration.sql                             |   3 +
+ apps/api/prisma/schema.prisma                 |  11 ++
+ apps/api/prisma/seed.ts                       |  98 +-----------
+ apps/api/scripts/backfillQrTokenRaw.ts        |  50 +-----
+ apps/api/src/app.ts                           |  42 ++++-
+ apps/api/src/lib/audit.ts                     |   2 +-
+ apps/api/src/lib/platform.ts                  |  39 +++++
+ apps/api/src/lib/sessions.ts                  |  26 +++
+ apps/api/src/lib/static.ts                    |  26 +++
+ apps/api/src/modules/admin/routes.ts          |   4 +-
+ apps/api/src/modules/auth/routes.ts           | 150 +++++-------------
+ apps/api/src/modules/health/routes.ts         |  12 +-
+ apps/api/src/modules/teacher/routes.ts        |  84 ++++++----
+ apps/api/src/plugins/auth.ts                  |  54 +++----
+ apps/api/src/plugins/prisma.ts                |   3 +-
+ apps/api/src/server.ts                        |   6 +-
+ apps/web/Dockerfile                           |  45 ++++--
+ apps/web/index.html                           |   6 -
+ apps/web/src/lib/api.ts                       |  23 +--
+ apps/web/src/pages/child/LoginPage.tsx        |   4 +-
+ apps/web/src/pages/teacher/ClassPage.tsx      |  10 +-
+ apps/web/src/pages/teacher/LoginPage.tsx      |   2 +-
+ .../src/pages/teacher/StudentDetailPage.tsx   |   2 +-
+ apps/web/src/store/authStore.ts               |  23 +--
+ contract_tests/sessions.ts                    |  28 ++++
+ docker-compose.yml                            |  85 +++++-----
+ docker/init-postgres.sh                       |  10 ++
+ packages/shared/src/schemas/auth.ts           |   9 +-
+ packages/shared/src/schemas/user.ts           |  18 ++-
+ prepare_secrets.py                            |  12 ++
+ scripts/content.cjs                           |   2 +
+ scripts/credentials.cjs                       |  12 ++
+ scripts/platform-migrate.cjs                  |  10 ++
+ scripts/setup-admin.cjs                       |  42 +++++
+ 41 files changed, 732 insertions(+), 554 deletions(-)
+ create mode 100644 .dockerignore
+ create mode 100644 Dockerfile
+ create mode 100644 PLATFORM.md
+ create mode 100644 apps/api/prisma/migrations/20261103000001_auth_sessions/migration.sql
+ create mode 100644 apps/api/src/lib/platform.ts
+ create mode 100644 apps/api/src/lib/sessions.ts
+ create mode 100644 apps/api/src/lib/static.ts
+ create mode 100644 contract_tests/sessions.ts
+ create mode 100644 docker/init-postgres.sh
+ create mode 100644 prepare_secrets.py
+ create mode 100644 scripts/content.cjs
+ create mode 100644 scripts/credentials.cjs
+ create mode 100644 scripts/platform-migrate.cjs
+ create mode 100644 scripts/setup-admin.cjs
+
+diff --git a/.dockerignore b/.dockerignore
+new file mode 100644
+index 0000000..c3a54d3
+--- /dev/null
++++ b/.dockerignore
+@@ -0,0 +1,39 @@
++*
++!package.json
++!package-lock.json
++!tsconfig.base.json
++!apps/
++!apps/api/
++!apps/api/package.json
++!apps/api/tsconfig.json
++!apps/api/tsup.config.ts
++!apps/api/vitest.config.ts
++!apps/api/src/
++!apps/api/src/**
++!apps/api/scripts/
++!apps/api/scripts/**
++!apps/api/prisma/
++!apps/api/prisma/**
++!apps/web/
++!apps/web/package.json
++!apps/web/tsconfig*.json
++!apps/web/vite.config.ts
++!apps/web/tailwind.config*
++!apps/web/postcss.config*
++!apps/web/index.html
++!apps/web/src/
++!apps/web/src/**
++!apps/web/public/
++!apps/web/public/**
++!packages/
++!packages/shared/
++!packages/shared/**
++!packages/text/
++!packages/text/**
++!scripts/
++!scripts/*.cjs
++**/node_modules
++**/__pycache__
++
++!contract_tests/
++!contract_tests/**
+diff --git a/.gitignore b/.gitignore
+index ef22e13..101c2c6 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -7,3 +7,5 @@ dist/
+ coverage/
+ playwright-report/
+ test-results/
++
++.private/
+diff --git a/CLAUDE.md b/CLAUDE.md
+index cbb7519..25d4c11 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -55,7 +55,7 @@ npm run seed:texts -- ./path.json  # Import text JSON batch file
+ 
+ ### Docker (production)
+ ```bash
+-docker-compose up -d            # Start postgres + api + web + nginx
++docker compose up -d --wait     # Explicit migration and personal setup first: PLATFORM.md
+ docker-compose build            # Rebuild images
+ ```
+ 
+@@ -84,7 +84,7 @@ Runs server-side after every `POST /api/training/finish`. Adjusts `UserProgress.
+ 
+ ## Auth Flow
+ 
+-- **Children**: scan QR → `POST /api/auth/login-child` → backend SHA-256 hashes token → looks up `users.qrTokenHash` → JWT (24 h) as HTTP-only cookie + body
++- **Children**: scan QR → `POST /api/auth/login-child` → backend SHA-256 hashes token → looks up `users.qrTokenHash` → JWT (24 h) as HTTP-only cookie only; persistent hashed session ID and credential version checked on every request
+ - **Teachers**: email + password → `POST /api/auth/login-teacher` → argon2 verify → JWT (8 h)
+ - **Anton integration**: QR content is used as an opaque unique string only. No connection to Anton servers, ever.
+ - **CSRF protection** on all state-changing routes; **Helmet.js** for security headers; **rate limiting** 10/min on login endpoints.
+@@ -99,7 +99,7 @@ Runs server-side after every `POST /api/training/finish`. Adjusts `UserProgress.
+ 
+ ## UI Conventions
+ 
+-- **Fonts**: Atkinson Hyperlegible (default), OpenDyslexic (LRS toggle)
++- **Fonts**: local assets or system fallback; no Google font requests. Optional missing OpenDyslexic assets are not downloaded.
+ - **Colours**: Primary `#3674B5`, Success `#578E7E`, Background `#FBF8EF` (cream — not pure white), Warning `#E97A0C`
+ - **Touch targets**: minimum 56 × 56 px buttons
+ - **Child UI**: positive-only feedback — never "Falsch", always "Schau noch mal genau hin!"
+@@ -124,7 +124,7 @@ Run `npm run seed:texts -- ./texte/klasse-2.json`. LIX is computed automatically
+ 
+ Critical for this children's app:
+ - Children have **display names only** (Spitznamen) — no surname, no real name required
+-- QR tokens stored as SHA-256 hash only
++- New QR tokens stored as SHA-256 hash only; preserve existing cards/legacy qrTokenRaw and audit values during migration, hide raw values in API projections, and review legacy cleanup separately before real data adoption
+ - All IDs are UUIDs
+ - Before creating a child account, teacher **must** confirm parental consent (checkbox + timestamp written to audit log)
+ - Data export: JSON per child (Art. 15), CSV (Art. 20)
+@@ -154,3 +154,7 @@ Implement phase by phase. Each phase should be a coherent PR/commit set. Do not
+ 3. Sound effects: on/off toggle? (default: off)
+ 4. PWA / offline support (recommended for Phase 4)
+ 5. Multi-tenant vs single-tenant (recommendation: single-tenant per server instance for MVP)
++
++## Container contract
++
++See PLATFORM.md for explicit migration/content jobs and interactive personal setup. No default accounts. DATABASE_URL/JWT_SECRET support mutually exclusive _FILE alternatives. Browser responses contain only shared LoginResponse user data; no JWT in body or LocalStorage. Unsafe requests require X-Leseflux-Request: 1 and exact configured Origin when present.
+diff --git a/Dockerfile b/Dockerfile
+new file mode 100644
+index 0000000..43033b2
+--- /dev/null
++++ b/Dockerfile
+@@ -0,0 +1,37 @@
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS dependencies
++ENV npm_config_cache=/tmp/npm-cache NEXT_TELEMETRY_DISABLED=1
++WORKDIR /build
++RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
++COPY package.json package-lock.json ./
++COPY apps/api/package.json ./apps/api/
++COPY apps/web/package.json ./apps/web/
++COPY packages/shared/package.json ./packages/shared/
++RUN npm ci --no-audit --no-fund && rm -rf /tmp/npm-cache
++
++FROM dependencies AS builder
++COPY tsconfig.base.json ./
++COPY packages/shared ./packages/shared
++COPY apps/api ./apps/api
++COPY apps/web ./apps/web
++RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build ./node_modules/.bin/prisma generate --schema apps/api/prisma/schema.prisma
++RUN npm run build && npm run typecheck -w apps/api
++
++FROM builder AS tests
++COPY contract_tests ./contract_tests
++USER 10001:10001
++
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS runtime
++ENV NODE_ENV=production PORT=3001 HOST=0.0.0.0 WEB_ROOT=/app/web PRISMA_MIGRATIONS=/app/prisma/migrations
++WORKDIR /app
++RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/* \
++ && groupadd --gid 10001 leseflux && useradd --uid 10001 --gid 10001 --no-create-home leseflux
++COPY --from=builder /build/node_modules ./node_modules
++COPY --from=builder /build/apps/api/dist ./dist
++COPY --from=builder /build/apps/web/dist ./web
++COPY apps/api/prisma ./prisma
++COPY scripts ./scripts
++COPY packages/text ./packages/text
++USER 10001:10001
++EXPOSE 3001
++HEALTHCHECK --interval=5s --timeout=3s --retries=12 CMD node -e "fetch('http://127.0.0.1:3001/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
++CMD ["node","dist/src/server.js"]
+diff --git a/PLATFORM.md b/PLATFORM.md
+new file mode 100644
+index 0000000..de148da
+--- /dev/null
++++ b/PLATFORM.md
+@@ -0,0 +1,92 @@
++# Leseflux: lokaler Betrieb
++
++Der eigenständige Compose-Stack startet PostgreSQL und einen Appcontainer für API
++und gebaute Weboberfläche. Node 22.23.4, Prisma 5.22.0 und Fastify 5.8.5 sind im
++geprüften amd64-Image enthalten. Die npm-Workspaces bleiben für die Entwicklung
++erhalten. Die Dockerfiles unter apps/api und apps/web sind kompatible Baupfade
++für denselben kombinierten Container und werden aus dem Repositorywurzel gebaut.
++
++## Erstinstallation
++
++Mit Docker Engine und Compose v2, aus dem Repositorywurzel:
++
++```sh
++python3 prepare_secrets.py
++export LESEFLUX_SECRETS_DIR="$PWD/.private"
++export CORS_ORIGIN=http://localhost:3001
++export COOKIE_SECURE=false
++docker compose build app
++docker compose up -d --wait postgres
++docker compose run --rm --no-deps app node scripts/platform-migrate.cjs
++docker compose run --rm --no-deps app node scripts/content.cjs
++docker compose run --rm --no-deps app node scripts/setup-admin.cjs admin@example.org "Persönlicher Name"
++docker compose up -d --wait app
++```
++
++Die lokale Erstadministration benötigt ein echtes interaktives Terminal und fragt
++das Passwort verdeckt zweimal ab. Bei vorhandenen Nutzern wird sie abgewiesen.
++Keine Standardkonten, ausgegebenen Passwörter oder automatisch gestarteten Seeds.
++content.cjs ergänzt Lernmaterial, überschreibt keine bearbeiteten Vorlagen und
++legt keine Benutzer an. Migrationen sind explizite Jobs; normale Starts führen
++weder Migration noch Inhaltsimport aus. Readiness prüft alle Migrationsnamen und
++SQL-Prüfsummen, Liveness bleibt bei Datenbankausfall verfügbar.
++
++prepare_secrets.py legt ausschließlich ein neues Verzeichnis .private (0700) an.
++Die einzelnen Dateien sind innerhalb dieses privaten Elternverzeichnisses für
++Container lesbar. Sicherung und spätere Rotation gehören zum Betreiberprozess.
++DATABASE_URL und JWT_SECRET bleiben für Entwicklung unterstützt; alternativ
++DATABASE_URL_FILE und JWT_SECRET_FILE verwenden, nie beide Varianten gleichzeitig.
++Compose projiziert nur einzelne Dateien und veröffentlicht keinen PostgreSQL-Port.
++Die App läuft mit UID 10001, schreibgeschütztem Rootdateisystem und begrenzten
++Ressourcen. Kapazität auf dem Zielserver ist noch nicht gemessen.
++
++Für HTTPS: CORS_ORIGIN auf genau die externe Origin setzen, COOKIE_SECURE=true,
++TRUSTED_PROXY_IPS auf die tatsächlichen Proxyadressen begrenzen. CORS_ORIGIN ist
++Laufzeitkonfiguration; das Frontend verwendet relative API-Pfade. Standalone bindet
++nur 127.0.0.1:3001. Öffentliches TLS benötigt einen separat betriebenen Proxy.
++Alte nginx-Dateien sind keine automatisch aktivierte Produktionskonfiguration.
++
++## Anmeldung und Daten
++
++Lehrkräfte melden sich persönlich per E-Mail und Passwort an. Kinder behalten
++QR- und Kurzcode-Anmeldung. Druckkarten enthalten den Kurzcode ohne Domain.
++Anton-Inhalte werden ausschließlich als undurchsichtiger lokaler Zugang verwendet;
++es besteht keine Verbindung zu Anton-Servern.
++
++JWTs werden ausschließlich als HttpOnly-/SameSite-Strict-Cookie ausgegeben und
++nicht in Response-Body oder LocalStorage gespeichert. PostgreSQL hält den Hash
++der zufälligen Sitzungskennung, Ablaufdatum und einen Credential-Fingerabdruck.
++Maximal 20 Sitzungen pro Person, 8 Stunden für Lehrkräfte und 24 für Kinder.
++Logout, Passwort-/QR-/Codewechsel und Kontolöschung widerrufen Sitzungen.
++Alle schreibenden API-Aufrufe benötigen X-Leseflux-Request: 1; vorhandene
++Origin-Header müssen exakt CORS_ORIGIN entsprechen. Das Webfrontend setzt den
++Header. Externe Clients müssen diese Änderung übernehmen.
++
++Neu erzeugte QR-Werte werden nur als Hash gespeichert, einmalig beim Anlegen/
++Rotieren zurückgegeben und nicht ins Audit übernommen. Bereits vorhandene
++qrTokenRaw- und Auditwerte werden nicht still gelöscht oder Karten rotiert.
++API-Projektionen geben alte Rohwerte und Passwort-Hashes nicht heraus.
++Vor einer Übernahme realer Altdaten müssen Schutz und Bereinigung dieser
++historischen Werte gesondert geprüft werden. Einwilligungszeitpunkt ist bei
++Einzelanlage und Import Pflicht und wird im Audit festgehalten. Importziele
++unterliegen der Klassenbesitzprüfung.
++
++Google-Font-Aufrufe wurden entfernt; Systemschriften dienen als Fallback.
++Fehlende optionale OpenDyslexic-Dateien werden nicht aus dem Netz nachgeladen.
++Die Rechteprüfung vorhandener Grundschrift-/Unterrichtsdateien bleibt offen;
++diese Änderungen erteilen keine Lizenz und veröffentlichen keine Images.
++
++## Sicherung und Prüfgrenzen
++
++Für einen konsistenten Fachstand zuerst App-Schreibprozesse stoppen, PostgreSQL
++weiter betreiben, pg_dump im Custom-Format sichern und Prüfsumme kontrollieren.
++Private DB-/JWT-Dateien separat schützen. In eine frische, leere Datenbank mit
++denselben Rollen wiederherstellen; kein Seed oder Migrationsjob beim Restore.
++Die gebauten statischen Dateien liegen im Image, keine Laufzeit-Uploads.
++
++Im Plattformrepository liegen reproduzierbare Standalone-, PostgreSQL-Restore-,
++Browser-, Domain-/Lebenszyklus- und Sitzungstests. Verwendet wurden ausschließlich
++synthetische Konten. Der Browsernachweis betrifft Lehrkraft-/Kinder-Code-Anmeldung,
++Cookie-/LocalStorage-Verhalten und fehlende Drittanfragen; Kamerascans und
++vollständige visuelle Unterrichtsabnahme sind noch offen. Keine Ubuntu-, öffentliche
++DNS-/ACME-, Offsite-, Lizenz- oder Lastabnahme.
+diff --git a/README.md b/README.md
+index 64f26bb..ae3d0e7 100644
+--- a/README.md
++++ b/README.md
+@@ -33,7 +33,7 @@ Das Zieltempo (WPM – Wörter pro Minute) wird **automatisch angepasst**:
+ 
+ ### Datenschutz (DSGVO)
+ 
+-Die App ist für den Einsatz mit Kindern konzipiert und verarbeitet bewusst minimale Daten: Kinder werden nur mit Spitznamen angelegt, Logins erfolgen per QR-Code ohne E-Mail-Adresse, und alle gespeicherten Token sind als SHA-256-Hash abgelegt.
++Die App ist für den Einsatz mit Kindern konzipiert und verarbeitet bewusst minimale Daten: Kinder werden nur mit Spitznamen angelegt, Logins erfolgen per QR-Code ohne E-Mail-Adresse, und neue QR-Zugänge werden nur als SHA-256-Hash abgelegt. Historische Rohwerte werden bei Migrationen erhalten und aus API-Antworten ausgeblendet; ihre Bereinigung ist vor einer realen Datenübernahme separat zu prüfen.
+ 
+ ---
+ 
+@@ -72,103 +72,10 @@ Welche Übungen in welcher Reihenfolge und Dauer erscheinen, steuert eine **Sitz
+ 
+ ---
+ 
+-## 3. Installation
++## 3. Installation und Betrieb
+ 
+-### Voraussetzungen
+-
+-- Docker Desktop (oder Docker Engine + Compose)
+-- Node.js 20 + npm 10
+-- Freier Port 5173 (Frontend), 3001 (Backend), 5433 (Datenbank)
+-
+-### Schritt für Schritt
+-
+-```bash
+-# 1. Repository klonen
+-git clone <repo-url>
+-cd Lesefluss
+-
+-# 2. Umgebungsvariablen anlegen
+-cp .env.example .env
+-```
+-
+-In `.env` mindestens anpassen:
+-
+-```env
+-JWT_SECRET=langer_zufaelliger_string   # zwingend erforderlich
+-DATABASE_URL=postgresql://leseflux:password@localhost:5433/leseflux
+-CORS_ORIGIN=http://localhost:5173
+-```
+-
+-```bash
+-# 3. Datenbank starten
+-docker-compose up -d postgres
+-
+-# 4. Abhängigkeiten installieren
+-npm install
+-
+-# 5. Datenbankschema migrieren
+-npm run db:migrate
+-
+-# 6. Basisdaten einspielen (Diagnostiksätze, Demo-Lehrkraft, Demo-Schüler)
+-npm run db:seed
+-
+-# 7. Entwicklungsserver starten (Frontend + Backend parallel)
+-npm run dev
+-```
+-
+-| Dienst | URL |
+-|---|---|
+-| Frontend | http://localhost:5173 |
+-| Backend | http://localhost:3001 |
+-
+-**Demo-Zugangsdaten** (nach `db:seed`):
+-- Lehrkraft: `demo@leseflux.schule` / `Lehrer1234!`
+-- Schüler-QR-Token: wird beim Seed im Terminal ausgegeben
+-
+-### Texte und Wortblitz-Wörter importieren
+-
+-Im Ordner `packages/text/` liegen fertige Importdateien:
+-
+-```bash
+-# Lesetexte importieren
+-npm run seed:texts -- ./packages/text/texte.json
+-
+-# Wortblitz-Wörter importieren (über das Admin-Dashboard oder direkt)
+-npx tsx apps/api/scripts/seedFlashWords.ts
+-```
+-
+-Alternativ können Texte und Wörter im Lehrer- bzw. Admin-Dashboard über den Menüpunkt **Texte** bzw. **Wortblitz** als JSON-Datei hochgeladen werden. Das Format:
+-
+-**Texte** (`packages/text/texte.json`):
+-```json
+-[
+-  {
+-    "title": "Der Igel",
+-    "content": "Der kleine Igel Fritz sucht...",
+-    "targetLevel": 2,
+-    "questions": [
+-      { "question": "Was sucht der Igel?", "options": ["Futter", "Wasser", "Blätter"], "correctIndex": 0 }
+-    ]
+-  }
+-]
+-```
+-`targetLevel`: `2` = Klasse 2, `3` = Klasse 3, `4` = Klasse 4
+-
+-**Wortblitz-Wörter** (`packages/text/wortblitz1.json`):
+-```json
+-[
+-  { "word": "Haus", "syllables": 1, "difficultyLevel": 1, "distractors": ["Hans", "Hase"] }
+-]
+-```
+-
+-### Produktion (Docker)
+-
+-```bash
+-docker-compose up -d    # startet postgres + api + web + nginx
+-docker-compose build    # Images neu bauen nach Code-Änderungen
+-```
+-
+-TLS: Let's-Encrypt-Zertifikate nach `nginx/certs/` legen (`fullchain.pem`, `privkey.pem`).
++Die geprüften Compose-, Migrations-, Erstzugangs- und Sicherungsschritte stehen in
++[PLATFORM.md](PLATFORM.md). Es gibt keine Demo-Konten oder gedruckten Zugangsdaten.
+ 
+ ---
+ 
+diff --git a/apps/api/Dockerfile b/apps/api/Dockerfile
+index 730704c..84a91ab 100644
+--- a/apps/api/Dockerfile
++++ b/apps/api/Dockerfile
+@@ -1,30 +1,38 @@
+-FROM node:20-alpine AS builder
+-WORKDIR /app
+-
+-RUN apk add --no-cache openssl
++# Compatibility build path; canonical recipe is /Dockerfile.
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS dependencies
++ENV npm_config_cache=/tmp/npm-cache NEXT_TELEMETRY_DISABLED=1
++WORKDIR /build
++RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
++COPY package.json package-lock.json ./
++COPY apps/api/package.json ./apps/api/
++COPY apps/web/package.json ./apps/web/
++COPY packages/shared/package.json ./packages/shared/
++RUN npm ci --no-audit --no-fund && rm -rf /tmp/npm-cache
+ 
+-COPY package*.json ./
++FROM dependencies AS builder
+ COPY tsconfig.base.json ./
+-COPY apps/api/package*.json ./apps/api/
+-COPY packages/shared/package*.json ./packages/shared/
+-RUN npm ci --workspace=apps/api --workspace=packages/shared
+-
+ COPY packages/shared ./packages/shared
+ COPY apps/api ./apps/api
+-RUN npm run build -w packages/shared
+-RUN npm run build -w apps/api
+-RUN cd apps/api && npx prisma generate
++COPY apps/web ./apps/web
++RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build ./node_modules/.bin/prisma generate --schema apps/api/prisma/schema.prisma
++RUN npm run build && npm run typecheck -w apps/api
+ 
+-FROM node:20-alpine
+-WORKDIR /app
+-ENV NODE_ENV=production
++FROM builder AS tests
++COPY contract_tests ./contract_tests
++USER 10001:10001
+ 
+-RUN apk add --no-cache openssl
+-
+-COPY --from=builder /app/apps/api/dist ./dist
+-COPY --from=builder /app/node_modules ./node_modules
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS runtime
++ENV NODE_ENV=production PORT=3001 HOST=0.0.0.0 WEB_ROOT=/app/web PRISMA_MIGRATIONS=/app/prisma/migrations
++WORKDIR /app
++RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/* \
++ && groupadd --gid 10001 leseflux && useradd --uid 10001 --gid 10001 --no-create-home leseflux
++COPY --from=builder /build/node_modules ./node_modules
++COPY --from=builder /build/apps/api/dist ./dist
++COPY --from=builder /build/apps/web/dist ./web
+ COPY apps/api/prisma ./prisma
++COPY scripts ./scripts
+ COPY packages/text ./packages/text
+-
++USER 10001:10001
+ EXPOSE 3001
+-CMD ["node", "dist/src/server.js"]
++HEALTHCHECK --interval=5s --timeout=3s --retries=12 CMD node -e "fetch('http://127.0.0.1:3001/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
++CMD ["node","dist/src/server.js"]
+diff --git a/apps/api/prisma/migrations/20261103000001_auth_sessions/migration.sql b/apps/api/prisma/migrations/20261103000001_auth_sessions/migration.sql
+new file mode 100644
+index 0000000..ef35055
+--- /dev/null
++++ b/apps/api/prisma/migrations/20261103000001_auth_sessions/migration.sql
+@@ -0,0 +1,3 @@
++CREATE TABLE "AuthSession" ("idHash" TEXT PRIMARY KEY, "userId" TEXT NOT NULL REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE, "version" TEXT NOT NULL, "expiresAt" TIMESTAMP(3) NOT NULL);
++CREATE INDEX "AuthSession_userId_idx" ON "AuthSession"("userId");
++CREATE INDEX "AuthSession_expiresAt_idx" ON "AuthSession"("expiresAt");
+diff --git a/apps/api/prisma/schema.prisma b/apps/api/prisma/schema.prisma
+index 05fefb8..3e0644e 100644
+--- a/apps/api/prisma/schema.prisma
++++ b/apps/api/prisma/schema.prisma
+@@ -22,6 +22,7 @@ model User {
+ 
+   class        Class?             @relation("ClassStudents", fields: [classId], references: [id])
+   sessionTemplate SessionTemplate? @relation("StudentSessionTemplate", fields: [sessionTemplateId], references: [id])
++  authSessions AuthSession[]
+   teacherOf    Class[]            @relation("TeacherClasses")
+   groupMembers GroupMember[]
+   progress     UserProgress?
+@@ -295,3 +296,13 @@ model SystemSetting {
+   value     String
+   updatedAt DateTime @updatedAt
+ }
++
++model AuthSession {
++  idHash    String   @id
++  userId    String
++  version   String
++  expiresAt DateTime
++  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
++  @@index([userId])
++  @@index([expiresAt])
++}
+diff --git a/apps/api/prisma/seed.ts b/apps/api/prisma/seed.ts
+index 22d70a8..fd31c4a 100644
+--- a/apps/api/prisma/seed.ts
++++ b/apps/api/prisma/seed.ts
+@@ -1,85 +1,16 @@
+ import { PrismaClient } from '@prisma/client'
+-import argon2 from 'argon2'
+-import { hashQrToken, generateQrToken, generateLoginCode } from '../src/lib/qr.js'
+ 
+ const prisma = new PrismaClient()
+ 
+ async function main() {
+-  // Admin-Account
+-  const adminPw = await argon2.hash('Admin1234!')
+-  const admin = await prisma.user.upsert({
+-    where: { email: 'admin@leseflux.schule' },
+-    update: {},
+-    create: {
+-      role: 'ADMIN',
+-      displayName: 'Administrator',
+-      email: 'admin@leseflux.schule',
+-      passwordHash: adminPw,
+-    },
+-  })
+-
+-  // Demo-Lehrerin
+-  const teacherPw = await argon2.hash('Lehrer1234!')
+-  const teacher = await prisma.user.upsert({
+-    where: { email: 'demo@leseflux.schule' },
+-    update: {},
+-    create: {
+-      role: 'TEACHER',
+-      displayName: 'Frau Musterfrau',
+-      email: 'demo@leseflux.schule',
+-      passwordHash: teacherPw,
+-    },
+-  })
+-
+-  // Demo-Klasse
+-  const demoClass = await prisma.class.upsert({
+-    where: { id: 'demo-class-0000-0000-0000-000000000001' },
+-    update: {},
+-    create: {
+-      id: 'demo-class-0000-0000-0000-000000000001',
+-      name: '3a',
+-      schoolYear: '2025/26',
+-      teacherId: teacher.id,
+-    },
+-  })
+-
+-  // Demo-Schüler
+-  const demoQrToken = generateQrToken()
+-  const demoQrHash = hashQrToken(demoQrToken)
+-  const demoLoginCode = generateLoginCode()
+-  const demoStudent = await prisma.user.upsert({
+-    where: { email: 'demo-schueler@leseflux.intern' },
+-    update: {},
+-    create: {
+-      role: 'CHILD',
+-      displayName: 'Mia',
+-      email: 'demo-schueler@leseflux.intern',
+-      classId: demoClass.id,
+-      qrTokenHash: demoQrHash,
+-      loginCode: demoLoginCode,
+-    },
+-  })
+-  await prisma.userProgress.upsert({
+-    where: { userId: demoStudent.id },
+-    update: {},
+-    create: { userId: demoStudent.id, fadingTargetWpm: 60 },
+-  })
+-
++  const useDefault=!(await prisma.sessionTemplate.findFirst({where:{isDefault:true,teacherId:null}}))
+   await prisma.sessionTemplate.upsert({
+     where: { id: 'standard-12-min' },
+-    update: {
+-      name: 'Standard 12 Min',
+-      isDefault: true,
+-      blocks: [
+-        { type: 'FLASH_WORD', targetDurationSec: 120 },
+-        { type: 'FADING', targetDurationSec: 600 },
+-        { type: 'CLOZE', targetDurationSec: 180 },
+-      ],
+-    },
++    update: {},
+     create: {
+       id: 'standard-12-min',
+       name: 'Standard 12 Min',
+-      isDefault: true,
++      isDefault: useDefault,
+       blocks: [
+         { type: 'FLASH_WORD', targetDurationSec: 120 },
+         { type: 'FADING', targetDurationSec: 600 },
+@@ -90,15 +21,7 @@ async function main() {
+ 
+   await prisma.sessionTemplate.upsert({
+     where: { id: 'measurement-day' },
+-    update: {
+-      name: 'Messtag',
+-      isDefault: false,
+-      blocks: [
+-        { type: 'FLASH_WORD', targetDurationSec: 120 },
+-        { type: 'SELF_PACED', targetDurationSec: 600 },
+-        { type: 'CLOZE', targetDurationSec: 180 },
+-      ],
+-    },
++    update: {},
+     create: {
+       id: 'measurement-day',
+       name: 'Messtag',
+@@ -129,7 +52,7 @@ async function main() {
+   for (const word of FLASH_WORDS) {
+     await prisma.flashWord.upsert({
+       where: { word: word.word },
+-      update: word,
++      update: {},
+       create: word,
+     })
+   }
+@@ -310,13 +233,6 @@ async function main() {
+     }
+   }
+ 
+-  console.log('Seed abgeschlossen.')
+-  console.log(`Demo-Lehrer: demo@leseflux.schule / Lehrer1234!`)
+-  console.log(`Admin: admin@leseflux.schule / Admin1234!`)
+-  console.log(`Demo-Schüler QR-Token: ${demoQrToken}`)
+-  console.log(`Demo-Schüler Login-Code: ${demoLoginCode}`)
++  console.log('Content initialized; no accounts created.')
+ }
+-
+-main()
+-  .catch(console.error)
+-  .finally(() => prisma.$disconnect())
++main().catch(()=>{console.error('Content job failed');process.exitCode=1}).finally(()=>prisma.$disconnect())
+diff --git a/apps/api/scripts/backfillQrTokenRaw.ts b/apps/api/scripts/backfillQrTokenRaw.ts
+index 29a4ce0..f6f9689 100644
+--- a/apps/api/scripts/backfillQrTokenRaw.ts
++++ b/apps/api/scripts/backfillQrTokenRaw.ts
+@@ -1,48 +1,2 @@
+-/**
+- * Befüllt qrTokenRaw für alle per Anton-Import angelegten Schüler,
+- * indem es die antonCode-Werte aus dem AuditLog rekonstruiert.
+- *
+- * Verwendung: node dist/scripts/backfillQrTokenRaw.js
+- */
+-import { PrismaClient } from '@prisma/client'
+-
+-const prisma = new PrismaClient()
+-
+-async function main() {
+-  const logs = await prisma.auditLog.findMany({
+-    where: { action: 'student.import_anton', targetId: { not: null } },
+-  })
+-
+-  console.log(`${logs.length} AuditLog-Einträge vom Anton-Import gefunden.`)
+-
+-  let updated = 0
+-  let skipped = 0
+-
+-  for (const log of logs) {
+-    const meta = log.metadata as Record<string, unknown> | null
+-    const antonCode = meta?.antonCode
+-    if (typeof antonCode !== 'string' || !log.targetId) {
+-      skipped++
+-      continue
+-    }
+-
+-    const fullQr = `anton://login/${antonCode}`
+-
+-    const result = await prisma.user.updateMany({
+-      where: { id: log.targetId, qrTokenRaw: null },
+-      data: { qrTokenRaw: fullQr },
+-    })
+-
+-    if (result.count > 0) {
+-      updated++
+-    } else {
+-      skipped++
+-    }
+-  }
+-
+-  console.log(`Fertig: ${updated} aktualisiert, ${skipped} übersprungen (bereits gesetzt oder Schüler nicht mehr vorhanden).`)
+-}
+-
+-main()
+-  .catch((e) => { console.error(e); process.exit(1) })
+-  .finally(() => prisma.$disconnect())
++console.error('Raw QR backfill disabled. Existing cards remain valid; rotate explicitly through the authenticated application.');process.exitCode=1
++export {}
+diff --git a/apps/api/src/app.ts b/apps/api/src/app.ts
+index bcb6483..56737e5 100644
+--- a/apps/api/src/app.ts
++++ b/apps/api/src/app.ts
+@@ -1,4 +1,6 @@
+ import Fastify from 'fastify'
++import { configure,publicOrigin,ready } from './lib/platform.js'
++import { staticRoutes } from './lib/static.js'
+ import cookie from '@fastify/cookie'
+ import cors from '@fastify/cors'
+ import helmet from '@fastify/helmet'
+@@ -14,18 +16,28 @@ import adminRoutes from './modules/admin/routes.js'
+ import diagnosticRoutes from './modules/diagnostic/routes.js'
+ 
+ export function buildApp() {
++  configure()
+   const app = Fastify({
++    bodyLimit: 2*1024*1024,
++    requestTimeout: 15000,
++    disableRequestLogging: true,
++    trustProxy: process.env.TRUSTED_PROXY_IPS?.split(',').filter(Boolean)||false,
+     logger: {
+       level: process.env.NODE_ENV === 'production' ? 'warn' : 'info',
+       serializers: {
+-        req: (req) => ({ method: req.method, url: req.url }),
++        req: (req) => ({ method: req.method }),
+       },
+     },
+   })
+ 
+-  app.register(helmet, { contentSecurityPolicy: false })
++  app.register(helmet,{contentSecurityPolicy:{directives:{
++    defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'","'unsafe-inline'"],
++    imgSrc:["'self'","data:","blob:"],fontSrc:["'self'"],connectSrc:["'self'"],
++    workerSrc:["'self'","blob:"],baseUri:["'none'"],frameAncestors:["'none'"],objectSrc:["'none'"],
++    upgradeInsecureRequests:null,
++  }}})
+   app.register(cors, {
+-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
++    origin: publicOrigin(),
+     credentials: true,
+   })
+   app.register(cookie)
+@@ -36,6 +48,29 @@ export function buildApp() {
+ 
+   app.register(prismaPlugin)
+   app.register(authPlugin)
++  let checkedAt=0,healthy=false
++  const healthPaths=new Set(['/health/live','/health/ready','/api/health/live','/api/health/ready','/api/health'])
++  app.addHook('onRequest',async(req,reply)=>{
++    reply.header('Referrer-Policy','no-referrer').header('X-Content-Type-Options','nosniff')
++    if(req.method==='OPTIONS')return
++    if(!['GET','HEAD'].includes(req.method)){
++      if(req.headers['x-leseflux-request']!=='1'||(req.headers.origin&&req.headers.origin!==publicOrigin()))
++        return reply.code(403).send({error:'Anfrage nicht zulässig'})
++    }
++    if(healthPaths.has(req.url.split('?')[0]||'/'))return
++    if(Date.now()-checkedAt>1000){healthy=await ready(app.prisma);checkedAt=Date.now()}
++    if(!healthy)return reply.code(503).send({error:'Datenbank/Migration nicht bereit'})
++  })
++  app.setErrorHandler((error,_request,reply)=>{
++    const status=(error as {statusCode?:number})?.statusCode
++    if(typeof status==='number'&&status<500)return reply.code(status).send({error:'Ungültige Anfrage'})
++    return reply.code(503).send({error:'Dienst derzeit nicht verfügbar'})
++  })
++  app.get('/health/live',async()=>({status:'ok'}))
++  app.get('/health/ready',async(_req,reply)=>{
++    const healthy=await ready(app.prisma)
++    return reply.code(healthy?200:503).send({status:healthy?'ok':'not-ready'})
++  })
+ 
+   app.register(healthRoutes, { prefix: '/api' })
+   app.register(authRoutes, { prefix: '/api/auth' })
+@@ -44,5 +79,6 @@ export function buildApp() {
+   app.register(adminRoutes, { prefix: '/api/admin' })
+   app.register(diagnosticRoutes, { prefix: '/api/diagnostic' })
+ 
++  staticRoutes(app)
+   return app
+ }
+diff --git a/apps/api/src/lib/audit.ts b/apps/api/src/lib/audit.ts
+index 9943879..4e1809e 100644
+--- a/apps/api/src/lib/audit.ts
++++ b/apps/api/src/lib/audit.ts
+@@ -12,7 +12,7 @@ export type AuditAction =
+   | 'user.password_changed'
+ 
+ export async function writeAuditLog(
+-  prisma: PrismaClient,
++  prisma: Pick<PrismaClient, 'auditLog'>,
+   action: AuditAction,
+   actorId: string | null,
+   targetId: string | null,
+diff --git a/apps/api/src/lib/platform.ts b/apps/api/src/lib/platform.ts
+new file mode 100644
+index 0000000..93444d4
+--- /dev/null
++++ b/apps/api/src/lib/platform.ts
+@@ -0,0 +1,39 @@
++import { readFileSync, readdirSync } from 'node:fs'
++import { resolve, join } from 'node:path'
++import { createHash } from 'node:crypto'
++import type { PrismaClient } from '@prisma/client'
++export function privateValue(name:string) {
++  const direct=process.env[name],file=process.env[name+'_FILE']
++  if(direct&&file)throw new Error('Configure one credential source')
++  return file?readFileSync(file,'utf8').trim():direct
++}
++export function configure() {
++  const secret=privateValue('JWT_SECRET'),database=privateValue('DATABASE_URL')
++  if(!secret||secret.length<32||!database)throw new Error('Private credentials required')
++  process.env.JWT_SECRET=secret;process.env.DATABASE_URL=database;publicOrigin()
++}
++export function publicOrigin() {
++  const origin=new URL(process.env.CORS_ORIGIN||'http://localhost:3001')
++  if(!['http:','https:'].includes(origin.protocol)||origin.username||origin.password||origin.pathname!=='/'||origin.search||origin.hash)
++    throw new Error('Public origin required')
++  return origin.origin
++}
++export const digest=(value:string)=>createHash('sha256').update(value).digest('hex')
++export function credentialVersion(user:{role:string,passwordHash:string|null,qrTokenHash:string|null,loginCode:string|null}) {
++  return digest(JSON.stringify([user.role,user.passwordHash,user.qrTokenHash,user.loginCode]))
++}
++export function expectedMigrations() {
++  const root=resolve(process.env.PRISMA_MIGRATIONS||'prisma/migrations')
++  return readdirSync(root,{withFileTypes:true}).filter(item=>item.isDirectory()).map(item=>({
++    name:item.name,checksum:digest(readFileSync(join(root,item.name,'migration.sql'),'utf8')),
++  })).sort((a,b)=>a.name.localeCompare(b.name))
++}
++export async function ready(prisma:PrismaClient) {
++  try{
++    const rows=await prisma.$queryRawUnsafe<{migration_name:string,checksum:string,finished_at:Date|null,rolled_back_at:Date|null}[]>(
++      'SELECT migration_name,checksum,finished_at,rolled_back_at FROM "_prisma_migrations"')
++    const active=rows.filter(row=>!row.rolled_back_at),expected=expectedMigrations()
++    return active.length===expected.length&&expected.every(row=>active.some(item=>
++      item.migration_name===row.name&&item.checksum===row.checksum&&item.finished_at!==null))
++  }catch{return false}
++}
+diff --git a/apps/api/src/lib/sessions.ts b/apps/api/src/lib/sessions.ts
+new file mode 100644
+index 0000000..da520f6
+--- /dev/null
++++ b/apps/api/src/lib/sessions.ts
+@@ -0,0 +1,26 @@
++import { randomBytes } from 'node:crypto'
++import type { PrismaClient,User } from '@prisma/client'
++import { credentialVersion,digest } from './platform.js'
++export async function issue(prisma:PrismaClient,user:User) {
++  return prisma.$transaction(async tx=>{
++    await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',user.id)
++    const current=await tx.user.findUnique({where:{id:user.id}})
++    if(!current||credentialVersion(current)!==credentialVersion(user))throw new Error('Credential changed')
++    await tx.authSession.deleteMany({where:{userId:user.id,expiresAt:{lte:new Date()}}})
++    if(await tx.authSession.count({where:{userId:user.id}})>=20)throw new Error('Session slots busy')
++    const sid=randomBytes(32).toString('base64url'),seconds=user.role==='CHILD'?86400:28800
++    await tx.authSession.create({data:{idHash:digest(sid),userId:user.id,version:credentialVersion(current),
++      expiresAt:new Date(Date.now()+seconds*1000)}})
++    return {sid,seconds}
++  })
++}
++export async function verify(prisma:PrismaClient,sid:unknown,userId:string) {
++  if(typeof sid!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(sid))return null
++  const row=await prisma.authSession.findUnique({where:{idHash:digest(sid)},include:{user:true}})
++  if(!row||row.userId!==userId||row.expiresAt<=new Date()||row.version!==credentialVersion(row.user))return null
++  return row.user
++}
++export async function revoke(prisma:PrismaClient,sid:unknown) {
++  if(typeof sid==='string'&&/^[A-Za-z0-9_-]{43}$/.test(sid))
++    await prisma.authSession.deleteMany({where:{idHash:digest(sid)}})
++}
+diff --git a/apps/api/src/lib/static.ts b/apps/api/src/lib/static.ts
+new file mode 100644
+index 0000000..c19fa7d
+--- /dev/null
++++ b/apps/api/src/lib/static.ts
+@@ -0,0 +1,26 @@
++import { realpath,stat } from 'node:fs/promises'
++import { createReadStream } from 'node:fs'
++import { resolve,extname,sep } from 'node:path'
++import type { FastifyInstance } from 'fastify'
++const types:Record<string,string>={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8',
++  '.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon',
++  '.woff2':'font/woff2','.woff':'font/woff','.otf':'font/otf','.ttf':'font/ttf','.txt':'text/plain; charset=utf-8'}
++export function staticRoutes(app:FastifyInstance) {
++  app.get('/*',async(request,reply)=>{
++    const pathname=request.url.split('?')[0]||'/'
++    if(pathname.startsWith('/api/'))return reply.code(404).send({error:'Nicht gefunden'})
++    try{
++      const root=await realpath(resolve(process.env.WEB_ROOT||'web')),decoded=decodeURIComponent(pathname)
++      if(decoded.length>2048||decoded.includes('\\')||decoded.includes('\0')||decoded.split('/').some(p=>p==='..'||p.startsWith('.')))
++        return reply.code(404).send()
++      let target=resolve(root,'.'+decoded)
++      try{if(!(await stat(target)).isFile())target=resolve(root,'index.html')}
++      catch{if(extname(decoded))return reply.code(404).send();target=resolve(root,'index.html')}
++      target=await realpath(target)
++      const metadata=await stat(target),type=types[extname(target)]
++      if(!target.startsWith(root+sep)||!type||!metadata.isFile()||metadata.size>32*1024*1024)return reply.code(404).send()
++      reply.header('Cache-Control',pathname.startsWith('/assets/')?'public, max-age=31536000, immutable':'no-store')
++      return reply.type(type).send(createReadStream(target))
++    }catch{return reply.code(503).send({error:'Oberfläche derzeit nicht verfügbar'})}
++  })
++}
+diff --git a/apps/api/src/modules/admin/routes.ts b/apps/api/src/modules/admin/routes.ts
+index be71eb9..b413b8d 100644
+--- a/apps/api/src/modules/admin/routes.ts
++++ b/apps/api/src/modules/admin/routes.ts
+@@ -97,7 +97,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
+       const UpdateSchema = z.object({
+         displayName: z.string().min(1).optional(),
+         email: z.string().email().optional(),
+-        password: z.string().min(8).optional(),
++        password: z.string().min(8).max(128).optional(),
+       })
+       const body = UpdateSchema.safeParse(req.body)
+       if (!body.success) return reply.status(400).send({ error: 'Ungültige Eingabe' })
+@@ -149,7 +149,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
+         z.object({
+           displayName: z.string().min(1),
+           email: z.string().email(),
+-          password: z.string().min(8),
++          password: z.string().min(8).max(128),
+         }),
+       )
+       const body = ImportSchema.safeParse(req.body)
+diff --git a/apps/api/src/modules/auth/routes.ts b/apps/api/src/modules/auth/routes.ts
+index a2b9bd4..cd2b7d3 100644
+--- a/apps/api/src/modules/auth/routes.ts
++++ b/apps/api/src/modules/auth/routes.ts
+@@ -1,116 +1,48 @@
+-import type { FastifyPluginAsync } from 'fastify'
+-import { hash as argon2Hash, verify as argon2Verify } from 'argon2'
+-import { LoginChildSchema, LoginTeacherSchema, LoginChildCodeSchema } from '@leseflux/shared'
++import type { FastifyPluginAsync,FastifyReply } from 'fastify'
++import type { User } from '@prisma/client'
++import { verify as argon2Verify } from 'argon2'
++import { LoginChildSchema,LoginTeacherSchema,LoginChildCodeSchema,type LoginResponse } from '@leseflux/shared'
+ import { hashQrToken } from '../../lib/qr.js'
+-import { authConfig, rateLimitConfig } from '../../config.js'
+-
+-const loginRateLimit = {
+-  config: {
+-    rateLimit: {
+-      max: rateLimitConfig.loginMax,
+-      timeWindow: rateLimitConfig.loginWindowMs,
+-    },
+-  },
+-}
+-
+-const authRoutes: FastifyPluginAsync = async (fastify) => {
+-  fastify.post('/login-child', loginRateLimit, async (req, reply) => {
+-    const body = LoginChildSchema.safeParse(req.body)
+-    if (!body.success) return reply.status(400).send({ error: 'Ungültige Eingabe' })
+-
+-    const hash = hashQrToken(body.data.qrToken)
+-    const user = await fastify.prisma.user.findUnique({
+-      where: { qrTokenHash: hash },
+-      select: { id: true, role: true, displayName: true, classId: true },
+-    })
+-
+-    if (!user || user.role !== 'CHILD') {
+-      return reply.status(401).send({ error: 'Ungültiger QR-Code' })
+-    }
+-
+-    const token = fastify.jwt.sign(
+-      { userId: user.id, role: user.role },
+-      { expiresIn: authConfig.childTokenExpiry },
+-    )
+-    reply.setCookie('token', token, {
+-      httpOnly: true,
+-      secure: process.env.NODE_ENV === 'production',
+-      sameSite: 'strict',
+-      path: '/',
+-    })
+-    return { token, user }
+-  })
+-
+-  fastify.post('/login-child-code', loginRateLimit, async (req, reply) => {
+-    const body = LoginChildCodeSchema.safeParse(req.body)
+-    if (!body.success) return reply.status(400).send({ error: 'Ungültige Eingabe' })
+-
+-    const user = await fastify.prisma.user.findUnique({
+-      where: { loginCode: body.data.loginCode },
+-      select: { id: true, role: true, displayName: true, classId: true },
+-    })
+-
+-    if (!user || user.role !== 'CHILD') {
+-      return reply.status(401).send({ error: 'Ungültiger Code' })
+-    }
+-
+-    const token = fastify.jwt.sign(
+-      { userId: user.id, role: user.role },
+-      { expiresIn: authConfig.childTokenExpiry },
+-    )
+-    reply.setCookie('token', token, {
+-      httpOnly: true,
+-      secure: process.env.NODE_ENV === 'production',
+-      sameSite: 'strict',
+-      path: '/',
+-    })
+-    return { token, user }
++import { issue,revoke } from '../../lib/sessions.js'
++import { rateLimitConfig } from '../../config.js'
++const loginRateLimit={config:{rateLimit:{max:rateLimitConfig.loginMax,timeWindow:rateLimitConfig.loginWindowMs}}}
++const authRoutes:FastifyPluginAsync=async fastify=>{
++  async function complete(user:User,reply:FastifyReply) {
++    const {sid,seconds}=await issue(fastify.prisma,user)
++    const token=fastify.jwt.sign({userId:user.id,role:user.role,sid},{expiresIn:seconds})
++    reply.setCookie('token',token,{httpOnly:true,secure:process.env.COOKIE_SECURE!=='false',
++      sameSite:'strict',path:'/',maxAge:seconds})
++    const result:LoginResponse={user:{id:user.id,role:user.role,displayName:user.displayName,email:user.email,classId:user.classId}}
++    return result
++  }
++  fastify.post('/login-child',loginRateLimit,async(req,reply)=>{
++    const body=LoginChildSchema.safeParse(req.body)
++    if(!body.success)return reply.code(400).send({error:'Ungültige Eingabe'})
++    const user=await fastify.prisma.user.findUnique({where:{qrTokenHash:hashQrToken(body.data.qrToken)}})
++    if(!user||user.role!=='CHILD')return reply.code(401).send({error:'Ungültiger QR-Code'})
++    return complete(user,reply)
+   })
+-
+-  fastify.post('/login-teacher', loginRateLimit, async (req, reply) => {
+-    const body = LoginTeacherSchema.safeParse(req.body)
+-    if (!body.success) return reply.status(400).send({ error: 'Ungültige Eingabe' })
+-
+-    const user = await fastify.prisma.user.findUnique({
+-      where: { email: body.data.email },
+-      select: { id: true, role: true, displayName: true, email: true, passwordHash: true },
+-    })
+-
+-    if (!user || !user.passwordHash || user.role === 'CHILD') {
+-      return reply.status(401).send({ error: 'Ungültige Anmeldedaten' })
+-    }
+-
+-    const valid = await argon2Verify(user.passwordHash, body.data.password)
+-    if (!valid) return reply.status(401).send({ error: 'Ungültige Anmeldedaten' })
+-
+-    const token = fastify.jwt.sign(
+-      { userId: user.id, role: user.role },
+-      { expiresIn: authConfig.teacherTokenExpiry },
+-    )
+-    reply.setCookie('token', token, {
+-      httpOnly: true,
+-      secure: process.env.NODE_ENV === 'production',
+-      sameSite: 'strict',
+-      path: '/',
+-    })
+-    return {
+-      token,
+-      user: { id: user.id, role: user.role, displayName: user.displayName, email: user.email },
+-    }
++  fastify.post('/login-child-code',loginRateLimit,async(req,reply)=>{
++    const body=LoginChildCodeSchema.safeParse(req.body)
++    if(!body.success)return reply.code(400).send({error:'Ungültige Eingabe'})
++    const user=await fastify.prisma.user.findUnique({where:{loginCode:body.data.loginCode}})
++    if(!user||user.role!=='CHILD')return reply.code(401).send({error:'Ungültiger Code'})
++    return complete(user,reply)
+   })
+-
+-  fastify.post('/logout', async (_, reply) => {
+-    reply.clearCookie('token', { path: '/' })
+-    return { ok: true }
++  fastify.post('/login-teacher',loginRateLimit,async(req,reply)=>{
++    const body=LoginTeacherSchema.safeParse(req.body)
++    if(!body.success)return reply.code(400).send({error:'Ungültige Eingabe'})
++    const user=await fastify.prisma.user.findUnique({where:{email:body.data.email}})
++    if(!user||!user.passwordHash||user.role==='CHILD'||!await argon2Verify(user.passwordHash,body.data.password))
++      return reply.code(401).send({error:'Ungültige Anmeldedaten'})
++    return complete(user,reply)
+   })
+-
+-  fastify.get('/me', { preHandler: fastify.authenticate }, async (req) => {
+-    const user = await fastify.prisma.user.findUnique({
+-      where: { id: req.user.userId },
+-      select: { id: true, role: true, displayName: true, email: true, classId: true },
+-    })
+-    return user
++  fastify.post('/logout',async(req,reply)=>{
++    try{await req.jwtVerify();await revoke(fastify.prisma,req.user.sid)}catch{}
++    reply.clearCookie('token',{path:'/'});return {ok:true}
+   })
++  fastify.get('/me',{preHandler:fastify.authenticate},async req=>fastify.prisma.user.findUnique({
++    where:{id:req.user.userId},select:{id:true,role:true,displayName:true,email:true,classId:true},
++  }))
+ }
+-
+ export default authRoutes
+diff --git a/apps/api/src/modules/health/routes.ts b/apps/api/src/modules/health/routes.ts
+index a4b6909..1da9e39 100644
+--- a/apps/api/src/modules/health/routes.ts
++++ b/apps/api/src/modules/health/routes.ts
+@@ -1,15 +1,13 @@
+ import type { FastifyPluginAsync } from 'fastify'
++import { ready } from '../../lib/platform.js'
+ 
+ const DEFAULTS = { childLoginMethods: 'QR_AND_CODE' } as const
+ 
+ const healthRoutes: FastifyPluginAsync = async (fastify) => {
+-  fastify.get('/health', async (_, reply) => {
+-    try {
+-      await fastify.prisma.$queryRaw`SELECT 1`
+-      return reply.send({ status: 'ok', db: 'ok' })
+-    } catch {
+-      return reply.status(503).send({ status: 'error', db: 'unreachable' })
+-    }
++  fastify.get('/health/live',async()=>({status:'ok'}))
++  for(const path of ['/health','/health/ready'])fastify.get(path,async(_,reply)=>{
++    const healthy=await ready(fastify.prisma)
++    return reply.code(healthy?200:503).send({status:healthy?'ok':'not-ready'})
+   })
+ 
+   fastify.get('/settings', async () => {
+diff --git a/apps/api/src/modules/teacher/routes.ts b/apps/api/src/modules/teacher/routes.ts
+index 8bc522e..e2612b9 100644
+--- a/apps/api/src/modules/teacher/routes.ts
++++ b/apps/api/src/modules/teacher/routes.ts
+@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
+ import type { Prisma } from '@prisma/client'
+ import argon2 from 'argon2'
+ import {
++  ImportAntonSchema,
+   CreateClassSchema,
+   CreateStudentSchema,
+   CreateTeacherSchema,
+@@ -181,7 +182,8 @@ const teacherRoutes: FastifyPluginAsync = async (fastify) => {
+       where: isAdmin ? { id } : { id, teacherId: req.user.userId },
+       include: {
+         students: {
+-          include: { progress: true },
++          select: {id:true,role:true,displayName:true,classId:true,birthYear:true,createdAt:true,
++            loginCode:true,sessionTemplateId:true,progress:true},
+           orderBy: { displayName: 'asc' },
+         },
+         sessionTemplate: true,
+@@ -284,32 +286,47 @@ const teacherRoutes: FastifyPluginAsync = async (fastify) => {
+       return reply.status(400).send({ error: 'Einwilligung der Erziehungsberechtigten fehlt' })
+     }
+ 
++    const classId=body.data.classId
++    if(!classId && req.user.role!=='ADMIN')
++      return reply.status(400).send({error:'Eigene Klasse erforderlich'})
++    if(classId){
++      const target=await fastify.prisma.class.findFirst({
++        where:req.user.role==='ADMIN'?{id:classId}:{id:classId,teacherId:req.user.userId},
++        select:{id:true},
++      })
++      if(!target)return reply.status(404).send({error:'Klasse nicht gefunden'})
++    }
++
+     // Anton-QR oder eigener generierter Token
+     const qrToken = body.data.existingQrToken ?? generateQrToken()
+     const qrTokenHash = hashQrToken(qrToken)
+ 
+     const loginCode = generateLoginCode()
+ 
+-    const student = await fastify.prisma.user.create({
++    const student = await fastify.prisma.$transaction(async tx=>{
++    const created = await tx.user.create({
+       data: {
+         role: 'CHILD',
+         displayName: body.data.displayName,
+         classId: body.data.classId ?? null,
+         birthYear: body.data.birthYear ?? null,
+         qrTokenHash,
+-        qrTokenRaw: qrToken,
++        qrTokenRaw: null,
+         loginCode,
+       },
+     })
+ 
+-    await fastify.prisma.userProgress.create({
+-      data: { userId: student.id, fadingTargetWpm: 60 },
++    await tx.userProgress.create({
++      data: { userId: created.id, fadingTargetWpm: 60 },
+     })
+ 
+-    await writeAuditLog(fastify.prisma, 'student.create', req.user.userId, student.id, {
++    await writeAuditLog(tx, 'student.create', req.user.userId, created.id, {
+       parentalConsentDate: body.data.parentalConsentDate,
+     })
+ 
++    return created
++    })
++
+     // QR-Token wird nur einmalig zurückgegeben und nicht erneut abrufbar
+     return reply.status(201).send({
+       student: {
+@@ -340,7 +357,7 @@ const teacherRoutes: FastifyPluginAsync = async (fastify) => {
+       const qrToken = generateQrToken()
+       const qrTokenHash = hashQrToken(qrToken)
+ 
+-      await fastify.prisma.user.update({ where: { id }, data: { qrTokenHash, qrTokenRaw: qrToken } })
++      await fastify.prisma.user.update({ where: { id }, data: { qrTokenHash, qrTokenRaw: null } })
+       await writeAuditLog(fastify.prisma, 'student.qr_regenerate', req.user.userId, id)
+ 
+       return { qrToken }
+@@ -352,7 +369,7 @@ const teacherRoutes: FastifyPluginAsync = async (fastify) => {
+     { preHandler: fastify.authenticateTeacher },
+     async (req, reply) => {
+       const { id } = req.params as { id: string }
+-      const BodySchema = z.object({ qrToken: z.string().min(1) })
++      const BodySchema = z.object({ qrToken: z.string().min(1).max(4096) })
+       const body = BodySchema.safeParse(req.body)
+       if (!body.success) return reply.status(400).send({ error: 'Ungültige Eingabe' })
+ 
+@@ -365,7 +382,7 @@ const teacherRoutes: FastifyPluginAsync = async (fastify) => {
+       const qrTokenHash = hashQrToken(body.data.qrToken)
+       await fastify.prisma.user.update({
+         where: { id },
+-        data: { qrTokenHash, qrTokenRaw: body.data.qrToken },
++        data: { qrTokenHash, qrTokenRaw: null },
+       })
+       await writeAuditLog(fastify.prisma, 'student.qr_set_manual', req.user.userId, id)
+ 
+@@ -385,7 +402,15 @@ const teacherRoutes: FastifyPluginAsync = async (fastify) => {
+       })
+       if (!student) return reply.status(404).send({ error: 'Schüler nicht gefunden' })
+ 
+-      await fastify.prisma.user.delete({ where: { id } })
++      await fastify.prisma.$transaction(async tx=>{
++        await tx.diagnosticAnswer.deleteMany({where:{result:{userId:id}}})
++        await tx.diagnosticResult.deleteMany({where:{userId:id}})
++        await tx.exerciseRun.deleteMany({where:{session:{userId:id}}})
++        await tx.trainingSession.deleteMany({where:{userId:id}})
++        await tx.userProgress.deleteMany({where:{userId:id}})
++        await tx.groupMember.deleteMany({where:{userId:id}})
++        await tx.user.delete({where:{id}})
++      })
+       await writeAuditLog(fastify.prisma, 'student.delete', req.user.userId, id)
+ 
+       return { ok: true }
+@@ -427,7 +452,7 @@ const teacherRoutes: FastifyPluginAsync = async (fastify) => {
+       id: student.id,
+       displayName: student.displayName,
+       loginCode: student.loginCode ?? null,
+-      qrTokenRaw: student.qrTokenRaw ?? null,
++      qrTokenRaw: null,
+       classId: student.classId,
+       className: student.class?.name ?? null,
+       classSessionTemplateId: student.class?.sessionTemplateId ?? null,
+@@ -473,7 +498,8 @@ const teacherRoutes: FastifyPluginAsync = async (fastify) => {
+     return fastify.prisma.user.update({
+       where: { id },
+       data: { sessionTemplateId: body.data.sessionTemplateId },
+-      include: { sessionTemplate: true },
++      select: {id:true,role:true,displayName:true,classId:true,birthYear:true,createdAt:true,
++        sessionTemplateId:true,sessionTemplate:true},
+     })
+   })
+ 
+@@ -1374,23 +1400,17 @@ const teacherRoutes: FastifyPluginAsync = async (fastify) => {
+     '/students/import-anton',
+     { preHandler: fastify.authenticateTeacher },
+     async (req, reply) => {
+-      const RequestSchema = z.object({
+-        defaultClassId: z.string().optional(),
+-        rows: z.array(
+-          z.object({
+-            vorname: z.string().min(1),
+-            nachname: z.string().optional().default(''),
+-            klasse: z.string().optional().default(''),
+-            antonCode: z.string().min(1),
+-            schuljahr: z.string().optional(),
+-          }),
+-        ),
+-      })
+-      const body = RequestSchema.safeParse(req.body)
++      const body = ImportAntonSchema.safeParse(req.body)
+       if (!body.success) {
+         return reply.status(400).send({ error: 'Ungültiges Format', issues: body.error.issues })
+       }
+       const { rows: importRows, defaultClassId } = body.data
++      if(defaultClassId) {
++        const allowed=await fastify.prisma.class.findFirst({where:req.user.role==='ADMIN'
++          ?{id:defaultClassId}:{id:defaultClassId,teacherId:req.user.userId}})
++        if(!allowed)return reply.status(404).send({error:'Klasse nicht gefunden'})
++      }
++
+ 
+       let imported = 0
+       const skipped: string[] = []
+@@ -1423,7 +1443,7 @@ const teacherRoutes: FastifyPluginAsync = async (fastify) => {
+ 
+         const existing = await fastify.prisma.user.findUnique({ where: { qrTokenHash } })
+         if (existing) {
+-          skipped.push(`${row.vorname} (${antonCode}): bereits vorhanden`)
++          skipped.push('Bereits vorhanden')
+           continue
+         }
+ 
+@@ -1433,14 +1453,16 @@ const teacherRoutes: FastifyPluginAsync = async (fastify) => {
+           : (defaultClassId ?? (await getOrCreateClass('Importiert', row.schuljahr)))
+         const loginCode = generateLoginCode()
+ 
+-        const student = await fastify.prisma.user.create({
++        await fastify.prisma.$transaction(async tx=>{
++        const student = await tx.user.create({
+           data: { role: 'CHILD', displayName, classId, qrTokenHash, loginCode },
+         })
+-        await fastify.prisma.userProgress.create({
++        await tx.userProgress.create({
+           data: { userId: student.id, fadingTargetWpm: 60 },
+         })
+-        await writeAuditLog(fastify.prisma, 'student.import_anton', req.user.userId, student.id, {
+-          antonCode,
++        await writeAuditLog(tx, 'student.import_anton', req.user.userId, student.id, {
++          parentalConsentDate: body.data.parentalConsentDate,
++        })
+         })
+         imported++
+       }
+@@ -1452,7 +1474,7 @@ const teacherRoutes: FastifyPluginAsync = async (fastify) => {
+   fastify.patch('/me/password', { preHandler: fastify.authenticateTeacher }, async (req, reply) => {
+     const BodySchema = z.object({
+       currentPassword: z.string().min(1),
+-      newPassword: z.string().min(8, 'Neues Passwort muss mindestens 8 Zeichen haben.'),
++      newPassword: z.string().min(8, 'Neues Passwort muss mindestens 8 Zeichen haben.').max(128),
+     })
+     const body = BodySchema.safeParse(req.body)
+     if (!body.success) return reply.status(400).send({ error: body.error.issues[0]?.message ?? 'Ungültige Eingabe' })
+diff --git a/apps/api/src/plugins/auth.ts b/apps/api/src/plugins/auth.ts
+index 3da9bb2..3adfcb8 100644
+--- a/apps/api/src/plugins/auth.ts
++++ b/apps/api/src/plugins/auth.ts
+@@ -1,46 +1,30 @@
+ import fp from 'fastify-plugin'
+ import jwtPlugin from '@fastify/jwt'
+-import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
++import type { FastifyPluginAsync,FastifyReply,FastifyRequest } from 'fastify'
+ import type { JwtPayload } from '@leseflux/shared'
+-
++import { verify } from '../lib/sessions.js'
+ declare module 'fastify' {
+   interface FastifyInstance {
+-    authenticate: (req: FastifyRequest, reply: FastifyReply) => Promise<void>
+-    authenticateTeacher: (req: FastifyRequest, reply: FastifyReply) => Promise<void>
++    authenticate:(req:FastifyRequest,reply:FastifyReply)=>Promise<void>
++    authenticateTeacher:(req:FastifyRequest,reply:FastifyReply)=>Promise<void>
+   }
+ }
+-
+-declare module '@fastify/jwt' {
+-  interface FastifyJWT {
+-    payload: JwtPayload
+-    user: JwtPayload
+-  }
+-}
+-
+-const authPlugin: FastifyPluginAsync = fp(async (fastify) => {
+-  fastify.register(jwtPlugin, {
+-    secret: process.env.JWT_SECRET ?? '',
+-    cookie: { cookieName: 'token', signed: false },
+-  })
+-
+-  fastify.decorate('authenticate', async (req: FastifyRequest, reply: FastifyReply) => {
+-    try {
+-      await req.jwtVerify()
+-    } catch {
+-      reply.status(401).send({ error: 'Nicht angemeldet' })
+-    }
++declare module '@fastify/jwt' {interface FastifyJWT {payload:JwtPayload;user:JwtPayload}}
++const authPlugin:FastifyPluginAsync=fp(async fastify=>{
++  const secret=process.env.JWT_SECRET
++  if(!secret||secret.length<32)throw new Error('Private JWT key required')
++  fastify.register(jwtPlugin,{secret,cookie:{cookieName:'token',signed:false}})
++  fastify.decorate('authenticate',async(req,reply)=>{
++    try{await req.jwtVerify()}
++    catch{return void reply.code(401).send({error:'Nicht angemeldet'})}
++    const user=await verify(fastify.prisma,req.user.sid,req.user.userId)
++    if(!user)return void reply.code(401).send({error:'Nicht angemeldet'})
++    req.user={...req.user,role:user.role}
+   })
+-
+-  fastify.decorate('authenticateTeacher', async (req: FastifyRequest, reply: FastifyReply) => {
+-    try {
+-      await req.jwtVerify()
+-      if (req.user.role !== 'TEACHER' && req.user.role !== 'ADMIN') {
+-        return reply.status(403).send({ error: 'Keine Berechtigung' })
+-      }
+-    } catch {
+-      reply.status(401).send({ error: 'Nicht angemeldet' })
+-    }
++  fastify.decorate('authenticateTeacher',async(req,reply)=>{
++    await fastify.authenticate(req,reply)
++    if(reply.sent)return
++    if(!['TEACHER','ADMIN'].includes(req.user.role))return void reply.code(403).send({error:'Keine Berechtigung'})
+   })
+ })
+-
+ export default authPlugin
+diff --git a/apps/api/src/plugins/prisma.ts b/apps/api/src/plugins/prisma.ts
+index d9ea2eb..d1b9af8 100644
+--- a/apps/api/src/plugins/prisma.ts
++++ b/apps/api/src/plugins/prisma.ts
+@@ -10,10 +10,9 @@ declare module 'fastify' {
+ 
+ const prismaPlugin: FastifyPluginAsync = fp(async (fastify) => {
+   const prisma = new PrismaClient({
+-    log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
++    log: [],
+   })
+ 
+-  await prisma.$connect()
+ 
+   fastify.decorate('prisma', prisma)
+ 
+diff --git a/apps/api/src/server.ts b/apps/api/src/server.ts
+index 6ada22f..0275bb2 100644
+--- a/apps/api/src/server.ts
++++ b/apps/api/src/server.ts
+@@ -1,6 +1,6 @@
+ import { buildApp } from './app.js'
+ 
+-if (!process.env.JWT_SECRET) {
++if (!process.env.JWT_SECRET && !process.env.JWT_SECRET_FILE) {
+   console.error('FATAL: JWT_SECRET ist nicht gesetzt. Server wird nicht gestartet.')
+   process.exit(1)
+ }
+@@ -12,8 +12,10 @@ const app = buildApp()
+ 
+ app.listen({ port: PORT, host: HOST }, (err, address) => {
+   if (err) {
+-    app.log.error(err)
++    app.log.error('Server start failed')
+     process.exit(1)
+   }
+   app.log.info(`Server läuft auf ${address}`)
+ })
++
++for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{app.close().then(()=>process.exit(0)).catch(()=>process.exit(1))})
+diff --git a/apps/web/Dockerfile b/apps/web/Dockerfile
+index ddbf649..84a91ab 100644
+--- a/apps/web/Dockerfile
++++ b/apps/web/Dockerfile
+@@ -1,17 +1,38 @@
+-FROM node:20-alpine AS builder
+-WORKDIR /app
++# Compatibility build path; canonical recipe is /Dockerfile.
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS dependencies
++ENV npm_config_cache=/tmp/npm-cache NEXT_TELEMETRY_DISABLED=1
++WORKDIR /build
++RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
++COPY package.json package-lock.json ./
++COPY apps/api/package.json ./apps/api/
++COPY apps/web/package.json ./apps/web/
++COPY packages/shared/package.json ./packages/shared/
++RUN npm ci --no-audit --no-fund && rm -rf /tmp/npm-cache
+ 
+-COPY package*.json ./
++FROM dependencies AS builder
+ COPY tsconfig.base.json ./
+-COPY apps/web/package*.json ./apps/web/
+-COPY packages/shared/package*.json ./packages/shared/
+-RUN npm ci --workspace=apps/web --workspace=packages/shared
+-
+ COPY packages/shared ./packages/shared
++COPY apps/api ./apps/api
+ COPY apps/web ./apps/web
+-RUN npm run build -w apps/web
++RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build ./node_modules/.bin/prisma generate --schema apps/api/prisma/schema.prisma
++RUN npm run build && npm run typecheck -w apps/api
+ 
+-FROM nginx:alpine
+-COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
+-COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+-EXPOSE 80
++FROM builder AS tests
++COPY contract_tests ./contract_tests
++USER 10001:10001
++
++FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS runtime
++ENV NODE_ENV=production PORT=3001 HOST=0.0.0.0 WEB_ROOT=/app/web PRISMA_MIGRATIONS=/app/prisma/migrations
++WORKDIR /app
++RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/* \
++ && groupadd --gid 10001 leseflux && useradd --uid 10001 --gid 10001 --no-create-home leseflux
++COPY --from=builder /build/node_modules ./node_modules
++COPY --from=builder /build/apps/api/dist ./dist
++COPY --from=builder /build/apps/web/dist ./web
++COPY apps/api/prisma ./prisma
++COPY scripts ./scripts
++COPY packages/text ./packages/text
++USER 10001:10001
++EXPOSE 3001
++HEALTHCHECK --interval=5s --timeout=3s --retries=12 CMD node -e "fetch('http://127.0.0.1:3001/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
++CMD ["node","dist/src/server.js"]
+diff --git a/apps/web/index.html b/apps/web/index.html
+index d55abef..bf0a38a 100644
+--- a/apps/web/index.html
++++ b/apps/web/index.html
+@@ -4,12 +4,6 @@
+     <meta charset="UTF-8" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+     <title>Leseflux</title>
+-    <link rel="preconnect" href="https://fonts.googleapis.com" />
+-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+-    <link
+-      href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap"
+-      rel="stylesheet"
+-    />
+   </head>
+   <body class="bg-background">
+     <div id="root"></div>
+diff --git a/apps/web/src/lib/api.ts b/apps/web/src/lib/api.ts
+index cd33086..60faf2f 100644
+--- a/apps/web/src/lib/api.ts
++++ b/apps/web/src/lib/api.ts
+@@ -1,9 +1,10 @@
+ import axios from 'axios'
++import type { ImportAntonInput,LoginResponse,User } from '@leseflux/shared'
+ 
+ export const api = axios.create({
+   baseURL: '/api',
+   withCredentials: true,
+-  headers: { 'Content-Type': 'application/json' },
++  headers: { 'Content-Type': 'application/json', 'X-Leseflux-Request': '1' },
+ })
+ 
+ api.interceptors.response.use(
+@@ -19,13 +20,13 @@ api.interceptors.response.use(
+ // ── Auth ──────────────────────────────────────────────────────────────────
+ 
+ export const loginChild = (qrToken: string) =>
+-  api.post<{ token: string; user: AuthUser }>('/auth/login-child', { qrToken })
++  api.post<LoginResponse>('/auth/login-child', { qrToken })
+ 
+ export const loginChildCode = (loginCode: string) =>
+-  api.post<{ token: string; user: AuthUser }>('/auth/login-child-code', { loginCode })
++  api.post<LoginResponse>('/auth/login-child-code', { loginCode })
+ 
+ export const loginTeacher = (email: string, password: string) =>
+-  api.post<{ token: string; user: AuthUser }>('/auth/login-teacher', { email, password })
++  api.post<LoginResponse>('/auth/login-teacher', { email, password })
+ 
+ export const logout = () => api.post('/auth/logout')
+ 
+@@ -136,10 +137,8 @@ export const deleteText = (id: string) => api.delete(`/teacher/texts/${id}`)
+ export const saveClozeTemplate = (id: string, data: SaveClozeTemplateInput) =>
+   api.post<ClozeTemplateDetail>(`/teacher/texts/${id}/cloze-template`, data)
+ 
+-export const importAntonStudents = (payload: {
+-  defaultClassId?: string
+-  rows: { vorname: string; nachname?: string; klasse?: string; antonCode: string; schuljahr?: string }[]
+-}) => api.post<{ imported: number; skipped: string[] }>('/teacher/students/import-anton', payload)
++export const importAntonStudents=(payload:ImportAntonInput)=>
++  api.post<{imported:number;skipped:string[]}>('/teacher/students/import-anton',payload)
+ 
+ export const importFlashWords = (data: ImportFlashWordInput[]) =>
+   api.post<{ imported: number; updated: number }>('/teacher/flash-words/import', data)
+@@ -302,13 +301,7 @@ export const finishDiagnostic = (resultId: string, data: FinishDiagnosticPayload
+ 
+ // ── Types ─────────────────────────────────────────────────────────────────
+ 
+-export interface AuthUser {
+-  id: string
+-  role: 'CHILD' | 'TEACHER' | 'ADMIN'
+-  displayName: string
+-  email?: string | null
+-  classId?: string | null
+-}
++export type AuthUser=User
+ 
+ export interface SessionQuestion {
+   id: string
+diff --git a/apps/web/src/pages/child/LoginPage.tsx b/apps/web/src/pages/child/LoginPage.tsx
+index b09b412..f586111 100644
+--- a/apps/web/src/pages/child/LoginPage.tsx
++++ b/apps/web/src/pages/child/LoginPage.tsx
+@@ -39,7 +39,7 @@ export default function ChildLoginPage() {
+         const isLoginCode = /^[A-Z0-9]{4,8}$/i.test(s) && !s.includes('/')
+         const loginFn = isLoginCode ? () => loginChildCode(s.toUpperCase()) : () => loginChild(s)
+         const { data } = await loginFn()
+-        setAuth(data.user, data.token)
++        setAuth(data.user)
+         navigate('/child/home', { replace: true })
+       } catch {
+         setScanState('error')
+@@ -60,7 +60,7 @@ export default function ChildLoginPage() {
+     setCodeLoading(true)
+     try {
+       const { data } = await loginChildCode(trimmed)
+-      setAuth(data.user, data.token)
++      setAuth(data.user)
+       navigate('/child/home', { replace: true })
+     } catch {
+       setCodeError('Code nicht gefunden. Bitte frag deine Lehrerin / deinen Lehrer.')
+diff --git a/apps/web/src/pages/teacher/ClassPage.tsx b/apps/web/src/pages/teacher/ClassPage.tsx
+index b210062..0373562 100644
+--- a/apps/web/src/pages/teacher/ClassPage.tsx
++++ b/apps/web/src/pages/teacher/ClassPage.tsx
+@@ -20,6 +20,7 @@ function AntonImportModal({
+   const [text, setText] = useState('')
+   const [result, setResult] = useState<{ imported: number; skipped: string[] } | null>(null)
+   const [error, setError] = useState('')
++  const [consent,setConsent]=useState(false)
+ 
+   const mutation = useMutation({
+     mutationFn: importAntonStudents,
+@@ -40,6 +41,7 @@ function AntonImportModal({
+ 
+   const handleImport = () => {
+     setError('')
++    if(!consent){setError('Bitte die vorliegenden Einwilligungen bestätigen.');return}
+     let rows: ReturnType<typeof normalizeAntonRow>[] = []
+ 
+     // JSON-Array
+@@ -64,7 +66,7 @@ function AntonImportModal({
+       return
+     }
+ 
+-    mutation.mutate({ defaultClassId: classId, rows: valid })
++    mutation.mutate({defaultClassId:classId,rows:valid,parentalConsentDate:new Date().toISOString()})
+   }
+ 
+   return (
+@@ -120,6 +122,10 @@ JSON:
+           placeholder="CSV oder JSON hier einfügen..."
+         />
+ 
++        <label className="flex gap-3 text-sm">
++          <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} />
++          Für alle importierten Kinder liegt die schriftliche Einwilligung der Erziehungsberechtigten vor.
++        </label>
+         {error && <p className="text-red-500 text-sm">{error}</p>}
+ 
+         {result && (
+@@ -142,7 +148,7 @@ JSON:
+             {result ? 'Schließen' : 'Abbrechen'}
+           </button>
+           {!result && (
+-            <Button icon="uploadSimple" onClick={handleImport} disabled={mutation.isPending || !text.trim()}>
++            <Button icon="uploadSimple" onClick={handleImport} disabled={mutation.isPending || !text.trim() || !consent}>
+               {mutation.isPending ? 'Importiere...' : 'Importieren'}
+             </Button>
+           )}
+diff --git a/apps/web/src/pages/teacher/LoginPage.tsx b/apps/web/src/pages/teacher/LoginPage.tsx
+index f295e94..92cc4ec 100644
+--- a/apps/web/src/pages/teacher/LoginPage.tsx
++++ b/apps/web/src/pages/teacher/LoginPage.tsx
+@@ -18,7 +18,7 @@ export default function TeacherLoginPage() {
+     setLoading(true)
+     try {
+       const { data } = await loginTeacher(email, password)
+-      setAuth(data.user, data.token)
++      setAuth(data.user)
+       navigate('/teacher/dashboard', { replace: true })
+     } catch {
+       setError('E-Mail-Adresse oder Passwort ungültig.')
+diff --git a/apps/web/src/pages/teacher/StudentDetailPage.tsx b/apps/web/src/pages/teacher/StudentDetailPage.tsx
+index 2e2c96a..9f8ace4 100644
+--- a/apps/web/src/pages/teacher/StudentDetailPage.tsx
++++ b/apps/web/src/pages/teacher/StudentDetailPage.tsx
+@@ -315,7 +315,7 @@ export default function StudentDetailPage() {
+                   </p>
+                   {qrTokenEdit === null ? (
+                     <p className="font-mono text-sm text-gray-800 break-all">
+-                      {student.qrTokenRaw ?? <span className="text-gray-400 italic">nicht gesetzt</span>}
++                      {student.qrTokenRaw ?? <span className="text-gray-400 italic">nicht erneut abrufbar; vorhandene Karte aufbewahren</span>}
+                     </p>
+                   ) : (
+                     <input
+diff --git a/apps/web/src/store/authStore.ts b/apps/web/src/store/authStore.ts
+index eed67a4..2a41325 100644
+--- a/apps/web/src/store/authStore.ts
++++ b/apps/web/src/store/authStore.ts
+@@ -1,22 +1,11 @@
+ import { create } from 'zustand'
+ import { persist } from 'zustand/middleware'
+ import type { AuthUser } from '../lib/api.ts'
+-
+ interface AuthState {
+-  user: AuthUser | null
+-  token: string | null
+-  setAuth: (user: AuthUser, token: string) => void
+-  clearAuth: () => void
++  user: AuthUser|null
++  setAuth: (user:AuthUser,legacyToken?:unknown)=>void
++  clearAuth: ()=>void
+ }
+-
+-export const useAuthStore = create<AuthState>()(
+-  persist(
+-    (set) => ({
+-      user: null,
+-      token: null,
+-      setAuth: (user, token) => set({ user, token }),
+-      clearAuth: () => set({ user: null, token: null }),
+-    }),
+-    { name: 'leseflux-auth' },
+-  ),
+-)
++export const useAuthStore=create<AuthState>()(persist(set=>({
++  user:null,setAuth:user=>set({user}),clearAuth:()=>set({user:null}),
++}),{name:'leseflux-auth',version:2,migrate:()=>({user:null}),partialize:state=>({user:state.user})}))
+diff --git a/contract_tests/sessions.ts b/contract_tests/sessions.ts
+new file mode 100644
+index 0000000..a00598c
+--- /dev/null
++++ b/contract_tests/sessions.ts
+@@ -0,0 +1,28 @@
++import assert from 'node:assert/strict'
++import { readFileSync } from 'node:fs'
++import { PrismaClient } from '@prisma/client'
++import { issue,verify,revoke } from '../apps/api/src/lib/sessions'
++process.env.DATABASE_URL=readFileSync('/run/secrets/database-url','utf8').trim()
++const p=new PrismaClient({log:[]})
++async function main() {
++ const user=await p.user.create({data:{role:'TEACHER',displayName:'Synthetic session contract',passwordHash:'fixture-only-hash'}})
++ try {
++  const results=await Promise.allSettled(Array.from({length:24},()=>issue(p,user)))
++  const successful=results.filter((r):r is PromiseFulfilledResult<{sid:string,seconds:number}>=>r.status==='fulfilled')
++  assert.equal(successful.length,20)
++  assert.equal(await p.authSession.count({where:{userId:user.id}}),20)
++  const first=successful[0]!.value
++  assert.equal((await verify(p,first.sid,user.id))?.id,user.id)
++  const rows=await p.authSession.findMany({where:{userId:user.id}})
++  assert.equal(JSON.stringify(rows).includes(first.sid),false)
++  await p.authSession.updateMany({where:{userId:user.id},data:{expiresAt:new Date(0)}})
++  assert.equal(await verify(p,first.sid,user.id),null)
++  const renewed=await issue(p,user)
++  assert.equal(await p.authSession.count({where:{userId:user.id}}),1)
++  await revoke(p,renewed.sid)
++  assert.equal(await verify(p,renewed.sid,user.id),null)
++  assert.equal(await verify(p,undefined,user.id),null)
++  console.log('PASS: 24 concurrent session reservations yield 20 slots, hash-only records, expiry, reclamation, revoke and missing SID denied')
++ }finally{await p.user.delete({where:{id:user.id}})}
++}
++main().finally(()=>p.$disconnect()).catch(()=>{console.error('Session contract failed; private fixture requires inspection');process.exitCode=1})
+diff --git a/docker-compose.yml b/docker-compose.yml
+index e6bd0ec..90d8520 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -1,53 +1,56 @@
+ services:
+   postgres:
+-    image: postgres:16-alpine
+-    restart: unless-stopped
++    image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
++    restart: "no"
+     environment:
+-      POSTGRES_DB: leseflux
+-      POSTGRES_USER: leseflux
+-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
++      POSTGRES_DB: postgres
++      POSTGRES_USER: postgres
++      POSTGRES_PASSWORD_FILE: /run/secrets/db-admin
+     volumes:
+       - postgres_data:/var/lib/postgresql/data
+-    ports:
+-      - "5433:5432"
++      - ./docker/init-postgres.sh:/docker-entrypoint-initdb.d/01-leseflux.sh:ro
++      - ${LESEFLUX_SECRETS_DIR:?private credential directory required}/db-admin:/run/secrets/db-admin:ro
++      - ${LESEFLUX_SECRETS_DIR}/db-app:/run/secrets/db-app:ro
+     healthcheck:
+-      test: ["CMD-SHELL", "pg_isready -U leseflux"]
+-      interval: 10s
+-      timeout: 5s
+-      retries: 5
+-
+-  api:
+-    build:
+-      context: .
+-      dockerfile: apps/api/Dockerfile
+-    restart: unless-stopped
++      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -U postgres -d leseflux]
++      interval: 5s
++      timeout: 3s
++      retries: 20
++    mem_limit: 512m
++    cpus: 1
++    pids_limit: 128
++    logging: &logs
++      driver: json-file
++      options: {max-size: 10m, max-file: "3"}
++  app:
++    build: {context: ., target: runtime}
++    image: leseflux:0.1.0-dev
++    restart: "no"
++    user: "10001:10001"
++    init: true
++    read_only: true
++    cap_drop: [ALL]
++    security_opt: [no-new-privileges:true]
++    tmpfs: ["/tmp:size=64m,mode=1777"]
++    mem_limit: 768m
++    cpus: 1
++    pids_limit: 128
++    stop_grace_period: 30s
++    depends_on:
++      postgres: {condition: service_healthy}
++    ports: ["127.0.0.1:${LESEFLUX_PORT:-3001}:3001"]
+     environment:
+-      DATABASE_URL: postgresql://leseflux:${POSTGRES_PASSWORD}@postgres:5432/leseflux
+-      JWT_SECRET: ${JWT_SECRET}
+       NODE_ENV: production
+       PORT: 3001
+-    depends_on:
+-      postgres:
+-        condition: service_healthy
+-
+-  web:
+-    build:
+-      context: .
+-      dockerfile: apps/web/Dockerfile
+-    restart: unless-stopped
+-
+-  nginx:
+-    image: nginx:alpine
+-    restart: unless-stopped
+-    ports:
+-      - "80:80"
+-      - "443:443"
++      HOST: 0.0.0.0
++      DATABASE_URL_FILE: /run/secrets/database-url
++      JWT_SECRET_FILE: /run/secrets/jwt-key
++      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
++      COOKIE_SECURE: ${COOKIE_SECURE:-true}
++      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-127.0.0.1}
+     volumes:
+-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+-      - ./nginx/certs:/etc/nginx/certs:ro
+-    depends_on:
+-      - api
+-      - web
+-
++      - ${LESEFLUX_SECRETS_DIR}/database-url:/run/secrets/database-url:ro
++      - ${LESEFLUX_SECRETS_DIR}/jwt-key:/run/secrets/jwt-key:ro
++    logging: *logs
+ volumes:
+   postgres_data:
+diff --git a/docker/init-postgres.sh b/docker/init-postgres.sh
+new file mode 100644
+index 0000000..23a06be
+--- /dev/null
++++ b/docker/init-postgres.sh
+@@ -0,0 +1,10 @@
++#!/bin/sh
++set -eu
++export LESEFLUX_INIT_PASSWORD="$(cat /run/secrets/db-app)"
++psql --username "$POSTGRES_USER" --dbname postgres --set ON_ERROR_STOP=1 <<'SQL'
++\getenv app_password LESEFLUX_INIT_PASSWORD
++CREATE ROLE leseflux LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD :'app_password';
++CREATE DATABASE leseflux OWNER leseflux;
++REVOKE ALL ON DATABASE postgres FROM PUBLIC;
++REVOKE ALL ON DATABASE template1 FROM PUBLIC;
++SQL
+diff --git a/packages/shared/src/schemas/auth.ts b/packages/shared/src/schemas/auth.ts
+index 86cb728..268c09f 100644
+--- a/packages/shared/src/schemas/auth.ts
++++ b/packages/shared/src/schemas/auth.ts
+@@ -1,7 +1,8 @@
+ import { z } from 'zod'
++import { UserSchema } from './user'
+ 
+ export const LoginChildSchema = z.object({
+-  qrToken: z.string().min(1),
++  qrToken: z.string().min(1).max(4096),
+ })
+ 
+ export const LoginChildCodeSchema = z.object({
+@@ -10,14 +11,18 @@ export const LoginChildCodeSchema = z.object({
+ 
+ export const LoginTeacherSchema = z.object({
+   email: z.string().email(),
+-  password: z.string().min(8),
++  password: z.string().min(8).max(128),
+ })
+ 
+ export const JwtPayloadSchema = z.object({
+   userId: z.string().uuid(),
++  sid: z.string().optional(),
+   role: z.enum(['CHILD', 'TEACHER', 'ADMIN']),
+ })
+ 
+ export type LoginChildInput = z.infer<typeof LoginChildSchema>
+ export type LoginTeacherInput = z.infer<typeof LoginTeacherSchema>
+ export type JwtPayload = z.infer<typeof JwtPayloadSchema>
++
++export const LoginResponseSchema=z.object({user:UserSchema})
++export type LoginResponse=z.infer<typeof LoginResponseSchema>
+diff --git a/packages/shared/src/schemas/user.ts b/packages/shared/src/schemas/user.ts
+index cd156b1..3903b7a 100644
+--- a/packages/shared/src/schemas/user.ts
++++ b/packages/shared/src/schemas/user.ts
+@@ -18,7 +18,7 @@ export const CreateStudentSchema = z.object({
+   parentalConsentDate: z.string().datetime(),
+   /** Optional: Inhalt eines bereits vorhandenen QR-Codes (z. B. Anton-Ausweis).
+    *  Wird gehasht gespeichert. Nicht gesetzt → eigener QR wird generiert. */
+-  existingQrToken: z.string().min(1).optional(),
++  existingQrToken: z.string().min(1).max(4096).optional(),
+ })
+ 
+ export const CreateTeacherSchema = z.object({
+@@ -26,7 +26,7 @@ export const CreateTeacherSchema = z.object({
+   email: z.string().email(),
+   password: z
+     .string()
+-    .min(8)
++    .min(8).max(128)
+     .regex(/[a-zA-Z]/, 'Mindestens ein Buchstabe erforderlich')
+     .regex(/[0-9]/, 'Mindestens eine Zahl erforderlich'),
+ })
+@@ -35,3 +35,17 @@ export type UserRole = z.infer<typeof UserRoleSchema>
+ export type User = z.infer<typeof UserSchema>
+ export type CreateStudentInput = z.infer<typeof CreateStudentSchema>
+ export type CreateTeacherInput = z.infer<typeof CreateTeacherSchema>
++
++
++export const ImportAntonSchema = z.object({
++  defaultClassId: z.string().uuid().optional(),
++  parentalConsentDate: z.string().datetime(),
++  rows: z.array(z.object({
++    vorname: z.string().trim().min(1).max(50),
++    nachname: z.string().max(100).optional().default(''),
++    klasse: z.string().trim().max(80).optional().default(''),
++    antonCode: z.string().trim().min(1).max(4096),
++    schuljahr: z.string().max(20).optional(),
++  })).min(1).max(500),
++})
++export type ImportAntonInput = z.input<typeof ImportAntonSchema>
+diff --git a/prepare_secrets.py b/prepare_secrets.py
+new file mode 100644
+index 0000000..0b51095
+--- /dev/null
++++ b/prepare_secrets.py
+@@ -0,0 +1,12 @@
++"""Create private one-time local credentials without printing their contents."""
++from pathlib import Path
++import os,secrets
++os.umask(0o077)
++directory=Path(".private");directory.mkdir(mode=0o700)
++password=secrets.token_hex(32)
++values={"db-admin":secrets.token_hex(32),"db-app":password,"jwt-key":secrets.token_urlsafe(48),
++ "database-url":"postgresql://leseflux:"+password+"@postgres:5432/leseflux?connection_limit=5&pool_timeout=3&connect_timeout=3"}
++for name,value in values.items():
++ fd=os.open(directory/name,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o444)
++ with os.fdopen(fd,"w") as stream:stream.write(value)
++print("Private credentials created. Set LESEFLUX_SECRETS_DIR to absolute .private path.")
+diff --git a/scripts/content.cjs b/scripts/content.cjs
+new file mode 100644
+index 0000000..07b1295
+--- /dev/null
++++ b/scripts/content.cjs
+@@ -0,0 +1,2 @@
++const {load}=require('./credentials.cjs');
++try{load(['DATABASE_URL']);require('../dist/scripts/seed.js');}catch{console.error('Content job failed');process.exitCode=1;}
+diff --git a/scripts/credentials.cjs b/scripts/credentials.cjs
+new file mode 100644
+index 0000000..e618596
+--- /dev/null
++++ b/scripts/credentials.cjs
+@@ -0,0 +1,12 @@
++const fs=require('node:fs');
++function load(names=['DATABASE_URL','JWT_SECRET']) {
++ process.umask(0o077);
++ for(const name of names) {
++  const direct=process.env[name],file=process.env[name+'_FILE'];
++  if(direct&&file)throw new Error('Configure one credential source');
++  const value=file?fs.readFileSync(file,'utf8').trim():direct;
++  if(!value||(name==='JWT_SECRET'&&value.length<32))throw new Error('Private credential required');
++  process.env[name]=value;
++ }
++}
++module.exports={load};
+diff --git a/scripts/platform-migrate.cjs b/scripts/platform-migrate.cjs
+new file mode 100644
+index 0000000..b7419a7
+--- /dev/null
++++ b/scripts/platform-migrate.cjs
+@@ -0,0 +1,10 @@
++const {load}=require('./credentials.cjs');
++const {spawnSync}=require('node:child_process');
++try{
++ load(['DATABASE_URL']);
++ const result=spawnSync(process.execPath,['node_modules/prisma/build/index.js','migrate','deploy','--schema','prisma/schema.prisma'],
++  {env:process.env,encoding:'utf8',timeout:120000});
++ // Prisma errors can include connection details. Never forward their payload.
++ if(result.status!==0)throw new Error('Schema job failed');
++ console.log('Prisma schema verified; no accounts or training data created.');
++}catch{console.error('Explicit migration failed; inspect schema/credentials/lock locally.');process.exitCode=1;}
+diff --git a/scripts/setup-admin.cjs b/scripts/setup-admin.cjs
+new file mode 100644
+index 0000000..a981e37
+--- /dev/null
++++ b/scripts/setup-admin.cjs
+@@ -0,0 +1,42 @@
++const fs=require('node:fs');
++const tty=require('node:tty');
++const {load}=require('./credentials.cjs');
++async function password(fd,label) {
++ fs.writeSync(fd,label);
++ const input=new tty.ReadStream(fd);
++ input.setRawMode(true);input.resume();
++ let value='';
++ return new Promise((resolve,reject)=>{
++  const receive=chunk=>{
++   for(const character of chunk.toString()) {
++    if(character==='\u0003'){finish();reject(new Error('Cancelled'));return;}
++    if(character==='\r'||character==='\n'){finish();resolve(value);return;}
++    if(character==='\u007f'||character==='\b')value=value.slice(0,-1);
++    else if(value.length<128&&character>=' ')value+=character;
++   }
++  };
++  function finish(){input.off('data',receive);input.setRawMode(false);input.pause();fs.writeSync(fd,'\n');}
++  input.on('data',receive);
++ });
++}
++async function main(){
++ const fd=fs.openSync('/dev/tty','r+');
++ load(['DATABASE_URL']);
++ const email=process.argv[2],displayName=process.argv[3];
++ if(!email||email.length>254||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)||!displayName||displayName.length>80)throw new Error('Personal identity required');
++ const first=await password(fd,'Neues persönliches Passwort (mindestens 12 Zeichen): ');
++ const confirmation=await password(fd,'Wiederholen: ');
++ if(first.length<12||first!==confirmation)throw new Error('Password mismatch');
++ const {PrismaClient}=require('@prisma/client'),argon2=require('argon2');
++ const prisma=new PrismaClient({log:[]});
++ try{
++  const hash=await argon2.hash(first);
++  await prisma.$transaction(async tx=>{
++   await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock(76401982)');
++   if(await tx.user.count())throw new Error('Existing accounts preserved');
++   await tx.user.create({data:{email,displayName,role:'ADMIN',passwordHash:hash}});
++  });
++  fs.writeSync(fd,'Persönlicher Erstadmin angelegt.\n');
++ }finally{await prisma.$disconnect();fs.closeSync(fd);}
++}
++main().catch(()=>{console.error('Local setup failed; terminal, personal identity, migration and existing accounts must be checked.');process.exitCode=1;});
+-- 
+2.43.0
+
+
+From d129a2e6da550344ac4ede14851aff789c33ccb8 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Tue, 3 Nov 2026 12:09:20 +0100
+Subject: [PATCH 2/2] Add isolated Node runtime, explicit Prisma migration and
+ revocable local sessions
+
+---
+ prepare_secrets.py      | 3 ++-
+ scripts/setup-admin.cjs | 4 ++--
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/prepare_secrets.py b/prepare_secrets.py
+index 0b51095..65e25b6 100644
+--- a/prepare_secrets.py
++++ b/prepare_secrets.py
+@@ -8,5 +8,6 @@ values={"db-admin":secrets.token_hex(32),"db-app":password,"jwt-key":secrets.tok
+  "database-url":"postgresql://leseflux:"+password+"@postgres:5432/leseflux?connection_limit=5&pool_timeout=3&connect_timeout=3"}
+ for name,value in values.items():
+  fd=os.open(directory/name,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o444)
+- with os.fdopen(fd,"w") as stream:stream.write(value)
++ with os.fdopen(fd,"w") as stream:
++  stream.write(value);stream.flush();os.fchmod(stream.fileno(),0o444)
+ print("Private credentials created. Set LESEFLUX_SECRETS_DIR to absolute .private path.")
+diff --git a/scripts/setup-admin.cjs b/scripts/setup-admin.cjs
+index a981e37..bf030b1 100644
+--- a/scripts/setup-admin.cjs
++++ b/scripts/setup-admin.cjs
+@@ -2,9 +2,9 @@ const fs=require('node:fs');
+ const tty=require('node:tty');
+ const {load}=require('./credentials.cjs');
+ async function password(fd,label) {
+- fs.writeSync(fd,label);
+  const input=new tty.ReadStream(fd);
+  input.setRawMode(true);input.resume();
++ fs.writeSync(fd,label);
+  let value='';
+  return new Promise((resolve,reject)=>{
+   const receive=chunk=>{
+@@ -15,7 +15,7 @@ async function password(fd,label) {
+     else if(value.length<128&&character>=' ')value+=character;
+    }
+   };
+-  function finish(){input.off('data',receive);input.setRawMode(false);input.pause();fs.writeSync(fd,'\n');}
++  function finish(){input.off('data',receive);input.setRawMode(false);input.pause();input.unref();fs.writeSync(fd,'\n');}
+   input.on('data',receive);
+  });
+ }
+-- 
+2.43.0
+

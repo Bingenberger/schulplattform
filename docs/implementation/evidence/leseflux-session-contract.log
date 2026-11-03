@@ -1,0 +1,4 @@
+$ docker run --rm --init --read-only --network sp-leseflux-standalone-9256b23bf4_default --cap-drop ALL --security-opt no-new-privileges:true --memory 768m --cpus 1 --pids-limit 128 --tmpfs /tmp:size=64m,mode=1777 -v /home/emrichschule/schulplattform/.work/sp-leseflux-standalone-9256b23bf4/secrets/database-url:/run/secrets/database-url:ro leseflux-tests:0.1.0-dev node_modules/.bin/tsx contract_tests/sessions.ts
+PASS: 24 concurrent session reservations yield 20 slots, hash-only records, expiry, reclamation, revoke and missing SID denied
+
+exit_code=0

@@ -117,7 +117,7 @@ Installation. Für den Container konfiguriert `from_env()` ausschließlich Datei
 für Zustand, Socket, Credentials und Appkatalog sowie erlaubte Hostnamen.
 
 Die Tests verwenden ausschließlich synthetische Adminprofile, private Testvolumes
-und lokale Pilotumgebungen; zuletzt den Siebenerpilot mit Fahrradausbildung. Sie prüfen unter anderem Login/CSRF, TOTP-Replay,
+und lokale Pilotumgebungen; zuletzt den Achterpilot mit Leseflux. Sie prüfen unter anderem Login/CSRF, TOTP-Replay,
 Sitzungswiderruf, Peer-UID, MAC/Nonce-Replay und die tatsächlichen Start-/Stop-Aktionen
 über den authentifizierten Kanal.
 

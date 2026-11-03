@@ -31,7 +31,7 @@ def test_legacy_configuration_keeps_two_apps_without_rewrite(root):
     assert config.read_bytes() == before
 
 
-@pytest.mark.parametrize("selected", [("gswb", "schulwissen", "zackboing"), ("gswb", "schulwissen", "zackboing", "schulhelfer"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung")])
+@pytest.mark.parametrize("selected", [("gswb", "schulwissen", "zackboing"), ("gswb", "schulwissen", "zackboing", "schulhelfer"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung"), ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux")])
 def test_optional_apps_persist_and_excluded_app_never_creates_state(root, selected):
     directory = root / "three"
     assert Pilot(directory, apps=selected).apps == selected
@@ -75,3 +75,22 @@ def test_stopping_already_stopped_quiz_does_not_call_private_control(root):
     pilot.quiz_control = forbidden
     pilot.stop()
     pilot.stop()
+
+
+def test_private_projections_work_under_restrictive_umask(root):
+    import os
+    pilot = Pilot(root / "restrictive", apps=module.APP_SELECTIONS[-1])
+    previous = os.umask(0o077)
+    try:
+        pilot.materialize()
+    finally:
+        os.umask(previous)
+    runtime = pilot.directory / "runtime"
+    assert runtime.stat().st_mode & 0o777 == 0o700
+    for app in ("leseflux", "fahrrad", "losverkauf"):
+        assert (runtime / app).stat().st_mode & 0o777 == 0o700
+    for path in runtime.rglob("*"):
+        if path.is_file():
+            assert path.stat().st_mode & 0o777 == 0o444
+    assert all(path.stat().st_mode & 0o777 == 0o600
+               for path in (pilot.directory / "secrets").iterdir() if path.is_file())

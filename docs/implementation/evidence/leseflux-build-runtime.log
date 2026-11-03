@@ -1,0 +1,107 @@
+$ docker build --platform linux/amd64 --memory 1536m --target runtime -t leseflux:0.1.0-dev .
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  1.252MB
+Step 1/33 : FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS dependencies
+ ---> c469fbffcbb0
+Step 2/33 : ENV npm_config_cache=/tmp/npm-cache NEXT_TELEMETRY_DISABLED=1
+ ---> Using cache
+ ---> bad08e5d75d7
+Step 3/33 : WORKDIR /build
+ ---> Using cache
+ ---> d30397b4784f
+Step 4/33 : RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+ ---> Using cache
+ ---> 855956baabe8
+Step 5/33 : COPY package.json package-lock.json ./
+ ---> Using cache
+ ---> 941b78fea7ff
+Step 6/33 : COPY apps/api/package.json ./apps/api/
+ ---> Using cache
+ ---> 6fcbf54831fa
+Step 7/33 : COPY apps/web/package.json ./apps/web/
+ ---> Using cache
+ ---> f4bc93bdc5a8
+Step 8/33 : COPY packages/shared/package.json ./packages/shared/
+ ---> Using cache
+ ---> 75d80b770c60
+Step 9/33 : RUN npm ci --no-audit --no-fund && rm -rf /tmp/npm-cache
+ ---> Using cache
+ ---> d9afd2002e51
+Step 10/33 : FROM dependencies AS builder
+ ---> d9afd2002e51
+Step 11/33 : COPY tsconfig.base.json ./
+ ---> Using cache
+ ---> be149840138f
+Step 12/33 : COPY packages/shared ./packages/shared
+ ---> Using cache
+ ---> d14e82d20f27
+Step 13/33 : COPY apps/api ./apps/api
+ ---> Using cache
+ ---> 1d2e71444c36
+Step 14/33 : COPY apps/web ./apps/web
+ ---> Using cache
+ ---> 3898e7214367
+Step 15/33 : RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build ./node_modules/.bin/prisma generate --schema apps/api/prisma/schema.prisma
+ ---> Using cache
+ ---> 27c1d556f733
+Step 16/33 : RUN npm run build && npm run typecheck -w apps/api
+ ---> Using cache
+ ---> 2b67bd977a80
+Step 17/33 : FROM builder AS tests
+ ---> 2b67bd977a80
+Step 18/33 : COPY contract_tests ./contract_tests
+ ---> Using cache
+ ---> e3a72ea42bac
+Step 19/33 : USER 10001:10001
+ ---> Using cache
+ ---> 20a980d03ae2
+Step 20/33 : FROM node:22.23.4-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS runtime
+ ---> c469fbffcbb0
+Step 21/33 : ENV NODE_ENV=production PORT=3001 HOST=0.0.0.0 WEB_ROOT=/app/web PRISMA_MIGRATIONS=/app/prisma/migrations
+ ---> Using cache
+ ---> d96f21e49206
+Step 22/33 : WORKDIR /app
+ ---> Using cache
+ ---> 9965070449b7
+Step 23/33 : RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*  && groupadd --gid 10001 leseflux && useradd --uid 10001 --gid 10001 --no-create-home leseflux
+ ---> Using cache
+ ---> d010dafddb37
+Step 24/33 : COPY --from=builder /build/node_modules ./node_modules
+ ---> Using cache
+ ---> ab52f4d81fa7
+Step 25/33 : COPY --from=builder /build/apps/api/dist ./dist
+ ---> Using cache
+ ---> 43b8b8a1902b
+Step 26/33 : COPY --from=builder /build/apps/web/dist ./web
+ ---> Using cache
+ ---> 2ac21d3421d2
+Step 27/33 : COPY apps/api/prisma ./prisma
+ ---> Using cache
+ ---> 99bbe20acc63
+Step 28/33 : COPY scripts ./scripts
+ ---> 823a9dc0e6d9
+Step 29/33 : COPY packages/text ./packages/text
+ ---> 6e3d310a7b51
+Step 30/33 : USER 10001:10001
+ ---> Running in 9bb97681c299
+ ---> Removed intermediate container 9bb97681c299
+ ---> 44ecda36adbd
+Step 31/33 : EXPOSE 3001
+ ---> Running in 069187075bb4
+ ---> Removed intermediate container 069187075bb4
+ ---> 561059b7abbf
+Step 32/33 : HEALTHCHECK --interval=5s --timeout=3s --retries=12 CMD node -e "fetch('http://127.0.0.1:3001/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+ ---> Running in c15fc16a17c0
+ ---> Removed intermediate container c15fc16a17c0
+ ---> e08814aa08b1
+Step 33/33 : CMD ["node","dist/src/server.js"]
+ ---> Running in d2be6461ef47
+ ---> Removed intermediate container d2be6461ef47
+ ---> 00441bd3b9f0
+Successfully built 00441bd3b9f0
+Successfully tagged leseflux:0.1.0-dev
+
+exit_code=0

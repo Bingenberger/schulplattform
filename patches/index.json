@@ -18,6 +18,12 @@
     "patch": "patches/zackboing/changes.patch"
   },
   {
+    "app": "leseflux",
+    "baseCommit": "6ad61b28a31d41d98e03d3be835a6c678ad6e439",
+    "implementationCommit": "d129a2e6da550344ac4ede14851aff789c33ccb8",
+    "patch": "patches/leseflux/changes.patch"
+  },
+  {
     "app": "fahrradausbildung",
     "baseCommit": "d9a9a6c8e02dd7fd5a14a5e2151948d7ec32c207",
     "implementationCommit": "4e007ffd20e5236cf82b7d4a9f72f873fa1ae2fe",

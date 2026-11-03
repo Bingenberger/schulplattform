@@ -77,3 +77,11 @@ verwenden getrennte Admin-/Appcredentials; vorhandene Cluster werden nicht
 automatisch umgestellt. Vor Upgrade pg_dump, Vorlagen und Credentials gemeinsam
 sichern und Geräte synchronisieren. Nicht gesendete Browserereignisse gehören
 nicht zum Serverbackup. Details: [Fahrradausbildung](docs/implementation/fahrradausbildung.md).
+
+Leseflux benötigt den expliziten Job node scripts/platform-migrate.cjs. Die neue
+AuthSession-Tabelle erhält alle Fach- und Nutzer-IDs. Alte JWTs erfordern erneute
+Anmeldung; aktuelle Zugänge werden serverseitig widerrufbar. Neue QR-Werte werden
+nur gehasht gespeichert. Historische QR-Rohwerte und Auditdaten bleiben erhalten
+und werden in API-Projektionen ausgeblendet; ihre Bereinigung muss vor realer
+Übernahme separat geprüft werden. Inhaltsjob legt keine Benutzer an. DB-Dump und
+private Credentials sichern. [Leseflux-Betriebsvertrag](docs/implementation/leseflux.md).

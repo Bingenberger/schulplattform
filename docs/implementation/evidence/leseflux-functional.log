@@ -1,0 +1,21 @@
+$ docker run --rm --init --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 768m --cpus 2 --pids-limit 192 --tmpfs /tmp:size=128m,mode=1777 leseflux-tests:0.1.0-dev npm run test -w apps/api -- --maxWorkers=2 --minWorkers=1 --no-cache
+
+> @leseflux/api@0.1.0 test
+> vitest run --maxWorkers=2 --minWorkers=1 --no-cache
+
+
+ RUN  v2.1.9 /build/apps/api
+
+ ✓ src/modules/training/adaptive.test.ts (10 tests) 3ms
+ ✓ src/lib/lix.test.ts (8 tests) 3ms
+ ✓ src/lib/fading.test.ts (6 tests) 3ms
+ ✓ src/services/cloze.test.ts (2 tests) 5ms
+
+ Test Files  4 passed (4)
+      Tests  26 passed (26)
+   Start at  11:05:31
+   Duration  480ms (transform 154ms, setup 0ms, collect 277ms, tests 15ms, environment 0ms, prepare 181ms)
+
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+exit_code=0

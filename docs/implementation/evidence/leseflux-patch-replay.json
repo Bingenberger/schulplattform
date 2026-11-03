@@ -1,0 +1,9 @@
+{
+  "app": "leseflux",
+  "baseCommit": "6ad61b28a31d41d98e03d3be835a6c678ad6e439",
+  "implementationCommit": "d129a2e6da550344ac4ede14851aff789c33ccb8",
+  "patchSha256": "3aec23a28d8485e86e34c945308a0b8a36ddbd6801fd65e4e1c0cefef96fa4ea",
+  "replayedTree": "7c709a91a135e571072da057d6889e538e5b55ea",
+  "treeMatches": true,
+  "cleanReplay": true
+}

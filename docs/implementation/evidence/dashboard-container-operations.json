@@ -4,7 +4,7 @@
       "docker",
       "volume",
       "create",
-      "sp-dashboard-2f24cc61c7-state"
+      "sp-dashboard-00523c794c-state"
     ],
     "exitCode": 0
   },
@@ -19,7 +19,7 @@
       "--user",
       "10001:1003",
       "-v",
-      "sp-dashboard-2f24cc61c7-state:/state",
+      "sp-dashboard-00523c794c-state:/state",
       "schulplattform-dashboard:0.1.0-dev",
       "python",
       "-c",
@@ -31,9 +31,9 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-dashboard-2f24cc61c7",
+      "sp-dashboard-00523c794c",
       "-f",
-      "/home/emrichschule/schulplattform/.work/dashboard-test-a834dc69b3/compose.json",
+      "/home/emrichschule/schulplattform/.work/dashboard-test-63f340ce07/compose.json",
       "up",
       "-d",
       "--no-build",
@@ -47,9 +47,9 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-dashboard-2f24cc61c7",
+      "sp-dashboard-00523c794c",
       "-f",
-      "/home/emrichschule/schulplattform/.work/dashboard-test-a834dc69b3/compose.json",
+      "/home/emrichschule/schulplattform/.work/dashboard-test-63f340ce07/compose.json",
       "ps",
       "-q",
       "proxy"
@@ -60,8 +60,8 @@
     "command": [
       "docker",
       "cp",
-      "cb7c525b3255f29992213df6f1d6d2bf5cd6b78fc512b4447412087ee3119583:/data/caddy/pki/authorities/local/root.crt",
-      "/home/emrichschule/schulplattform/.work/dashboard-test-a834dc69b3/root.crt"
+      "b03af57afb474b79b3256c00aa2c60eeb5f8c3f262734c26f776f9ef27e61c08:/data/caddy/pki/authorities/local/root.crt",
+      "/home/emrichschule/schulplattform/.work/dashboard-test-63f340ce07/root.crt"
     ],
     "exitCode": 0
   },
@@ -69,9 +69,9 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-dashboard-2f24cc61c7",
+      "sp-dashboard-00523c794c",
       "-f",
-      "/home/emrichschule/schulplattform/.work/dashboard-test-a834dc69b3/compose.json",
+      "/home/emrichschule/schulplattform/.work/dashboard-test-63f340ce07/compose.json",
       "ps",
       "-q",
       "dashboard"
@@ -82,7 +82,7 @@
     "command": [
       "docker",
       "inspect",
-      "fdcea3601a3ea3436d6390cd77ec1b2f6b6a49bad9b3f67b4a53744991ea074e"
+      "b41d46f52c47d6542e14d7e4c9025c4b57d4893cd423401d010596b6aacd592a"
     ],
     "exitCode": 0
   },
@@ -90,9 +90,9 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-dashboard-2f24cc61c7",
+      "sp-dashboard-00523c794c",
       "-f",
-      "/home/emrichschule/schulplattform/.work/dashboard-test-a834dc69b3/compose.json",
+      "/home/emrichschule/schulplattform/.work/dashboard-test-63f340ce07/compose.json",
       "down"
     ],
     "exitCode": 0

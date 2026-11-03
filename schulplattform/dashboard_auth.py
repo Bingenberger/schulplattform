@@ -171,13 +171,13 @@ class AdminStore:
             return {row[0] for row in db.execute("SELECT app_id FROM access_projection WHERE admin_id=?", (identity,))}
 
     def confirm_access(self, identity, app_id):
-        if app_id not in ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung"):
+        if app_id not in ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux"):
             raise ValueError("Unknown app")
         with self.connect() as db:
             db.execute("INSERT OR IGNORE INTO access_projection VALUES(?,?)", (identity, app_id))
 
     def audit(self, identity, action, app_id, outcome):
-        if action not in ("start", "stop") or app_id not in ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung") or outcome not in ("accepted", "failed", "completed", "blocked"):
+        if action not in ("start", "stop") or app_id not in ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux") or outcome not in ("accepted", "failed", "completed", "blocked"):
             raise ValueError("Invalid audit event")
         with self.connect() as db:
             db.execute("INSERT INTO audit(at,actor,action,app_id,outcome) VALUES(?,?,?,?,?)",

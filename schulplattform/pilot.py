@@ -28,13 +28,14 @@ INFRASTRUCTURE = {
 }
 
 
-APP_PORTS = {"gswb": 8000, "schulwissen": 8000, "zackboing": 3000, "schulhelfer": 8000, "losverkauf": 8000, "grundschultafel": 3000, "fahrradausbildung": 8000}
-DEFAULT_DOMAINS = {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost", "zackboing": "quiz.localhost", "schulhelfer": "helfer.localhost", "losverkauf": "lose.localhost", "grundschultafel": "tafel.localhost", "fahrradausbildung": "rad.localhost"}
+APP_PORTS = {"gswb": 8000, "schulwissen": 8000, "zackboing": 3000, "schulhelfer": 8000, "losverkauf": 8000, "grundschultafel": 3000, "fahrradausbildung": 8000, "leseflux": 3001}
+DEFAULT_DOMAINS = {"gswb": "woerter.localhost", "schulwissen": "wissen.localhost", "zackboing": "quiz.localhost", "schulhelfer": "helfer.localhost", "losverkauf": "lose.localhost", "grundschultafel": "tafel.localhost", "fahrradausbildung": "rad.localhost", "leseflux": "lesen.localhost"}
 APP_SELECTIONS = (("gswb", "schulwissen"), ("gswb", "schulwissen", "zackboing"),
                   ("gswb", "schulwissen", "zackboing", "schulhelfer"),
                   ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf"),
                   ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel"),
-                  ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung"))
+                  ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung"),
+                  ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux"))
 
 class Pilot:
     def __init__(self, directory, apps=None):
@@ -82,6 +83,7 @@ class Pilot:
             "LOSVERKAUF_SECRETS_DIR": str(self.directory / "runtime/losverkauf"),
             "TAFEL_SECRET_FILE": str(self.directory / "runtime/tafel-key"),
             "FP_SECRETS_DIR": str(self.directory / "runtime/fahrrad"),
+            "LESEFLUX_SECRETS_DIR": str(self.directory / "runtime/leseflux"),
         }
         self.log = self.directory / "operations.jsonl"
 
@@ -131,6 +133,12 @@ class Pilot:
             values["fahrrad/db-admin"] = store.get_or_create("rad-db-admin")
             values["fahrrad/db-app"] = store.get_or_create("rad-db-app")
             values["fahrrad/database-url"] = "postgresql+psycopg://fahrrad:"+values["fahrrad/db-app"]+"@db:5432/fahrrad"
+        if "leseflux" in self.apps:
+            (runtime / "leseflux").mkdir(mode=0o700, exist_ok=True)
+            values["leseflux/db-admin"] = store.get_or_create("lese-db-admin")
+            values["leseflux/db-app"] = store.get_or_create("lese-db-app")
+            values["leseflux/jwt-key"] = store.get_or_create("lese-jwt")
+            values["leseflux/database-url"] = "postgresql://leseflux:"+values["leseflux/db-app"]+"@postgres:5432/leseflux?connection_limit=5&pool_timeout=3&connect_timeout=3"
         values["gswb-editor"] = ""  # editor remains closed until separately provisioned
         values["wissen-db"] = "postgresql://schulwissen:" + values["postgres-app"] + "@db:5432/schulwissen"
         for name, value in values.items():
@@ -142,6 +150,8 @@ class Pilot:
                 fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
                 with os.fdopen(fd, "w") as stream:
                     stream.write(value)
+                    stream.flush()
+                    os.fchmod(stream.fileno(), 0o444)
         port = self.config["port"]
         caddy = caddyfile([(app, DEFAULT_DOMAINS[app], APP_PORTS[app]) for app in self.apps])
         caddy = caddy.replace("admin localhost:2019", "admin localhost:2019\n  local_certs")
@@ -187,6 +197,9 @@ class Pilot:
         if "fahrradausbildung" in self.apps:
             infrastructure["services"]["proxy"]["networks"].append("rad-proxy")
             infrastructure["networks"]["rad-proxy"] = {"internal": True}
+        if "leseflux" in self.apps:
+            infrastructure["services"]["proxy"]["networks"].append("lese-proxy")
+            infrastructure["networks"]["lese-proxy"] = {"internal": True}
         for service in infrastructure["services"].values():
             service["logging"] = {"driver": "json-file", "options": {"max-size": "10m", "max-file": "3"}}
         (self.directory / "infra.json").write_text(json.dumps(infrastructure, indent=2))
@@ -306,6 +319,25 @@ networks:
   proxy:
     external: true
     name: {net}_rad-proxy
+""")
+        if "leseflux" in self.apps:
+            (self.directory / "leseflux.yml").write_text(f"""
+services:
+  app:
+    image: leseflux:0.1.0-dev
+    ports: !reset []
+    environment:
+      CORS_ORIGIN: https://lesen.localhost:{port}
+      COOKIE_SECURE: "true"
+      TRUSTED_PROXY_IPS: 127.0.0.1
+    networks:
+      default: {{}}
+      proxy:
+        aliases: [leseflux]
+networks:
+  proxy:
+    external: true
+    name: {net}_lese-proxy
 """)
         # No administrative database credential is passed to the application.
         (self.directory / "init-postgres.sh").write_text("""#!/bin/sh
@@ -436,12 +468,24 @@ networks:
                      for line in path.read_text().splitlines()]
             path.write_text("\n".join(lines) + "\n")
 
+        if "leseflux" in self.apps:
+            address = proxy["NetworkSettings"]["Networks"][self.project + "-infra_lese-proxy"]["IPAddress"]
+            ipaddress.ip_address(address)
+            path = self.directory / "leseflux.yml"
+            lines = [("      TRUSTED_PROXY_IPS: " + address) if line.startswith("      TRUSTED_PROXY_IPS:") else line
+                     for line in path.read_text().splitlines()]
+            path.write_text("\n".join(lines) + "\n")
+
     def bootstrap(self, identity):
         self.configure_proxy()
         if "fahrradausbildung" in self.apps:
             self.compose_command("fahrradausbildung", "up", "-d", "--no-build", "--wait", "db")
             self.compose_command("fahrradausbildung", "run", "--rm", "--no-deps", "app", "python", "-m", "app.migrate")
-        # Schema jobs only. No administrative or real user account is created.
+        if "leseflux" in self.apps:
+            self.compose_command("leseflux", "up", "-d", "--no-build", "--wait", "postgres")
+            self.compose_command("leseflux", "run", "--rm", "--no-deps", "app", "node", "scripts/platform-migrate.cjs")
+            self.compose_command("leseflux", "run", "--rm", "--no-deps", "app", "node", "scripts/content.cjs")
+        # Schema/content jobs only. No administrative or real user account is created.
         self.compose_command("gswb", "run", "--rm", "--no-deps", "app", "python", "-m", "grundschul_woerterbuch.migrate")
         self.compose_command("schulwissen", "run", "--rm", "--no-deps", "app", "python", "manage.py", "platform_migrate")
         if "zackboing" in self.apps:
@@ -468,6 +512,9 @@ networks:
 
         if "fahrradausbildung" in self.apps:
             self.compose_command("fahrradausbildung", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
+
+        if "leseflux" in self.apps:
+            self.compose_command("leseflux", "up", "-d", "--no-build", "--wait", "--wait-timeout", "90")
 
     def ready(self, identity):
         try:
@@ -577,6 +624,11 @@ networks:
                 raise StateError("Anonymous bicycle administration accepted")
             if self.request(domains["fahrradausbildung"], "/p/demo")[0] != 200:
                 raise StateError("Public bicycle station app unavailable")
+        if "leseflux" in self.apps:
+            if self.request(domains["leseflux"], "/api/auth/me")[0] != 401:
+                raise StateError("Anonymous reading account access accepted")
+            if self.request(domains["leseflux"], "/child/login")[0] != 200:
+                raise StateError("Reading child login unavailable")
         results["negative-access"] = True
         atomic_json(self.directory / "verified.json", {"installation": identity, "checks": results})
 

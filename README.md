@@ -4,7 +4,7 @@ Die Plattform bündelt eigenständige Apps für einen selbst gehosteten Schulser
 Maßgeblich sind der [Auftrag](Coding_Agent_Umsetzungsauftrag_Schulplattform.md) und
 der [Umfangsbeschluss](docs/platform-audit/scope-decision.md).
 
-**Aktuell ist ein lokaler Pilot mit schulwissen, gswb und optional Zackboing, Schulhelfer, Losverkauf, Grundschultafel sowie Fahrradausbildung geprüft.** Die vollständige
+**Aktuell ist ein lokaler Pilot mit schulwissen, gswb und optional Zackboing, Schulhelfer, Losverkauf, Grundschultafel, Fahrradausbildung sowie Leseflux geprüft.** Die vollständige
 Installation auf leerem Ubuntu 24.04 und der Zehn-App-Stack sind noch offen.
 [Umsetzungsstand und Testnachweise](docs/implementation/status.md).
 
@@ -101,3 +101,7 @@ RPO/RTO und die geschätzten 16 GB RAM/4 vCPU sind noch nicht bestätigt.
 Kein Keycloak, keine zentrale Benutzersperrung und kein zentraler Logout.
 Lokale Appanmeldungen bleiben erhalten. Testvolumes werden bei Stop behalten.
 Kein externer SMTP-Upstream; keine Produktiv- oder DNSumstellung.
+
+Leseflux ergänzt einen neuen Achterpilot nach scripts/build_leseflux.py mit
+--apps gswb,schulwissen,zackboing,schulhelfer,losverkauf,grundschultafel,fahrradausbildung,leseflux.
+[Lokale Kinderzugänge, Sitzungswiderruf und Restore](docs/implementation/leseflux.md).
