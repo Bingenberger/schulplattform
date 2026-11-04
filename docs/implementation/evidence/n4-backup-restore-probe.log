@@ -1,0 +1,11 @@
+# Restore-Proben (isoliert, ohne Netz, Live-Daten unberührt)
+gswb ok sqlite= 1 volumes= ['uploads', 'dictionary', 'images', 'audio'] pg= None
+schulwissen ok sqlite= 0 volumes= ['medien'] pg= {'tables': 33, 'foreignKeys': 67, 'owner': 'postgres'}
+zackboing ok sqlite= 1 volumes= ['data'] pg= None
+schulhelfer ok sqlite= 1 volumes= ['data'] pg= None
+losverkauf ok sqlite= 1 volumes= ['data'] pg= None
+grundschultafel ok sqlite= 0 volumes= ['data'] pg= None
+fahrradausbildung ok sqlite= 0 volumes= ['vorlagen'] pg= {'tables': 15, 'foreignKeys': 16, 'owner': 'postgres'}
+leseflux ok sqlite= 0 volumes= [] pg= {'tables': 21, 'foreignKeys': 22, 'owner': 'postgres'}
+kompetenz-manager ok sqlite= 1 volumes= ['instance', 'templates'] pg= None
+abgen ok sqlite= 0 volumes= ['assets'] pg= {'tables': 14, 'foreignKeys': 13, 'owner': 'postgres'}

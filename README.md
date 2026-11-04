@@ -10,6 +10,28 @@ Installation auf leerem Ubuntu 24.04 sowie Produktions- und Releaseabnahme sind 
 Abgen ist eigenständig und im gemeinsamen Pilot mit PostgreSQL 18,
 Yjs, PDF und Domainrückfall geprüft: [Abnahme und Grenzen](docs/implementation/abgen.md).
 
+## Produktion (Nachauftrag N1–N6)
+
+Ein leerer Ubuntu-24.04-Server, DNS-Einträge je Hostname, ein Kommando:
+
+```sh
+./install.sh preflight && ./install.sh configure
+./install.sh apply --bundle releases/0.1.0 --trusted-key release-keys/schulplattform-release.pub
+./install.sh admin-setup
+```
+
+- Ablauf und Checkliste: [docs/betrieb/bereitstellung.md](docs/betrieb/bereitstellung.md)
+- Umzug vom Altserver: [docs/betrieb/umzug.md](docs/betrieb/umzug.md), Werkzeug `scripts/altserver/schulplattform_altserver.py`
+- Dashboard, Steuerdienst, Angriffsflächen: [docs/betrieb/dashboard.md](docs/betrieb/dashboard.md)
+- Abnahmestand: [docs/implementation/nachauftrag-status.md](docs/implementation/nachauftrag-status.md)
+
+Weitere Befehle:
+- `status`, `reconcile` (DNS/Zertifikate)
+- `domain-change APP HOST`, `start|stop APP`
+- `app-setup APP`, `smtp-password`
+- `backup --all`, `restore-probe APP`, `restore APP ARCHIV --confirm-replace`, `restore-platform`
+- `import-key`, `import APP ARCHIV --dry-run|--confirm-replace`
+
 ## Lokale Entwicklung
 
 ```sh

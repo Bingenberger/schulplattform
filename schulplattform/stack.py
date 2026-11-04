@@ -23,6 +23,7 @@ import socket
 import ssl
 import stat
 import subprocess
+import sys
 import time
 
 from . import catalogue
@@ -104,6 +105,10 @@ class Stack:
                                 stdout=None if tty else subprocess.PIPE,
                                 stderr=None if tty else subprocess.PIPE)
         empty = b"" if binary else ""
+        if result.returncode and os.environ.get("SP_DEBUG") == "1" and result.stderr:
+            # Explicit operator diagnostics only; stderr may contain application data.
+            tail = result.stderr[-1500:] if not binary else result.stderr[-1500:].decode(errors="replace")
+            print(f"[SP_DEBUG] {Path(argv[0]).name} {' '.join(argv[1:6])}: {tail}", file=sys.stderr)
         return result.returncode, (result.stdout or empty) if capture else empty
 
     def command(self, argv, capture=True, timeout=600, tty=False, check=True, binary=False):
@@ -425,6 +430,18 @@ class Stack:
 
     def infrastructure_up(self):
         (self.layout.runtime / "dashboard").mkdir(mode=0o711, exist_ok=True)
+        pending = self.layout.state / "dashboard-restore.tar"
+        if pending.exists():
+            # Disaster recovery: seed the (new, empty) dashboard volume once, as its owner UID.
+            self.command([self.docker, "volume", "create", "sp-infra_dashboard-state"])
+            os.chmod(pending, 0o644)
+            self.command([self.docker, "run", "--rm", "--network", "none", "--read-only", "--user", "0:0",
+                          "--cap-drop", "ALL", "--cap-add", "CHOWN", "--cap-add", "DAC_OVERRIDE", "--cap-add", "FOWNER",
+                          "-v", "sp-infra_dashboard-state:/state", "-v", f"{pending}:/in.tar:ro",
+                          catalogue_helper(), "sh", "-c",
+                          "[ -z \"$(ls -A /state)\" ] && tar -C /state -xf /in.tar && chown -R 10001:10001 /state "
+                          "&& chmod 700 /state || true"])
+            pending.unlink()
         self.compose("infra", "up", "-d", "--pull", "never", "--remove-orphans", "--wait", "--wait-timeout", "120")
 
     def migrate(self, app_id):
@@ -525,6 +542,11 @@ DESCRIPTION = {"gswb": "Öffentliche Wörterbuchsuche", "schulwissen": "Schulint
                "grundschultafel": "Persönliche Lehrertafel", "fahrradausbildung": "Radfahrausbildung und Posten",
                "leseflux": "Leseübungen", "kompetenz-manager": "Kompetenzen und Berichte",
                "abgen": "Arbeitsblätter gemeinsam erstellen"}
+
+
+def catalogue_helper():
+    from .backups import HELPER
+    return HELPER
 
 
 def digest_file(path):

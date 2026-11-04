@@ -5,7 +5,7 @@ Für den echten Server. Alles hier wurde in einer lokalen Ubuntu-24.04-VM mit Te
 ## 1. Server beim Hoster bestellen
 
 - Ubuntu Server 24.04 LTS, amd64, **leer** (ohne vorinstalliertes Docker, nginx, Plesk o. Ä.)
-- Ausgangsschätzung, nicht gemessen: 16 GB RAM, 4 dedizierte vCPU, 250 GB SSD. Gemessen sind bisher nur die Images: `IMAGES_TOTAL` entpackt (Messung in der Test-VM), davon `abgen-pdf` allein 4,09 GB.
+- Ausgangsschätzung, nicht gemessen: 16 GB RAM, 4 dedizierte vCPU, 250 GB SSD. Gemessen sind bisher nur die Images: 8,43 GB entpackt (`docker system df` in der Test-VM), davon `abgen-pdf` allein 4,09 GB.
 - Feste öffentliche IPv4, IPv6 optional
 - Eingehend erreichbar: 22 (oder Ihr SSH-Port), 80, 443. Eine Firewall des Hosters entsprechend öffnen.
 - Ausgehend: HTTPS zu `download.docker.com`, `ghcr.io`, `pypi.org`, `acme-v02.api.letsencrypt.org` und Ihrem SMTP-Anbieter

@@ -126,7 +126,7 @@ def warnings(host):
 
 PRODUCTION = ["configure", "plan", "apply", "status", "reconcile", "domain-change", "start", "stop",
               "admin-setup", "app-setup", "smtp-password", "backup", "restore-probe", "restore",
-              "import-key", "import"]
+              "import-key", "import", "restore-platform"]
 
 
 def _main(argv=None):
@@ -147,6 +147,7 @@ def _main(argv=None):
     parser.add_argument('--quiet', action='store_true')
     parser.add_argument('--confirm-replace', action='store_true', help="restore/import: replace this app's data")
     parser.add_argument('--dry-run', action='store_true', help='import: decrypt and report only')
+    parser.add_argument('--key-file', type=Path, help='restore-platform: backup key from a file instead of the terminal')
     parser.add_argument('--no-host', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.action.startswith("pilot-"):
@@ -177,6 +178,11 @@ def _main(argv=None):
         existing = cfg.load(args.config) if args.config.exists() else None
         cfg.wizard(args.config, existing)
         print(f"Konfiguration gespeichert: {args.config}")
+        return 0
+    if args.action == 'restore-platform':
+        if len(args.target) != 1 or not args.confirm_replace:
+            parser.error('restore-platform ARCHIVE --confirm-replace (on an empty host, before apply)')
+        _restore_platform(Path(args.target[0]), args.config, args.root, args.key_file)
         return 0
     if not args.bundle or not args.trusted_key:
         bundle, key = _installed_release(args.root)
@@ -261,6 +267,14 @@ def _main(argv=None):
         service = BackupService(platform_)
         apps = platform_.stack.apps if args.all or not (args.app or target) else [args.app or target[0]]
         failures = 0
+        if args.all:
+            try:
+                result = service.backup_platform()
+                if not args.quiet:
+                    print(json.dumps(result, ensure_ascii=False))
+            except Exception as exc:
+                failures += 1
+                print(f"Plattformsicherung fehlgeschlagen ({type(exc).__name__})", file=sys.stderr)
         for app in apps:
             try:
                 result = service.backup(app)
@@ -294,6 +308,57 @@ def _main(argv=None):
             parser.error('restore-probe APP')
         print(json.dumps(BackupService(platform_).restore_probe(target[0]), indent=2, ensure_ascii=False))
     return 0
+
+
+def _restore_platform(archive, config_path, root, key_file=None):
+    """Disaster recovery on an EMPTY host: config, secrets, domain state, certificates, dashboard state.
+
+    The backup key is read from the terminal (it must come from outside the old server)."""
+    import getpass
+    import hashlib
+    import tarfile
+    import tempfile
+    from .backups import decrypt_stream
+    from .secrets import SecretStore
+    from .state import StateError
+    root = Path(root)
+    if (root / 'state/installation.json').exists():
+        raise StateError('Ziel ist nicht leer (Installation vorhanden); restore-platform nur vor apply')
+    if key_file:
+        value = Path(key_file).read_text().strip()
+    else:
+        with open('/dev/tty', 'r+') as tty:
+            value = getpass.getpass('Backup-Schlüssel (Inhalt von secrets/backup-key): ', stream=tty).strip()
+    key = hashlib.sha256(value.encode()).digest()
+    root.mkdir(parents=True, exist_ok=True, mode=0o711)
+    with tempfile.TemporaryDirectory(dir=root) as work:
+        plain = Path(work) / 'plain.tar'
+        with open(archive, 'rb') as source, open(plain, 'wb') as out:
+            header = decrypt_stream(source, out, key)
+        if header.get('app') != '_platform':
+            raise StateError('Kein Plattformarchiv')
+        with tarfile.open(plain) as tar:
+            tar.extractall(work, filter='data')
+        with tarfile.open(Path(work) / 'platform.tar') as tar:
+            tar.extractall(Path(work) / 'p', filter='data')
+        p = Path(work) / 'p'
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_bytes((p / 'etc/platform.toml').read_bytes())
+        os.chmod(config_path, 0o644)
+        import shutil
+        for relative in ('secrets', 'runtime', 'domains', 'state', 'caddy'):
+            source = p / 'var' / relative
+            if source.exists():
+                shutil.copytree(source, root / relative, dirs_exist_ok=True, symlinks=False)
+        os.chmod(root / 'secrets', 0o700)
+        for item in (root / 'secrets').iterdir():
+            os.chmod(item, 0o600)
+        SecretStore(root / 'secrets').replace('backup-key', value)
+        if (Path(work) / 'dashboard.tar').exists():
+            pending = root / 'state/dashboard-restore.tar'
+            shutil.copyfile(Path(work) / 'dashboard.tar', pending)
+            os.chmod(pending, 0o600)
+    print('Plattformzustand wiederhergestellt. Nächster Schritt: ./install.sh apply --bundle … --trusted-key …')
 
 
 def _now():

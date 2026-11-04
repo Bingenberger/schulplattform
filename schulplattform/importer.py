@@ -129,7 +129,12 @@ def run_import(platform, app_id, archive, confirm=False):
         if not confirm:
             summary["mode"] = "Trockenlauf – nichts geändert"
             return summary
-        safety = service.backup(app_id)  # current state of the new server, for rollback
+        if not platform.stack.healthy(app_id):
+            status = json.loads(service.status_path.read_text()) if service.status_path.exists() else {}
+            good = status.get(app_id, {}).get("lastHealthyArchive", "keine")
+            raise StateError(f"{app_id} ist nicht gesund; zuerst die letzte gesunde Sicherung ({good}) mit "
+                             "'./install.sh restore' zurückspielen")
+        safety = service.backup(app_id)  # healthy state of the new server, for rollback
         summary["preImportBackup"] = safety["archive"]
         facts = restore_directory(service, app_id, unpacked, legacy=True)
         summary["result"] = facts

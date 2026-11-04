@@ -1,0 +1,38 @@
+# Nach Neustart des Hosts (systemctl reboot), up 1 minute
+deploy-service=active reconcile-timer=active backup-timer=active
+  verwaltung         verwaltung.schule.test                   aktiv                   Zertifikat bis 2027-02-02
+  gswb               woerterbuch.schule.test                  aktiv                  läuft Zertifikat bis 2027-02-02
+  schulwissen        wissen.schule.test                       aktiv                  läuft Zertifikat bis 2027-02-02
+  zackboing          quiz.schule.test                         aktiv                  läuft Zertifikat bis 2027-02-02
+  schulhelfer        helfer.schule.test                       aktiv                  läuft Zertifikat bis 2027-02-02
+  losverkauf         losverkauf.schule.test                   aktiv                  läuft Zertifikat bis 2027-02-02
+  grundschultafel    tafel.schule.test                        aktiv                  läuft Zertifikat bis 2027-02-02
+  fahrradausbildung  rad.schule.test                          aktiv                  läuft Zertifikat bis 2027-02-02
+  leseflux           lesen.schule.test                        aktiv                  läuft Zertifikat bis 2027-02-02
+  kompetenz-manager  kompetenz.schule.test                    aktiv                  läuft Zertifikat bis 2027-02-02
+  abgen              blaetter.schule.test                     aktiv                  läuft Zertifikat bis 2027-02-02
+# Images (docker system df)
+Images 8.431GB
+Containers 421.9kB
+# Speicher im Leerlauf nach Neustart (docker stats, Momentaufnahme, nicht der Zielserver)
+sp-abgen-app-1 82.02MiB / 1GiB
+sp-abgen-pdf-1 166.1MiB / 1.5GiB
+sp-abgen-postgres-1 48.74MiB / 512MiB
+sp-fahrradausbildung-app-1 258.5MiB / 768MiB
+sp-fahrradausbildung-db-1 27.45MiB / 512MiB
+sp-grundschultafel-app-1 62.8MiB / 512MiB
+sp-gswb-app-1 150.3MiB / 512MiB
+sp-infra-dashboard-1 64.48MiB / 384MiB
+sp-infra-mailrelay-1 27.37MiB / 128MiB
+sp-infra-proxy-1 52.93MiB / 256MiB
+sp-kompetenz-manager-app-1 136.1MiB / 1.5GiB
+sp-kompetenz-manager-worker-1 70.58MiB / 384MiB
+sp-leseflux-app-1 49.7MiB / 768MiB
+sp-leseflux-postgres-1 42.73MiB / 512MiB
+sp-losverkauf-app-1 47.2MiB / 384MiB
+sp-schulhelfer-app-1 87.78MiB / 384MiB
+sp-schulwissen-app-1 145MiB / 768MiB
+sp-schulwissen-db-1 28.44MiB / 11.68GiB
+sp-zackboing-app-1 39.36MiB / 384MiB
+               total        used        free      shared  buff/cache   available
+Mem:           11960        1974        9238          60        1087        9985

@@ -148,12 +148,16 @@ class BackupService:
         work = Path(tempfile.mkdtemp(prefix=f".{app_id}-", dir=self.layout.backups))
         try:
             os.chmod(work, 0o700)
-            info = {"schemaVersion": 1, "app": app_id, "release": self.platform.release.version,
+            healthy = self.stack.healthy(app_id)
+            info = {"schemaVersion": 1, "app": app_id, "release": self.platform.release.version, "healthy": healthy,
                     "sourceCommit": manifest["sourceCommit"], "createdAt": stamp,
                     "engine": manifest["database"]["engine"], "database": manifest["database"]["name"],
                     "volumes": [], "sqlite": []}
             if info["engine"].startswith("postgres"):
                 service = DATABASE_SERVICE[app_id]
+                # pg_dump needs a running database, even if the app itself is stopped.
+                self.stack.compose(app_id, "up", "-d", "--pull", "never", "--no-build", "--wait",
+                                   "--wait-timeout", "120", service)
                 dump = self.stack.compose(app_id, "exec", "-T", service, "pg_dump", "-Fc", "-U", "postgres",
                                           "-d", info["database"], capture=True, binary=True)
                 (work / "database.dump").write_bytes(dump)
@@ -179,13 +183,22 @@ class BackupService:
                     if check["integrity"] != "ok":
                         raise StateError(f"{app_id}: SQLite integrity check failed")
                 info["sqlite"] += [dict(check, volume=volume) for check in checks]
-                self.stack.command([self.stack.docker, "run", "--rm", "--network", "none", "--read-only",
-                                    "--user", APP_UID, "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
-                                    "-v", f"{name}:/src:ro", "-v", f"{snap}:/out", HELPER,
-                                    "tar", "-C", "/src", "--exclude=*.db-wal", "--exclude=*.db-shm",
-                                    "--exclude=*.sqlite3-wal", "--exclude=*.sqlite3-shm",
-                                    *[f"--exclude=./{c['file']}" for c in checks],
-                                    "-cf", "/out/files.tar", "."])
+                # Freeze the app's processes only for the file snapshot (seconds), so files cannot change
+                # or vanish while tar reads them. SQLite was copied above via the online API.
+                running = [svc for svc in APPS[app_id].services if self.stack.service_state(app_id, svc)["running"]]
+                if running:
+                    self.stack.compose(app_id, "pause", *running)
+                try:
+                    self.stack.command([self.stack.docker, "run", "--rm", "--network", "none", "--read-only",
+                                        "--user", APP_UID, "--cap-drop", "ALL", "--security-opt",
+                                        "no-new-privileges:true", "-v", f"{name}:/src:ro", "-v", f"{snap}:/out",
+                                        HELPER, "tar", "-C", "/src", "--exclude=*.db-wal", "--exclude=*.db-shm",
+                                        "--exclude=*.sqlite3-wal", "--exclude=*.sqlite3-shm",
+                                        *[f"--exclude=./{c['file']}" for c in checks],
+                                        "-cf", "/out/files.tar", "."])
+                finally:
+                    if running:
+                        self.stack.compose(app_id, "unpause", *running, check=False)
                 info["volumes"].append(volume)
             (work / "backup.json").write_text(json.dumps(info, indent=2))
             archive = target_dir / f"{app_id}-{stamp}.spbk"
@@ -201,9 +214,51 @@ class BackupService:
         size = archive.stat().st_size
         offsite = self.offsite(archive)
         self.rotate(app_id)
-        self._record(app_id, lastSuccess=stamp, lastArchive=archive.name, size=size, plainSha256=plain_digest,
+        values = dict(lastSuccess=stamp, lastArchive=archive.name, size=size, plainSha256=plain_digest,
+                      offsite=offsite, healthyAtBackup=healthy)
+        if healthy:
+            values["lastHealthyArchive"] = archive.name
+        self._record(app_id, **values)
+        return {"app": app_id, "archive": archive.name, "size": size, "offsite": offsite, "healthy": healthy}
+
+    PLATFORM_PATHS = ("secrets", "runtime", "domains/current.json", "state/release-trust.pub", "state/bootstrap.json")
+
+    def backup_platform(self):
+        """Configuration, secret store, projections, domain state, certificates and dashboard admin state.
+
+        Needed to rebuild a server: without the secrets, carried links (parent tokens) and app session
+        keys would change. Encrypted with the same backup key; keep that key off the server.
+        """
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        target_dir = self.layout.backups / "_platform"
+        target_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        work = Path(tempfile.mkdtemp(prefix=".platform-", dir=self.layout.backups))
+        try:
+            root = self.layout.root
+            with tarfile.open(work / "platform.tar", "w") as tar:
+                tar.add(self.platform.config_path, arcname="etc/platform.toml")
+                for relative in self.PLATFORM_PATHS:
+                    if (root / relative).exists():
+                        tar.add(root / relative, arcname="var/" + relative)
+                tar.add(self.layout.caddy_data, arcname="var/caddy/data")
+            dashboard = self.stack.command([self.stack.docker, "volume", "inspect", "--format", "{{.Mountpoint}}",
+                                            "sp-infra_dashboard-state"], check=False).strip()
+            if dashboard:
+                with tarfile.open(work / "dashboard.tar", "w") as tar:
+                    tar.add(dashboard, arcname=".")
+            (work / "backup.json").write_text(json.dumps({"schemaVersion": 1, "app": "_platform", "createdAt": stamp,
+                                                         "release": self.platform.release.version}))
+            archive = target_dir / f"_platform-{stamp}.spbk"
+            with archive.with_suffix(".partial").open("wb") as out:
+                encrypt_stream(_tar_reader(work), out, self.key(), {"app": "_platform", "createdAt": stamp})
+            os.chmod(archive.with_suffix(".partial"), 0o600)
+            os.replace(archive.with_suffix(".partial"), archive)
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+        offsite = self.offsite(archive)
+        self._record("_platform", lastSuccess=stamp, lastArchive=archive.name, size=archive.stat().st_size,
                      offsite=offsite)
-        return {"app": app_id, "archive": archive.name, "size": size, "offsite": offsite}
+        return {"app": "_platform", "archive": archive.name, "offsite": offsite}
 
     def rotate(self, app_id):
         days = self.platform.config["backup"].get("retention_days", 14)
@@ -373,8 +428,15 @@ def restore_directory(service, app_id, work, legacy=False):
         os.chmod(path, 0o755 if path.is_dir() else 0o644)
     facts = {"app": app_id, "sourceRelease": info.get("release"), "legacy": legacy,
              "createdAt": info.get("createdAt"), "volumes": [], "sqlite": len(info.get("sqlite", []))}
+    owners = {item["id"].replace("-", "_"): item["owner"] for item in manifest["persistence"]}
+    owners.update({item["id"]: item["owner"] for item in manifest["persistence"]})
     for volume in info.get("volumes", []):
         name = f"sp-{app_id}_{volume}"
+        # A volume created outside Compose is root-owned; give it the owner declared in the manifest
+        # (Compose would otherwise copy it from the image on first use). Only CAP_CHOWN is granted.
+        stack.command([stack.docker, "run", "--rm", "--network", "none", "--read-only", "--user", "0:0",
+                       "--cap-drop", "ALL", "--cap-add", "CHOWN", "--security-opt", "no-new-privileges:true",
+                       "-v", f"{name}:/dst", HELPER, "chown", owners.get(volume, APP_UID), "/dst"])
         sqlite_dir = work / "sqlite" / volume
         sqlite_dir.mkdir(parents=True, exist_ok=True)
         stack.command([stack.docker, "run", "--rm", "--network", "none", "--read-only", "--user", APP_UID,
@@ -410,6 +472,11 @@ def restore_directory(service, app_id, work, legacy=False):
         temporary.write_text(value)
         os.chmod(temporary, 0o444)
         os.replace(temporary, target)
+        # Keep the secret store authoritative: the projection is re-derived from it on every render.
+        kind = dict(APPS[app_id].secrets).get(relative, "")
+        if kind.startswith("random:"):
+            from .secrets import SecretStore
+            SecretStore(service.layout.secrets).replace(kind.split(":", 1)[1], value)
         carried.append(relative)
     facts["carriedSecrets"] = carried
     stack.migrate(app_id)
