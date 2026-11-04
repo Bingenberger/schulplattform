@@ -2,7 +2,7 @@
   {
     "app": "abgen",
     "baseCommit": "50db999ccc689cdad3a6b2c930d24dee650eaec2",
-    "implementationCommit": "585c7ff5fdef9ce12c832f521ec5c2faf10fd447",
+    "implementationCommit": "dfcc805d4058579f56d3f214195d6d85e1bc1031",
     "patch": "patches/abgen/changes.patch"
   },
   {
