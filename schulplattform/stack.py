@@ -392,12 +392,23 @@ class Stack:
             if platform.get("acme_ca_root") else None)
         return self._write(self.layout.generated / "caddy" / "Caddyfile", text, 0o644)
 
+    def _caddyfile_digest(self):
+        path = self.layout.generated / "caddy" / "Caddyfile"
+        return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
+
+    def proxy_current(self):
+        """True when the running Caddy has loaded the Caddyfile as it is on disk now."""
+        marker = self.layout.state / "proxy-loaded.sha256"
+        return marker.exists() and marker.read_text().strip() == self._caddyfile_digest()
+
     def reload_proxy(self):
         container = self.container("infra", "proxy")
         if container and container["State"].get("Running"):
+            digest = self._caddyfile_digest()
             for action in ("validate", "reload"):
                 self.command([self.docker, "exec", container["Id"], "caddy", action,
                               "--config", "/etc/caddy/conf/Caddyfile", "--adapter", "caddyfile"])
+            self._write(self.layout.state / "proxy-loaded.sha256", f"{digest}\n", 0o600)
 
     # --- inspection -----------------------------------------------------------
     def container(self, app, service):

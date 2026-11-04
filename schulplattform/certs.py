@@ -6,12 +6,16 @@ from pathlib import Path
 from cryptography import x509
 
 
-def find(data_dir, hostname):
-    """Return the newest certificate Caddy stored for hostname, or None."""
+def find(data_dir, hostname, issuer=None):
+    """Return the newest certificate Caddy stored for hostname, or None.
+
+    issuer: Caddy's issuer directory of the configured ACME environment. Certificates of
+    another environment (e.g. staging after switching to production) do not count."""
     base = Path(data_dir) / "caddy/certificates"
     if not base.is_dir():
         return None
-    candidates = [path for path in base.glob(f"*/{hostname}/{hostname}.crt") if path.is_file() and not path.is_symlink()]
+    candidates = [path for path in base.glob(f"{issuer or '*'}/{hostname}/{hostname}.crt")
+                  if path.is_file() and not path.is_symlink()]
     best = None
     for path in candidates:
         try:

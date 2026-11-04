@@ -68,10 +68,12 @@ Ein zweiter Aufruf ändert nichts. Ein abgebrochener Aufruf setzt beim letzten n
 ./install.sh status
 ```
 
-Wenn alle Hostnamen unter **Staging** `aktiv` sind:
-1. In `/etc/schulplattform/platform.toml` `acme_environment = "production"` setzen.
-2. `./install.sh apply --bundle … --trusted-key … --reconfigure` ausführen.
-3. Mit `./install.sh reconcile` und `./install.sh status` prüfen, dass Zertifikate von Let's Encrypt ausgestellt sind.
+Sobald mindestens ein Hostname unter **Staging** `aktiv` ist (damit sind Port 80/443 und DNS-Weg bewiesen):
+1. Mit `./install.sh configure` die ACME-Umgebung auf `production` stellen (oder in `/etc/schulplattform/platform.toml` `acme_environment = "production"` setzen und mit `./install.sh configure --check` prüfen).
+2. `./install.sh apply --bundle … --trusted-key … --reconfigure` ausführen. Daten, Schlüssel und Volumes bleiben erhalten; Caddy lädt die neue Konfiguration und bestellt echte Zertifikate.
+3. Mit `./install.sh status` prüfen. Bis die echten Zertifikate da sind, steht ein Hostname auf `zertifikat-ausstehend`; Staging-Zertifikate zählen nach der Umstellung nicht mehr.
+
+Hostnamen, deren DNS-Eintrag noch fehlt, erhalten weder Route noch Zertifikatsbestellung. Sie bekommen nach dem Eintragen beim nächsten `reconcile` direkt ein echtes Zertifikat.
 
 Den Backup-Schlüssel `/var/lib/schulplattform/secrets/backup-key` **außerhalb des Servers** verwahren.
 

@@ -21,6 +21,14 @@ TRUST_HEADERS = ["Forwarded", "X-Forwarded-*", "X-Real-IP", "Remote-User", "Remo
 ACME_DIRECTORIES = {"staging": "https://acme-staging-v02.api.letsencrypt.org/directory",
                     "production": "https://acme-v02.api.letsencrypt.org/directory"}
 CHECK_PREFIX = "/.well-known/schulplattform-check/"
+# Caddy stores certificates per issuer under certificates/<issuer key>/<hostname>/.
+ISSUER_KEYS = {"staging": "acme-staging-v02.api.letsencrypt.org-directory",
+               "production": "acme-v02.api.letsencrypt.org-directory"}
+
+
+def issuer_key(environment):
+    """Caddy's storage directory for the configured ACME environment; None for custom CAs (not filtered)."""
+    return ISSUER_KEYS.get(environment)
 
 
 def production_caddyfile(routes, management, email, environment, acme_ca=None, custom_root=None):

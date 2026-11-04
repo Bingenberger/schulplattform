@@ -243,3 +243,23 @@ def test_resumed_apply_refreshes_overrides_before_starting_apps(tmp_path):
     stack.start = lambda app: started.append((app, "timeout: 30s" in stale.read_text()))
     platform.step_apps(None)
     assert started == [("kompetenz-manager", True)]
+
+
+def test_proxy_reloads_when_render_already_wrote_the_new_caddyfile(tmp_path):
+    # Real server: 'apply --reconfigure' after switching to production wrote the Caddyfile in the
+    # render step; the routes step saw no change and never reloaded Caddy, which kept staging.
+    from schulplattform.routing import Router
+    layout, stack, domains = render(tmp_path, sample())
+    (layout.domains / "current.json").write_text(json.dumps({"generation": "x", "domains": domains}))
+    stack.container = lambda project, service: {"Id": "proxy", "State": {"Running": True}}
+    reloads = []
+    stack.command = lambda argv, **kw: reloads.append(argv[4]) if argv[1] == "exec" else ""
+    router = Router(stack, None, resolve=None, ask=None, domains=domains)
+    router.apply_routes()                       # file already written by render(): still reload once
+    assert reloads == ["validate", "reload"]
+    router.apply_routes()                       # loaded and unchanged: no further reload
+    assert reloads == ["validate", "reload"]
+    stack.config = sample(**{"platform.acme_environment": "staging"})
+    stack.write_caddyfile(domains, stack.routed(domains))   # e.g. the render step of a later apply
+    router.apply_routes()
+    assert reloads == ["validate", "reload"] * 2

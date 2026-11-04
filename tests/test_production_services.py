@@ -130,3 +130,15 @@ def test_extended_actions_require_exact_parameters(tmp_path):
     smuggled = signed_request(key, "overview", PLATFORM, params={})
     smuggled["params"] = {"x": 1}
     assert gate.dispatch(smuggled)["error"] == "invalid-request"
+
+
+def test_staging_certificate_does_not_count_after_switching_to_production(tmp_path):
+    # Real server: after acme_environment staging -> production only staging certificates existed,
+    # the status showed them as valid and the apps as "fehler".
+    from schulplattform.proxy import issuer_key
+    make_cert(tmp_path, "quiz.schule.example", issuer_dir=issuer_key("staging"))
+    assert certs.find(tmp_path, "quiz.schule.example", issuer_key("staging"))["valid"]
+    assert certs.find(tmp_path, "quiz.schule.example", issuer_key("production")) is None
+    make_cert(tmp_path, "quiz.schule.example", issuer_dir=issuer_key("production"))
+    assert not certs.find(tmp_path, "quiz.schule.example", issuer_key("production"))["staging"]
+    assert issuer_key("custom") is None

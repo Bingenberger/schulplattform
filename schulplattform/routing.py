@@ -11,6 +11,7 @@ import json
 import time
 
 from . import certs, dnscheck
+from .proxy import issuer_key
 from .storage import atomic_json, exclusive
 
 MANAGEMENT = "_management"
@@ -64,7 +65,9 @@ class Router:
 
     def apply_routes(self):
         changed = self.stack.write_caddyfile(self.current(), self.stack.routed(self.current()))
-        if changed:
+        # The render step may already have written this file (e.g. after switching the ACME
+        # environment); reload whenever Caddy has not loaded the current content yet.
+        if changed or not self.stack.proxy_current():
             self.stack.reload_proxy()
         return changed
 
@@ -82,7 +85,8 @@ class Router:
             deadline = self.clock() + wait_seconds
             while True:
                 for key in list(pending):
-                    certificate = certs.find(self.stack.layout.caddy_data, status[key]["hostname"])
+                    certificate = certs.find(self.stack.layout.caddy_data, status[key]["hostname"],
+                                             issuer_key(platform["acme_environment"]))
                     if certificate and certificate["valid"]:
                         status[key]["certificate"] = certificate
                         pending.discard(key)
