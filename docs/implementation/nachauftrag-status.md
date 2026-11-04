@@ -41,12 +41,12 @@ Die Images auf GHCR sind öffentlich (abgeleitet von den öffentlichen Repositor
 | Leeres Ubuntu 24.04 → Docker 29.1.3 aus dem offiziellen Repo (Schlüssel-Fingerprint geprüft), ufw, 10 Apps, Caddy, Relay/Sink, Dashboard, systemd-Units | beobachtet | Installationsprotokolle in der VM |
 | Zweiter Lauf ändert nichts (68 Dateien und alle Container-IDs gleich, 2,4 s) | beobachtet | `evidence/n4-second-run-noop.log` |
 | Fortsetzung am letzten nachgewiesenen Schritt nach Fehlschlag | beobachtet (mehrfach: `host`, `infrastructure`, `routes`) | Zustandsdatei-Ereignisse |
-| Fortsetzung nach hartem Abbruch (`SIGKILL`) | siehe `evidence/n4-interrupt-resume.log`; der erste Versuch scheiterte vorher an einem Infrastrukturfehler | |
+| Fortsetzung nach hartem Abbruch (`SIGKILL` im Schritt `apps`) | beobachtet | `evidence/n4-interrupt-resume.log` |
 | Fremdbestand (Docker und nginx) → Abbruch, nichts verändert | beobachtet | `evidence/n4-foreign-host-abort.log` |
 | Negativ- und Isolationsprüfungen aller 10 Apps über TLS | beobachtet | `evidence/n4-verify-all-apps.json` |
 | Neustart des Hosts → alles aktiv | beobachtet | `evidence/n4-reboot-and-idle.log` |
 | Backup aller Apps plus Plattform, Offsite-Kopie, isolierte Restore-Probe | beobachtet | `evidence/n4-backup-restore-probe.log` |
-| Restore in leere VM | siehe `evidence/n4-restore-empty-vm.log` | |
+| Restore in leere VM (frisches Ubuntu ohne Docker): Plattformsicherung, apply, 10 App-Restores, alle Hostnamen aktiv, alter Elternlink gültig, Zeilen gleich | beobachtet | `evidence/n4-restore-empty-vm.log` |
 | Images 8,43 GB; Leerlauf aller Container rund 1,6 GB RAM (VM, Momentaufnahme) | **gemessen** (VM, nicht Zielserver) | `evidence/n4-reboot-and-idle.log` |
 | 16 GB / 4 vCPU / 250 GB | **geschätzt** (unverändert) | |
 
