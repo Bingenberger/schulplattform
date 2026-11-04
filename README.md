@@ -79,7 +79,7 @@ Das Release fixiert jedes Image über Version **und** Digest. Ein verändertes B
 ```sh
 ./install.sh preflight      # nur lesend; muss "blockers": [] melden
 ./install.sh configure      # Assistent: Domains je App, Verwaltungsdomain, Let's-Encrypt-Kontakt, IP, SMTP, Backup
-./install.sh smtp-password  # nur bei SMTP mit Anmeldung (verdeckte Eingabe)
+./install.sh smtp-password --bundle releases/0.1.1 --trusted-key release-keys/schulplattform-release.pub  # nur bei SMTP mit Anmeldung (verdeckte Eingabe)
 ./install.sh apply --bundle releases/0.1.1 --trusted-key release-keys/schulplattform-release.pub
 ./install.sh admin-setup    # persönlicher Plattform-Admin mit TOTP
 ./install.sh app-setup APP  # Erstzugang je App, bei Bedarf

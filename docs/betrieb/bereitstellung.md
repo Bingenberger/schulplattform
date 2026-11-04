@@ -41,7 +41,7 @@ python3 -c "import hashlib,base64;k=open('release-keys/schulplattform-release.pu
 ```sh
 ./install.sh preflight          # nur lesend; muss "blockers": [] zeigen
 ./install.sh configure          # Fragen auf dem Terminal: Domains, Let's-Encrypt-Kontakt, IP, SMTP, Backup
-./install.sh smtp-password      # nur bei SMTP mit Anmeldung; Eingabe unsichtbar
+./install.sh smtp-password --bundle releases/0.1.1 --trusted-key release-keys/schulplattform-release.pub  # nur bei SMTP mit Anmeldung; Eingabe unsichtbar
 ./install.sh plan --bundle releases/0.1.1 --trusted-key release-keys/schulplattform-release.pub
 ```
 
