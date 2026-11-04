@@ -1,0 +1,10 @@
+$ .venv/bin/python scripts/prove_grundschultafel_standalone.py
+PASS liveness independent of migration; readiness/login closed before explicit migration
+PASS headless CLI discloses no token; one-use bootstrap forces personal PIN replacement
+PASS concurrent personal accounts preserved; teacher/admin and notebook ownership and Origin denials enforced
+PASS copied JWT alone rejected; original two-cookie session survives restart
+PASS canonical QR URL; anonymous phone upload requires issued capability; asset/poll ownership and single-use enforced
+PASS optional external services disabled while readiness remains healthy
+PASS PIN reset, account deletion and logout revoke existing server sessions
+PASS five failed PIN attempts lock account; lock survives restart
+PASS UID 10001, read-only root and file-projected key verified on real standalone container

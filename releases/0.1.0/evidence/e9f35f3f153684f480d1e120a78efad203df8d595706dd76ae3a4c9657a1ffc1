@@ -1,0 +1,117 @@
+{
+  "apps": [
+    "gswb",
+    "schulwissen",
+    "zackboing",
+    "schulhelfer",
+    "losverkauf",
+    "grundschultafel",
+    "fahrradausbildung",
+    "leseflux",
+    "kompetenz-manager",
+    "abgen"
+  ],
+  "installationId": "6e234961-2e5d-411b-bb6e-01442f21b7f5",
+  "scope": "Ten-app local pilot, synthetic data, verified local CA",
+  "port": 33901,
+  "images": {
+    "app": "sha256:6157f4ddd1f73038b601b0ad6404239ab25afebcb024e78346344b8442ccd2d0",
+    "pdf": "sha256:7ee078ec81e7e576b3d6775f6ff56dcddcea5455e9bef43c69fed88026a30ef2",
+    "postgres": "sha256:57b23a0326ee442e83b3d3fa027c5a148be0a392d7c91d1ca4e1e70131ee859a"
+  },
+  "domainChange": true,
+  "forcedFailureRollback": true,
+  "originalDomainRestored": true,
+  "twoNoopRuns": true,
+  "containersKeysAndCheckpointsStable": true,
+  "domainAndLifecycleBusinessRowsAndYjsBytesUnchanged": true,
+  "ignoredOperationalData": [
+    "sessions",
+    "collab_state.updated_at"
+  ],
+  "pdfFailureDegradesStatusAndPilotReadiness": true,
+  "stopDrainsLiveRoomAndPausesWebAndPdf": true,
+  "databaseAndVolumesKept": true,
+  "maintenance503": true,
+  "startWithoutMigrationOrSetup": true,
+  "privateBackendAndAuxiliaries": true,
+  "checks": [
+    {
+      "domain": "blaetter.localhost",
+      "verifiedLocalCA": true,
+      "secureCookie": true,
+      "nativeLogin": true,
+      "spoofedIdentityAndAnonymousAdministrationDenied": true,
+      "originAndRequestHeaderEnforced": true,
+      "privateControlDenied": true,
+      "originalShareAndChildCodePreserved": true,
+      "newLinksUseRuntimeOrigin": true,
+      "nativeChildQrScreenshotDecoded": true,
+      "publicWssOnCurrentOrigin": true,
+      "privatePdfWorksViaInternalOrigin": true
+    },
+    {
+      "domain": "blaetter-neu.localhost",
+      "verifiedLocalCA": true,
+      "secureCookie": true,
+      "nativeLogin": true,
+      "spoofedIdentityAndAnonymousAdministrationDenied": true,
+      "originAndRequestHeaderEnforced": true,
+      "privateControlDenied": true,
+      "originalShareAndChildCodePreserved": true,
+      "newLinksUseRuntimeOrigin": true,
+      "nativeChildQrScreenshotDecoded": true,
+      "publicWssOnCurrentOrigin": true,
+      "privatePdfWorksViaInternalOrigin": true
+    },
+    {
+      "domain": "blaetter-neu.localhost",
+      "verifiedLocalCA": true,
+      "secureCookie": true,
+      "nativeLogin": true,
+      "spoofedIdentityAndAnonymousAdministrationDenied": true,
+      "originAndRequestHeaderEnforced": true,
+      "privateControlDenied": true,
+      "originalShareAndChildCodePreserved": true,
+      "newLinksUseRuntimeOrigin": true,
+      "nativeChildQrScreenshotDecoded": true,
+      "publicWssOnCurrentOrigin": true,
+      "privatePdfWorksViaInternalOrigin": true
+    },
+    {
+      "domain": "blaetter.localhost",
+      "verifiedLocalCA": true,
+      "secureCookie": true,
+      "nativeLogin": true,
+      "spoofedIdentityAndAnonymousAdministrationDenied": true,
+      "originAndRequestHeaderEnforced": true,
+      "privateControlDenied": true,
+      "originalShareAndChildCodePreserved": true,
+      "newLinksUseRuntimeOrigin": true,
+      "nativeChildQrScreenshotDecoded": true,
+      "publicWssOnCurrentOrigin": true,
+      "privatePdfWorksViaInternalOrigin": true
+    },
+    {
+      "domain": "blaetter.localhost",
+      "verifiedLocalCA": true,
+      "secureCookie": true,
+      "nativeLogin": true,
+      "spoofedIdentityAndAnonymousAdministrationDenied": true,
+      "originAndRequestHeaderEnforced": true,
+      "privateControlDenied": true,
+      "originalShareAndChildCodePreserved": true,
+      "newLinksUseRuntimeOrigin": true,
+      "nativeChildQrScreenshotDecoded": true,
+      "publicWssOnCurrentOrigin": true,
+      "privatePdfWorksViaInternalOrigin": true
+    }
+  ],
+  "limits": [
+    "Local CA and names only, no public DNS/ACME",
+    "No Ubuntu acceptance or capacity measurement",
+    "No multi-replica Yjs coordination",
+    "No production users, emails or deployment"
+  ],
+  "stoppedDataRetained": true
+}

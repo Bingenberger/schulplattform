@@ -1,0 +1,12 @@
+{
+  "app": "kompetenz-manager",
+  "artifacts": [],
+  "images": {
+    "kompetenz-manager": "ghcr.io/bingenberger/kompetenz-manager:0.1.0@sha256:75bb194ad582ff1924c01a76ad277d6f5e94306f639a33ad4b14152ee5ff7a30"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}
