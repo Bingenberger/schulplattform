@@ -15,6 +15,45 @@ import time
 
 ACTIONS = {"status", "start", "stop"}
 APPS = {"gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen"}
+PLATFORM = "_platform"
+HOSTNAME = re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$")
+EMAIL = re.compile(r"^[^@\s<>\"']{1,64}@[a-z0-9.-]{1,253}$")
+
+
+def _text(maximum, pattern=None, allow_empty=False):
+    def check(value):
+        return (isinstance(value, str) and (allow_empty or value) and len(value) <= maximum
+                and "\n" not in value and "\r" not in value and (not pattern or not value or pattern.fullmatch(value)))
+    return check
+
+
+# Extended fixed actions: target apps and an exact parameter schema each.
+EXTENDED = {
+    "overview": ({PLATFORM}, {}),
+    "dns-recheck": (APPS | {PLATFORM}, {}),
+    "domain-change": (APPS, {"hostname": _text(253, HOSTNAME)}),
+    "maintenance": (APPS, {"enabled": lambda v: isinstance(v, bool)}),
+    "smtp-update": ({PLATFORM}, {"host": _text(253, HOSTNAME), "port": lambda v: type(v) is int and 0 < v < 65536,
+                                 "security": lambda v: v in ("starttls", "tls"),
+                                 "username": _text(254, re.compile(r"^\S*$"), allow_empty=True),
+                                 "sender": _text(320, EMAIL), "sender_name": _text(80, re.compile(r'^[^<>"]*$'))}),
+    "smtp-password": ({PLATFORM}, {"password": _text(256)}),
+    "smtp-test": ({PLATFORM}, {"recipient": _text(320, EMAIL)}),
+    "backup-now": (APPS, {}),
+    "update-check": ({PLATFORM}, {}),
+}
+
+
+def valid_params(action, app, params):
+    if action in ACTIONS:
+        return app in APPS and params is None
+    targets, schema = EXTENDED.get(action, (None, None))
+    if targets is None or app not in targets:
+        return False
+    if schema and not isinstance(params, dict):
+        return False
+    params = params or {}
+    return isinstance(params, dict) and set(params) == set(schema) and all(schema[k](params[k]) for k in schema)
 
 
 class DeploymentBusy(ValueError):
@@ -25,10 +64,12 @@ def canonical(request):
     return json.dumps(request, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
 
 
-def signed_request(key, action, app, clock=time.time):
-    if action not in ACTIONS or app not in APPS or len(key) < 32:
+def signed_request(key, action, app, clock=time.time, params=None):
+    if not valid_params(action, app, params) or len(key) < 32:
         raise ValueError("Invalid deployment request")
     request = {"action": action, "app": app, "at": int(clock()), "nonce": secrets.token_hex(24)}
+    if params is not None:
+        request["params"] = params
     request["signature"] = hmac.new(key, canonical(request), hashlib.sha256).hexdigest()
     return request
 
@@ -56,9 +97,10 @@ class Gate:
                 app TEXT NOT NULL, outcome TEXT NOT NULL)""")
 
     def dispatch(self, request):
-        if (not isinstance(request, dict) or set(request) != {"action", "app", "at", "nonce", "signature"} or
-                not isinstance(request["action"], str) or request["action"] not in ACTIONS or
-                not isinstance(request["app"], str) or request["app"] not in APPS or
+        if (not isinstance(request, dict) or
+                set(request) - {"params"} != {"action", "app", "at", "nonce", "signature"} or
+                not isinstance(request["action"], str) or not isinstance(request["app"], str) or
+                not valid_params(request["action"], request["app"], request.get("params")) or
                 type(request["at"]) is not int or abs(int(self.clock()) - request["at"]) > 60 or
                 not isinstance(request["nonce"], str) or not re.fullmatch("[a-f0-9]{48}", request["nonce"]) or
                 not isinstance(request["signature"], str) or not re.fullmatch("[a-f0-9]{64}", request["signature"])):
@@ -76,7 +118,10 @@ class Gate:
             except sqlite3.IntegrityError:
                 return {"ok": False, "error": "replay"}
         try:
-            result = self.engine.execute(request["action"], request["app"])
+            if "params" in request or request["action"] in EXTENDED:
+                result = self.engine.execute(request["action"], request["app"], request.get("params") or {})
+            else:
+                result = self.engine.execute(request["action"], request["app"])
             response = {"ok": True, "result": result}
             outcome = "completed"
         except DeploymentBusy:
@@ -139,10 +184,10 @@ class Client:
     def __init__(self, path, key):
         self.path, self.key = str(path), key
 
-    def execute(self, action, app):
-        request = signed_request(self.key, action, app)
+    def execute(self, action, app, params=None):
+        request = signed_request(self.key, action, app, params=params)
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
-            connection.settimeout(5 if action == "status" else 180)
+            connection.settimeout(5 if action in ("status", "overview") else 600)
             connection.connect(self.path)
             connection.sendall(canonical(request) + b"\n")
             with connection.makefile("rb") as stream:

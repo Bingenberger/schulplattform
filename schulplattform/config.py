@@ -49,8 +49,8 @@ def validate(data):
     if platform["acme_environment"] != "custom":
         if not ipv4.is_global:
             raise ConfigError("public_ipv4 must be a public address for Let's Encrypt")
-        if platform.get("acme_ca") or platform.get("acme_ca_root"):
-            raise ConfigError("acme_ca/acme_ca_root are only allowed with acme_environment = custom")
+        if platform.get("acme_ca") or platform.get("acme_ca_root") or platform.get("issued_root"):
+            raise ConfigError("acme_ca/acme_ca_root/issued_root are only allowed with acme_environment = custom")
     base = ipaddress.ip_network(platform.get("network_base", DEFAULT_NETWORK_BASE))
     if base.prefixlen != 16:
         raise ConfigError("network_base must be a /16")

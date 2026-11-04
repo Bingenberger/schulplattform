@@ -53,6 +53,24 @@ class SecretStore:
             return value
 
 
+    def replace(self, name, value):
+        """Store an operator-provided credential (e.g. SMTP password); never generated, never logged."""
+        if not isinstance(value, str) or not value or len(value) > 4096 or "\n" in value:
+            raise ValueError("Invalid credential value")
+        path = self.path(name)
+        with exclusive(self.directory / ".store.lock"):
+            temporary = self.directory / ("." + secrets.token_hex(16))
+            fd = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            try:
+                with os.fdopen(fd, "w") as stream:
+                    stream.write(value)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temporary, path)
+            finally:
+                temporary.unlink(missing_ok=True)
+
+
 class Bootstrap:
     def __init__(self, directory, clock=time.time):
         self.directory = Path(directory)

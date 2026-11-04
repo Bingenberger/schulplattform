@@ -64,6 +64,9 @@ class Layout:
             if path.is_symlink() or not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid():
                 raise StateError(f"Unsafe platform directory: {path}")
             os.chmod(path, mode)
+        if os.geteuid() == 0:
+            # The dashboard container (UID/GID 10001) may traverse and read, never write.
+            os.chown(self.management, 0, DASHBOARD_UID)
 
 
 def proxy_network(app):
@@ -95,15 +98,20 @@ class Stack:
         self.mail_mode = config["smtp"]["mode"]
 
     # --- process execution ----------------------------------------------------
-    def _subprocess(self, argv, env=None, capture=True, timeout=600, tty=False):
-        result = subprocess.run(argv, env=env, text=True, timeout=timeout,
+    def _subprocess(self, argv, env=None, capture=True, timeout=600, tty=False, binary=False):
+        result = subprocess.run(argv, env=env, text=not binary, timeout=timeout,
                                 stdin=None if tty else subprocess.DEVNULL,
                                 stdout=None if tty else subprocess.PIPE,
                                 stderr=None if tty else subprocess.PIPE)
-        return result.returncode, (result.stdout or "") if capture else ""
+        empty = b"" if binary else ""
+        return result.returncode, (result.stdout or empty) if capture else empty
 
-    def command(self, argv, capture=True, timeout=600, tty=False, check=True):
-        code, output = self._run(list(argv), env=self.environment(), capture=capture, timeout=timeout, tty=tty)
+    def command(self, argv, capture=True, timeout=600, tty=False, check=True, binary=False):
+        if binary:
+            code, output = self._run(list(argv), env=self.environment(), capture=capture, timeout=timeout,
+                                     tty=tty, binary=True)
+        else:
+            code, output = self._run(list(argv), env=self.environment(), capture=capture, timeout=timeout, tty=tty)
         self.layout.log.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         with self.layout.log.open("a") as stream:
             # Command names and exit codes only; output can contain application data.
@@ -334,19 +342,20 @@ class Stack:
 
     # --- routing --------------------------------------------------------------
     def routed(self, domains):
-        """Apps whose hostname passed the DNS check and that are not in maintenance."""
+        """Apps whose current hostname passed the DNS check (maintenance apps stay routed to a 503)."""
         status = self.domain_status()
         return {app for app in self.apps
                 if status.get(app, {}).get("hostname") == domains[app]
-                and status.get(app, {}).get("dns") == "ok"
-                and not status.get(app, {}).get("maintenance")}
+                and status.get(app, {}).get("dns") == "ok"}
 
     def domain_status(self):
         path = self.layout.domains / "status.json"
         return json.loads(path.read_text()) if path.exists() else {}
 
-    def write_caddyfile(self, domains, routed, maintenance=()):
+    def write_caddyfile(self, domains, routed, maintenance=None):
         platform = self.config["platform"]
+        if maintenance is None:
+            maintenance = {key for key, entry in self.domain_status().items() if entry.get("maintenance")}
         routes = []
         for app_id in sorted(routed):
             app = APPS[app_id]
@@ -424,8 +433,8 @@ class Stack:
     # --- verification ---------------------------------------------------------
     def tls_context(self):
         platform = self.config["platform"]
-        if platform["acme_environment"] == "custom" and platform.get("acme_ca_root"):
-            return ssl.create_default_context(cafile=platform["acme_ca_root"])
+        if platform["acme_environment"] == "custom":
+            return ssl.create_default_context(cafile=platform.get("issued_root") or platform.get("acme_ca_root"))
         if platform["acme_environment"] == "staging":
             # Staging certificates chain to non-public roots; hostname is still checked below.
             context = ssl.create_default_context()
