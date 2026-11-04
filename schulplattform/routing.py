@@ -70,7 +70,8 @@ class Router:
 
     def reconcile(self, only=None, wait_seconds=120):
         """DNS check -> routes -> reachability -> certificate -> TLS readiness. Never loops on failures."""
-        with exclusive(self.stack.layout.domains / "routing.lock"):
+        # A timer-driven reconcile and an installation may overlap; wait instead of failing.
+        with exclusive(self.stack.layout.domains / "routing.lock", wait=900):
             status = self.check_dns(only)
             self.apply_routes()
             platform = self.stack.config["platform"]
@@ -113,7 +114,7 @@ class Router:
             return "fehler"
 
     def set_maintenance(self, app, enabled):
-        with exclusive(self.stack.layout.domains / "routing.lock"):
+        with exclusive(self.stack.layout.domains / "routing.lock", wait=900):
             status = self.load()
             status.setdefault(app, {})["maintenance"] = bool(enabled)
             self.save(status)

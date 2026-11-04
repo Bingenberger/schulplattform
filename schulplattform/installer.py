@@ -227,6 +227,14 @@ def _main(argv=None):
     if args.action == 'status':
         _print_status(platform_, None)
     elif args.action == 'reconcile':
+        from .storage import exclusive
+        try:
+            # Never run the periodic reconcile while an installation step is in progress.
+            with exclusive(platform_.layout.state / 'installation.lock', wait=0 if args.quiet else 60):
+                pass
+        except BlockingIOError:
+            print('Abgleich übersprungen: eine Installation läuft gerade.')
+            return 0
         platform_.router().reconcile(only={args.app} if args.app else None,
                                      wait_seconds=int(os.environ.get('SP_CERT_WAIT', '150')))
         if not args.quiet:

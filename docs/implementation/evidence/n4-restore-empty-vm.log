@@ -1,0 +1,31 @@
+# Wiederherstellung in eine leere VM (frisches Ubuntu 24.04; Docker installiert: nein; Plattformzustand: 0 Einträge)
+$ ./install.sh restore-platform _platform-20261104T093308Z.spbk --confirm-replace --key-file <Backup-Schlüssel von außerhalb>
+Plattformzustand wiederhergestellt. Nächster Schritt: ./install.sh apply --bundle … --trusted-key …
+$ ./install.sh apply
+apply exit=0
+Installation 347c16f4-e818-4cfb-8f11-2a7303c331f0: completed (Release 0.1.0-rc2)
+restore gswb healthy= True volumes= ['uploads', 'dictionary', 'images', 'audio'] sqlite= 1 pg-tables= None fk= None owner= None
+restore schulwissen healthy= True volumes= ['medien'] sqlite= 0 pg-tables= 33 fk= 67 owner= schulwissen
+restore zackboing healthy= True volumes= ['data'] sqlite= 1 pg-tables= None fk= None owner= None
+restore schulhelfer healthy= True volumes= ['data'] sqlite= 1 pg-tables= None fk= None owner= None
+restore losverkauf healthy= True volumes= ['data'] sqlite= 1 pg-tables= None fk= None owner= None
+restore grundschultafel healthy= True volumes= ['data'] sqlite= 0 pg-tables= None fk= None owner= None
+restore fahrradausbildung healthy= True volumes= ['vorlagen'] sqlite= 0 pg-tables= 15 fk= 16 owner= fahrrad
+restore leseflux healthy= True volumes= [] sqlite= 0 pg-tables= 21 fk= 22 owner= leseflux
+restore kompetenz-manager healthy= True volumes= ['templates', 'instance'] sqlite= 1 pg-tables= None fk= None owner= None
+restore abgen healthy= True volumes= ['assets'] sqlite= 0 pg-tables= 14 fk= 13 owner= abgen
+# Zustand nach Wiederherstellung
+  verwaltung         verwaltung.schule.test                   aktiv                   Zertifikat bis 2027-02-02
+  gswb               woerterbuch.schule.test                  aktiv                  läuft Zertifikat bis 2027-02-02
+  schulwissen        wissen.schule.test                       aktiv                  läuft Zertifikat bis 2027-02-02
+  zackboing          quiz.schule.test                         aktiv                  läuft Zertifikat bis 2027-02-02
+  schulhelfer        helfer.schule.test                       aktiv                  läuft Zertifikat bis 2027-02-02
+  losverkauf         losverkauf.schule.test                   aktiv                  läuft Zertifikat bis 2027-02-02
+  grundschultafel    tafel.schule.test                        aktiv                  läuft Zertifikat bis 2027-02-02
+  fahrradausbildung  rad.schule.test                          aktiv                  läuft Zertifikat bis 2027-02-02
+  leseflux           lesen.schule.test                        aktiv                  läuft Zertifikat bis 2027-02-02
+  kompetenz-manager  kompetenz.schule.test                    aktiv                  läuft Zertifikat bis 2027-02-02
+  abgen              blaetter.schule.test                     aktiv                  läuft Zertifikat bis 2027-02-02
+Elternlink mit dem vom Altserver übernommenen Token: 302
+Zeilen losverkauf (anmeldungen,personen): 3 3
+Zeilen fahrrad kind: 12

@@ -28,11 +28,21 @@ def atomic_json(path: Path, value):
 
 
 @contextmanager
-def exclusive(path: Path):
+def exclusive(path: Path, wait: float = 0):
+    """Exclusive inter-process lock. wait > 0 retries for that many seconds before giving up."""
+    import time
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        deadline = time.monotonic() + wait
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(1)
         yield
     finally:
         os.close(fd)
