@@ -72,7 +72,11 @@ SCHEMA_QUERIES = {
 
 
 def run(argv, **kwargs):
-    return subprocess.run(argv, capture_output=True, text=True, timeout=600, **kwargs)
+    """Missing tools (no docker, git or systemctl on this host) count as a failed command."""
+    try:
+        return subprocess.run(argv, capture_output=True, text=True, timeout=600, **kwargs)
+    except FileNotFoundError:
+        return subprocess.CompletedProcess(argv, 127, "", f"{argv[0]}: not installed")
 
 
 def git_commit(path):
@@ -160,6 +164,8 @@ def unit_environment(unit):
 
 
 def compose_container(project, service):
+    if not shutil.which("docker"):
+        raise SystemExit("docker is not installed on this host")
     argv = ["docker", "ps", "-q", "--filter", f"label=com.docker.compose.service={service}"]
     if project:
         argv += ["--filter", f"label=com.docker.compose.project={project}"]
@@ -187,6 +193,46 @@ def postgres_facts(container, user, database):
     facts["serverVersion"] = run(["docker", "exec", container, "psql", "-At", "-U", user, "-d", database, "-c",
                                   "SHOW server_version"]).stdout.strip()
     return facts
+
+
+SYSTEM_DIRS = ("/", "/root", "/var/lib/systemd")
+
+
+def running_services():
+    """Running systemd services that work in an application directory: unit, user, working
+    directory and program path only (no arguments, they may carry secrets). Helps locating
+    installs outside the default paths."""
+    listing = run(["systemctl", "list-units", "--type=service", "--state=running", "--no-legend", "--plain"])
+    services = []
+    for line in listing.stdout.splitlines():
+        unit = line.split()[0] if line.split() else ""
+        if not unit.endswith(".service"):
+            continue
+        shown = run(["systemctl", "show", unit, "-p", "WorkingDirectory", "-p", "User", "-p", "ExecStart"]).stdout
+        props = dict(item.split("=", 1) for item in shown.splitlines() if "=" in item)
+        workdir = props.get("WorkingDirectory", "")
+        if not workdir or workdir in SYSTEM_DIRS:
+            continue
+        program = ""
+        if "path=" in props.get("ExecStart", ""):
+            program = props["ExecStart"].split("path=", 1)[1].split(" ;", 1)[0].strip()
+        services.append({"unit": unit, "user": props.get("User", ""), "workingDirectory": workdir,
+                         "program": program, "commit": git_commit(workdir)})
+    return services
+
+
+def compose_projects():
+    if not shutil.which("docker"):
+        return []
+    result = run(["docker", "ps", "--format", '{{.Label "com.docker.compose.project"}}\t'
+                  '{{.Label "com.docker.compose.project.working_dir"}}\t{{.Label "com.docker.compose.service"}}'])
+    projects = {}
+    for line in result.stdout.splitlines():
+        name, workdir, service = (line.split("\t") + ["", "", ""])[:3]
+        if name:
+            entry = projects.setdefault(name, {"project": name, "workingDirectory": workdir, "services": []})
+            entry["services"].append(service)
+    return sorted(projects.values(), key=lambda e: e["project"])
 
 
 def inventory(overrides, projects):
@@ -230,7 +276,11 @@ def inventory(overrides, projects):
                     entry["data"][volume] = {"mount": mount, "bytes": int(du[0]) if du else None}
         except SystemExit as exc:
             entry = {"kind": spec["kind"], "present": False, "note": str(exc)}
+        except Exception as exc:  # one unreadable app must not cost the whole inventory
+            entry.update(error=f"{type(exc).__name__}: {exc}")
         report["apps"][app] = entry
+    report["runningServices"] = running_services()
+    report["composeProjects"] = compose_projects()
     return report
 
 
