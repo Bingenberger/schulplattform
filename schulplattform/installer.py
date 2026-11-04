@@ -20,6 +20,7 @@ import subprocess
 import sys
 
 from .bundle import verify_bundle
+from .terminal import open_tty
 from jsonschema.exceptions import ValidationError
 
 
@@ -263,7 +264,7 @@ def _main(argv=None):
     elif args.action == 'smtp-password':
         import getpass
         from .secrets import SecretStore
-        with open('/dev/tty', 'r+') as tty:
+        with open_tty() as tty:
             first = getpass.getpass('SMTP-Passwort (Eingabe unsichtbar): ', stream=tty)
             second = getpass.getpass('Wiederholen: ', stream=tty)
         if not first or first != second:
@@ -335,7 +336,7 @@ def _restore_platform(archive, config_path, root, key_file=None):
     if key_file:
         value = Path(key_file).read_text().strip()
     else:
-        with open('/dev/tty', 'r+') as tty:
+        with open_tty() as tty:
             value = getpass.getpass('Backup-Schlüssel (Inhalt von secrets/backup-key): ', stream=tty).strip()
     key = hashlib.sha256(value.encode()).digest()
     root.mkdir(parents=True, exist_ok=True, mode=0o711)
@@ -432,12 +433,16 @@ def _print_status(platform_, result):
 def main(argv=None):
     import sys
     from .state import StateError
+    from .config import ConfigError
     try:
         return _main(argv)
     except BlockingIOError:
         print("Plattform: Eine andere Verwaltungsaktion läuft; bitte später erneut versuchen.", file=sys.stderr)
         return 1
     except StateError as exc:
+        print("Plattform: " + str(exc), file=sys.stderr)
+        return 1
+    except ConfigError as exc:  # messages are written for operators and contain no secrets
         print("Plattform: " + str(exc), file=sys.stderr)
         return 1
     except RuntimeError as exc:  # DomainError, BundleError subclasses: messages are written for operators

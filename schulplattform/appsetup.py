@@ -10,6 +10,7 @@ import re
 
 from .catalogue import APPS
 from .state import StateError
+from .terminal import open_tty
 
 PATTERNS = {"name": (r"[a-z][a-z0-9._-]{2,40}", "Persönlicher Benutzername"),
             "email": (r"[^@\s]{1,64}@[a-z0-9.-]{1,253}", "Persönliche E-Mail-Adresse"),
@@ -47,7 +48,7 @@ def setup_app(platform, app_id):
     if app_id not in platform.stack.apps:
         raise StateError("App is not installed")
     kind, spec, *rest = APPS[app_id].setup
-    with open("/dev/tty", "r+") as tty:
+    with open_tty() as tty:
         if kind == "host-hash":
             from werkzeug.security import generate_password_hash
             hash_file, *name_file = spec

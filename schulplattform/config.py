@@ -15,6 +15,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from .catalogue import APP_IDS
 from .proxy import hostname as check_hostname
 from .storage import exclusive
+from .terminal import open_tty
 
 SCHEMA = Path(__file__).resolve().parents[1] / "schemas/platform-config-v1.schema.json"
 DEFAULT_PATH = Path("/etc/schulplattform/platform.toml")
@@ -145,7 +146,8 @@ SUGGESTED_PREFIX = {"gswb": "woerterbuch", "schulwissen": "wissen", "zackboing":
 def wizard(path=DEFAULT_PATH, existing=None, tty_path="/dev/tty"):
     """Ask on the controlling terminal; never reads arguments or environment for values."""
     existing = existing or {}
-    with open(tty_path, "r+") as tty:
+    tty = open_tty(tty_path)
+    with tty:
         def ask(prompt, default=None, pattern=None):
             while True:
                 suffix = f" [{default}]" if default not in (None, "") else ""

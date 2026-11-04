@@ -13,6 +13,7 @@ from .dashboard_auth import AdminStore, matching_counter
 from .catalogue import DOMAIN_VARIABLES
 from .deployment import APPS, ACTIONS, Client, DeploymentBusy, PLATFORM, valid_params
 from .proxy import hostname
+from .terminal import open_tty
 
 
 def create_app(state_dir, socket_path=None, key_file=None, catalogue=None, client=None, store=None, test_config=None, trusted_hosts=None):
@@ -300,7 +301,7 @@ def create_app(state_dir, socket_path=None, key_file=None, catalogue=None, clien
 def setup_admin(directory, username):
     import base64
     import time
-    with open("/dev/tty", "r+") as tty:
+    with open_tty() as tty:
         password = getpass.getpass("Passwort (mindestens 12 Zeichen): ", stream=tty)
         confirmation = getpass.getpass("Passwort wiederholen: ", stream=tty)
         if password != confirmation:

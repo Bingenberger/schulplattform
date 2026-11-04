@@ -22,6 +22,7 @@ from .secrets import SecretStore
 from .stack import Layout, Stack
 from .state import Installation, StateError, Step
 from .storage import atomic_json
+from .terminal import open_tty
 
 PLATFORM_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_ROOT = Path("/var/lib/schulplattform")
@@ -280,7 +281,7 @@ class Platform:
         """Create the personal platform admin inside the dashboard container (owner UID, own TTY)."""
         import re
         if not username:
-            with open("/dev/tty", "r+") as tty:
+            with open_tty() as tty:
                 tty.write("Persönlicher Benutzername für die Plattformverwaltung: ")
                 tty.flush()
                 username = tty.readline().strip()
