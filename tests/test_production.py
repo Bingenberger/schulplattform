@@ -253,13 +253,17 @@ def test_proxy_reloads_when_render_already_wrote_the_new_caddyfile(tmp_path):
     (layout.domains / "current.json").write_text(json.dumps({"generation": "x", "domains": domains}))
     stack.container = lambda project, service: {"Id": "proxy", "State": {"Running": True}}
     reloads = []
-    stack.command = lambda argv, **kw: reloads.append(argv[4]) if argv[1] == "exec" else ""
+    stack.command = lambda argv, **kw: reloads.append(argv[4] if argv[1] == "exec" else argv[1])
     router = Router(stack, None, resolve=None, ask=None, domains=domains)
-    router.apply_routes()                       # file already written by render(): still reload once
-    assert reloads == ["validate", "reload"]
-    router.apply_routes()                       # loaded and unchanged: no further reload
-    assert reloads == ["validate", "reload"]
-    stack.config = sample(**{"platform.acme_environment": "staging"})
-    stack.write_caddyfile(domains, stack.routed(domains))   # e.g. the render step of a later apply
+    router.apply_routes()                       # file already written by render(), CA not known: restart
+    assert reloads == ["validate", "restart"]
+    router.apply_routes()                       # loaded and unchanged: nothing
+    assert reloads == ["validate", "restart"]
+    stack.write_caddyfile(domains, {"gswb"})    # route change, same CA: reload is enough
     router.apply_routes()
-    assert reloads == ["validate", "reload"] * 2
+    assert reloads[2:] == ["validate", "reload"]
+    # Real server: staging -> production. A reload kept the staging certificates in Caddy's memory.
+    stack.config = sample(**{"platform.acme_environment": "staging"})
+    stack.write_caddyfile(domains, stack.routed(domains))
+    router.apply_routes()
+    assert reloads[4:] == ["validate", "restart"]

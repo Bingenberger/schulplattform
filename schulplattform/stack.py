@@ -392,23 +392,44 @@ class Stack:
             if platform.get("acme_ca_root") else None)
         return self._write(self.layout.generated / "caddy" / "Caddyfile", text, 0o644)
 
-    def _caddyfile_digest(self):
+    def _caddyfile(self):
         path = self.layout.generated / "caddy" / "Caddyfile"
-        return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
+        return path.read_text() if path.exists() else ""
+
+    @staticmethod
+    def _acme_directory(text):
+        for line in text.splitlines():
+            if line.strip().startswith("acme_ca "):
+                return line.split(None, 1)[1].strip()
+        return None
+
+    def _proxy_marker(self):
+        try:
+            return json.loads((self.layout.state / "proxy-loaded.json").read_text())
+        except (OSError, ValueError):
+            return {}
 
     def proxy_current(self):
         """True when the running Caddy has loaded the Caddyfile as it is on disk now."""
-        marker = self.layout.state / "proxy-loaded.sha256"
-        return marker.exists() and marker.read_text().strip() == self._caddyfile_digest()
+        digest = hashlib.sha256(self._caddyfile().encode()).hexdigest()
+        return self._proxy_marker().get("digest") == digest
 
     def reload_proxy(self):
+        """Apply the Caddyfile. A changed ACME directory needs a restart: Caddy keeps certificates of the
+        previous CA in its in-memory cache across reloads and would serve them until renewal."""
         container = self.container("infra", "proxy")
-        if container and container["State"].get("Running"):
-            digest = self._caddyfile_digest()
-            for action in ("validate", "reload"):
-                self.command([self.docker, "exec", container["Id"], "caddy", action,
-                              "--config", "/etc/caddy/conf/Caddyfile", "--adapter", "caddyfile"])
-            self._write(self.layout.state / "proxy-loaded.sha256", f"{digest}\n", 0o600)
+        if not (container and container["State"].get("Running")):
+            return
+        text = self._caddyfile()
+        acme = self._acme_directory(text)
+        config = ["--config", "/etc/caddy/conf/Caddyfile", "--adapter", "caddyfile"]
+        self.command([self.docker, "exec", container["Id"], "caddy", "validate", *config])
+        if self._proxy_marker().get("acme") == acme:
+            self.command([self.docker, "exec", container["Id"], "caddy", "reload", *config])
+        else:
+            self.command([self.docker, "restart", "--time", "20", container["Id"]])
+        self._write(self.layout.state / "proxy-loaded.json",
+                    json.dumps({"digest": hashlib.sha256(text.encode()).hexdigest(), "acme": acme}) + "\n", 0o600)
 
     # --- inspection -----------------------------------------------------------
     def container(self, app, service):
