@@ -9,11 +9,11 @@ if [ ! -x .venv/bin/python ]; then
     exit 1
   fi
   if ! python3 -c 'import ensurepip' 2>/dev/null; then
-    DEBIAN_FRONTEND=noninteractive apt-get update -q
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends python3-venv
+    DEBIAN_FRONTEND=noninteractive apt-get update -q >&2
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends python3-venv >&2
   fi
   umask 022
   python3 -m venv .venv
-  .venv/bin/pip install -q --disable-pip-version-check --require-hashes -r requirements-host.lock
+  .venv/bin/pip install -q --disable-pip-version-check --require-hashes -r requirements-host.lock >&2
 fi
 exec .venv/bin/python -m schulplattform.installer "$@"
