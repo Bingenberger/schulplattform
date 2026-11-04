@@ -53,19 +53,19 @@ Nur bei stark reduzierten Images ohne `git` vorher `apt install git` ausführen.
 Das Repository ist öffentlich. Auf dem Server als root:
 
 ```sh
-git clone --branch v0.1.0 https://github.com/Bingenberger/schulplattform.git /opt/schulplattform
+git clone https://github.com/Bingenberger/schulplattform.git /opt/schulplattform
 cd /opt/schulplattform
 ```
 
 Ohne git geht es auch so:
 
 ```sh
-curl -fsSLO https://github.com/Bingenberger/schulplattform/archive/refs/tags/v0.1.0.tar.gz
+curl -fsSLO https://github.com/Bingenberger/schulplattform/archive/refs/heads/main.tar.gz
 ```
 
 Danach entpacken.
 
-Im Repository liegen das **signierte Release** (`releases/0.1.0`) und der öffentliche Prüfschlüssel (`release-keys/schulplattform-release.pub`). Vergleichen Sie dessen Fingerabdruck auf einem zweiten Weg, etwa telefonisch oder auf einem anderen Gerät:
+Der Branch `main` enthält den Code des aktuellen Release, dessen **signiertes Bundle** (`releases/0.1.1`) und den öffentlichen Prüfschlüssel (`release-keys/schulplattform-release.pub`). Vergleichen Sie den Fingerabdruck des Schlüssels auf einem zweiten Weg, etwa telefonisch oder auf einem anderen Gerät:
 
 ```sh
 python3 -c "import hashlib,base64;k=open('release-keys/schulplattform-release.pub').read().split('\n')[1];print('SHA256:'+hashlib.sha256(base64.b64decode(k)[-32:]).hexdigest())"
@@ -80,7 +80,7 @@ Das Release fixiert jedes Image über Version **und** Digest. Ein verändertes B
 ./install.sh preflight      # nur lesend; muss "blockers": [] melden
 ./install.sh configure      # Assistent: Domains je App, Verwaltungsdomain, Let's-Encrypt-Kontakt, IP, SMTP, Backup
 ./install.sh smtp-password  # nur bei SMTP mit Anmeldung (verdeckte Eingabe)
-./install.sh apply --bundle releases/0.1.0 --trusted-key release-keys/schulplattform-release.pub
+./install.sh apply --bundle releases/0.1.1 --trusted-key release-keys/schulplattform-release.pub
 ./install.sh admin-setup    # persönlicher Plattform-Admin mit TOTP
 ./install.sh app-setup APP  # Erstzugang je App, bei Bedarf
 ```
@@ -123,7 +123,7 @@ Runbook: [docs/betrieb/umzug.md](docs/betrieb/umzug.md)
 
 ## Stand und Grenzen
 
-Release 0.1.0 ist in lokalen Ubuntu-24.04-VMs mit Test-CA und Test-DNS abgenommen: [docs/implementation/nachauftrag-status.md](docs/implementation/nachauftrag-status.md).
+Release 0.1.0 ist in lokalen Ubuntu-24.04-VMs mit Test-CA und Test-DNS abgenommen. 0.1.1 korrigiert nur die interaktiven Konsolenabfragen (`configure`, `admin-setup`, `app-setup`, `smtp-password`); App-Images sind unverändert: [docs/implementation/nachauftrag-status.md](docs/implementation/nachauftrag-status.md).
 
 Offen sind:
 - die Abnahme auf dem echten Server (Let's Encrypt, Erreichbarkeit, SMTP-Anbieter, Lastmessungen)

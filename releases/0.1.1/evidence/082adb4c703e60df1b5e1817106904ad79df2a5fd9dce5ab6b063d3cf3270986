@@ -1,0 +1,12 @@
+{
+  "app": "gswb",
+  "artifacts": [],
+  "images": {
+    "gswb": "ghcr.io/bingenberger/gswb:0.1.0@sha256:08014b8139b610453c830c0ba0237470f38c597582362713637ed1b8f7acf719"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}

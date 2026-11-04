@@ -1,0 +1,17 @@
+{
+  "app": "abgen",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/abgen-standalone.json",
+      "sha256": "d59b6386d3a50b9150ddc59c9c464979c7a3e43a4c846d9fd58a9e7ea23d8133"
+    }
+  ],
+  "item": "standalone",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "0e72023ebfbef3bede8c06de35ac5d7836e88829",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "standalone evidence from the local pilot work packages.",
+  "testedCommit": "0248358f54e78f6f7bdc00a7a5e93cd0e12cde90"
+}

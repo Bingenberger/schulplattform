@@ -1,0 +1,8 @@
+{
+  "images": {
+    "schulplattform-dashboard": "ghcr.io/bingenberger/schulplattform-dashboard:0.1.1@sha256:01d86c0751243b8f051c7608a4bb6fe041d3e7216939cea6e0bbb35ad6f139cf",
+    "schulplattform-relay": "ghcr.io/bingenberger/schulplattform-relay:0.1.1@sha256:e3d76657be8641adf9fc890a5cde3cc81c444d778102258ea40f2961497f814c"
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "1e370c9285338d3383389082f1a0b23b04e398a1"
+}

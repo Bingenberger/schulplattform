@@ -1,0 +1,20 @@
+{
+  "imageId": "sha256:3df623b1e19ebfe80d4e396a56c41ca0acbe0ad19e319268e2e3aea82d54f3e9",
+  "standalone": true,
+  "checks": [
+    "explicit migration; no default accounts; real hidden personal terminal setup; repeat/headless setup refused",
+    "admin/class-bound diagnosis/CSRF/Origin denied; intended internal observation access and protected upload route retained",
+    "logout copied cookie and password change revoked server-side; ordinary restart preserves active local session",
+    "real ODT and LibreOffice PDF; shared export slot returns 429 with liveness available; two Gunicorn workers observed",
+    "separate worker starts/stops; SMTP outage retains durable notification; retry delivers only into private sink"
+  ],
+  "nonRootReadOnly": true,
+  "privateFileSecret": true,
+  "readinessRejectsMigrationDrift": true,
+  "limits": [
+    "No real pupil data",
+    "No production adoption",
+    "No capacity measurement"
+  ],
+  "stoppedDataRetained": true
+}

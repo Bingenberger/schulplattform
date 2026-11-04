@@ -1,0 +1,36 @@
+{
+  "app": "schulhelfer",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/schulhelfer-image.json",
+      "sha256": "fc31086ecb534ebed43f8877373cac823665c8acd16c3b0f8a29dcc47a4fcca3"
+    }
+  ],
+  "images": {
+    "schulhelfer": "ghcr.io/bingenberger/schulhelfer:0.1.0@sha256:def236d9681785a5f9250ca46728960f033104033b701b58e99cad6a6c6b5fa0"
+  },
+  "inspection": {
+    "schulhelfer": {
+      "architecture": "amd64",
+      "attestationPredicates": [
+        "https://slsa.dev/provenance/v1",
+        "https://spdx.dev/Document"
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "7df1e3793736e9556b483d8d1e144691a563bcda",
+        "org.opencontainers.image.source": "https://github.com/Bingenberger/schulhelfer",
+        "org.opencontainers.image.version": "0.1.0"
+      },
+      "os": "linux",
+      "user": "10001:10001"
+    }
+  },
+  "item": "amd64Build",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "7df1e3793736e9556b483d8d1e144691a563bcda",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "Published linux/amd64 image(s) with revision label, SBOM and provenance.",
+  "testedCommit": "721563454b9362f15ddca1e1ae4a810d865161a4"
+}

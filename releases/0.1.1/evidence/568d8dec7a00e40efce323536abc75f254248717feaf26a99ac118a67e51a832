@@ -1,0 +1,12 @@
+{
+  "app": "grundschultafel",
+  "artifacts": [],
+  "images": {
+    "grundschultafel": "ghcr.io/bingenberger/grundschultafel:0.1.0@sha256:b5593515d11199f53d036856d4c130e81ef6f1fdae6536899b870f1f0bf1602d"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}

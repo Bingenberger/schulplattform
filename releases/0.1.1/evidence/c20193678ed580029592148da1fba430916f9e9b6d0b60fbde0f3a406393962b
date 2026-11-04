@@ -1,0 +1,12 @@
+{
+  "app": "losverkauf",
+  "artifacts": [],
+  "images": {
+    "losverkauf": "ghcr.io/bingenberger/losverkauf:0.1.0@sha256:9e6982e633bcc5ce3749c1df7b596ef3351c7f9e0e104bcd24b736ed51808c46"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}

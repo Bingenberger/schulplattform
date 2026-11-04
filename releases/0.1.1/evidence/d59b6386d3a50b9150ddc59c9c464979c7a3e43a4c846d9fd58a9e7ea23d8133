@@ -1,0 +1,361 @@
+{
+  "project": "sp-abgen-standalone-88fd7a1c5b",
+  "checks": [
+    "explicit idempotent migration; no default accounts; hidden personal terminal setup; public/repeat/headless setup refused",
+    "durable collaborative documents survive abrupt API termination",
+    "database outage gives readiness 503 while liveness and process remain available; recovery without bootstrap",
+    "PDF outage is visible without marking database-only API readiness failed",
+    "migration drift blocks business readiness and explicit migration without overwriting history",
+    "private local stop drains collaboration before services stop",
+    "rootless read-only app/PDF; PDF has no database credential; only loopback app port is published"
+  ],
+  "operations": [
+    {
+      "command": [
+        "/home/emrichschule/schulplattform/.work/docker-compose",
+        "-p",
+        "sp-abgen-standalone-88fd7a1c5b",
+        "-f",
+        "/home/emrichschule/schulplattform/.work/apps/abgen/docker-compose.yml",
+        "up",
+        "-d",
+        "--no-build",
+        "postgres",
+        "app",
+        "pdf"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "/home/emrichschule/schulplattform/.work/docker-compose",
+        "-p",
+        "sp-abgen-standalone-88fd7a1c5b",
+        "-f",
+        "/home/emrichschule/schulplattform/.work/apps/abgen/docker-compose.yml",
+        "exec",
+        "-T",
+        "app",
+        "node",
+        "apps/server/dist/db/migrate.js"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "/home/emrichschule/schulplattform/.work/docker-compose",
+        "-p",
+        "sp-abgen-standalone-88fd7a1c5b",
+        "-f",
+        "/home/emrichschule/schulplattform/.work/apps/abgen/docker-compose.yml",
+        "exec",
+        "-T",
+        "app",
+        "node",
+        "apps/server/dist/db/migrate.js"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "/home/emrichschule/schulplattform/.work/docker-compose",
+        "-p",
+        "sp-abgen-standalone-88fd7a1c5b",
+        "-f",
+        "/home/emrichschule/schulplattform/.work/apps/abgen/docker-compose.yml",
+        "exec",
+        "-T",
+        "app",
+        "node",
+        "-"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "/home/emrichschule/schulplattform/.work/docker-compose",
+        "-p",
+        "sp-abgen-standalone-88fd7a1c5b",
+        "-f",
+        "/home/emrichschule/schulplattform/.work/apps/abgen/docker-compose.yml",
+        "exec",
+        "-T",
+        "app",
+        "node",
+        "apps/server/dist/setup.js",
+        "synthetic-admin@example.invalid",
+        "Synthetic Admin"
+      ],
+      "exitCode": 1
+    },
+    {
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--init",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges:true",
+        "--memory",
+        "512m",
+        "--cpus",
+        "1",
+        "--pids-limit",
+        "64",
+        "--network",
+        "sp-abgen-standalone-88fd7a1c5b_default",
+        "-v",
+        "/home/emrichschule/schulplattform/.work/sp-abgen-standalone-88fd7a1c5b/.private/database-url:/run/secrets/database_url:ro",
+        "-i",
+        "abgen-tests:0.1.0-dev",
+        "node",
+        "--input-type=module",
+        "-"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "docker",
+        "kill",
+        "--signal",
+        "KILL",
+        "sp-abgen-standalone-88fd7a1c5b-app-1"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "/home/emrichschule/schulplattform/.work/docker-compose",
+        "-p",
+        "sp-abgen-standalone-88fd7a1c5b",
+        "-f",
+        "/home/emrichschule/schulplattform/.work/apps/abgen/docker-compose.yml",
+        "start",
+        "app"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--init",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges:true",
+        "--memory",
+        "512m",
+        "--cpus",
+        "1",
+        "--pids-limit",
+        "64",
+        "--network",
+        "sp-abgen-standalone-88fd7a1c5b_default",
+        "-v",
+        "/home/emrichschule/schulplattform/.work/sp-abgen-standalone-88fd7a1c5b/.private/database-url:/run/secrets/database_url:ro",
+        "-i",
+        "abgen-tests:0.1.0-dev",
+        "node",
+        "--input-type=module",
+        "-"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "docker",
+        "inspect",
+        "sp-abgen-standalone-88fd7a1c5b-app-1"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "/home/emrichschule/schulplattform/.work/docker-compose",
+        "-p",
+        "sp-abgen-standalone-88fd7a1c5b",
+        "-f",
+        "/home/emrichschule/schulplattform/.work/apps/abgen/docker-compose.yml",
+        "stop",
+        "postgres"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "docker",
+        "inspect",
+        "sp-abgen-standalone-88fd7a1c5b-app-1"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "/home/emrichschule/schulplattform/.work/docker-compose",
+        "-p",
+        "sp-abgen-standalone-88fd7a1c5b",
+        "-f",
+        "/home/emrichschule/schulplattform/.work/apps/abgen/docker-compose.yml",
+        "start",
+        "postgres"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "/home/emrichschule/schulplattform/.work/docker-compose",
+        "-p",
+        "sp-abgen-standalone-88fd7a1c5b",
+        "-f",
+        "/home/emrichschule/schulplattform/.work/apps/abgen/docker-compose.yml",
+        "stop",
+        "pdf"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "/home/emrichschule/schulplattform/.work/docker-compose",
+        "-p",
+        "sp-abgen-standalone-88fd7a1c5b",
+        "-f",
+        "/home/emrichschule/schulplattform/.work/apps/abgen/docker-compose.yml",
+        "start",
+        "pdf"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "/home/emrichschule/schulplattform/.work/docker-compose",
+        "-p",
+        "sp-abgen-standalone-88fd7a1c5b",
+        "-f",
+        "/home/emrichschule/schulplattform/.work/apps/abgen/docker-compose.yml",
+        "exec",
+        "-T",
+        "app",
+        "node",
+        "-"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "/home/emrichschule/schulplattform/.work/docker-compose",
+        "-p",
+        "sp-abgen-standalone-88fd7a1c5b",
+        "-f",
+        "/home/emrichschule/schulplattform/.work/apps/abgen/docker-compose.yml",
+        "exec",
+        "-T",
+        "app",
+        "node",
+        "-"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "/home/emrichschule/schulplattform/.work/docker-compose",
+        "-p",
+        "sp-abgen-standalone-88fd7a1c5b",
+        "-f",
+        "/home/emrichschule/schulplattform/.work/apps/abgen/docker-compose.yml",
+        "exec",
+        "-T",
+        "app",
+        "node",
+        "apps/server/dist/db/migrate.js"
+      ],
+      "exitCode": 1
+    },
+    {
+      "command": [
+        "/home/emrichschule/schulplattform/.work/docker-compose",
+        "-p",
+        "sp-abgen-standalone-88fd7a1c5b",
+        "-f",
+        "/home/emrichschule/schulplattform/.work/apps/abgen/docker-compose.yml",
+        "exec",
+        "-T",
+        "app",
+        "node",
+        "-"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "/home/emrichschule/schulplattform/.work/docker-compose",
+        "-p",
+        "sp-abgen-standalone-88fd7a1c5b",
+        "-f",
+        "/home/emrichschule/schulplattform/.work/apps/abgen/docker-compose.yml",
+        "exec",
+        "-T",
+        "app",
+        "node",
+        "-e",
+        "fetch('http://127.0.0.1:3000/_platform/prepare-stop',{method:'POST',headers:{'X-Abgen-Request':'1'}}).then(async r=>{if(!r.ok)process.exitCode=1;console.log(await r.text())});"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "docker",
+        "inspect",
+        "sp-abgen-standalone-88fd7a1c5b-app-1",
+        "sp-abgen-standalone-88fd7a1c5b-pdf-1",
+        "sp-abgen-standalone-88fd7a1c5b-postgres-1"
+      ],
+      "exitCode": 0
+    },
+    {
+      "command": [
+        "/home/emrichschule/schulplattform/.work/docker-compose",
+        "-p",
+        "sp-abgen-standalone-88fd7a1c5b",
+        "-f",
+        "/home/emrichschule/schulplattform/.work/apps/abgen/docker-compose.yml",
+        "stop"
+      ],
+      "exitCode": 0
+    }
+  ],
+  "stopped": true,
+  "volumesPreserved": true,
+  "images": {
+    "runtime": {
+      "Id": "sha256:6157f4ddd1f73038b601b0ad6404239ab25afebcb024e78346344b8442ccd2d0",
+      "Architecture": "amd64",
+      "Os": "linux",
+      "Size": 536808022,
+      "RepoDigests": [],
+      "node": "v22.23.4"
+    },
+    "pdf": {
+      "Id": "sha256:7ee078ec81e7e576b3d6775f6ff56dcddcea5455e9bef43c69fed88026a30ef2",
+      "Architecture": "amd64",
+      "Os": "linux",
+      "Size": 2852699385,
+      "RepoDigests": [],
+      "node": "v26.13.0"
+    },
+    "tests": {
+      "Id": "sha256:b26ecbbaab6af2d079775bdc53d48f242c9e01a57789b29a5a4766c910282fa5",
+      "Architecture": "amd64",
+      "Os": "linux",
+      "Size": 727297849,
+      "RepoDigests": [],
+      "node": "v22.23.4"
+    }
+  }
+}

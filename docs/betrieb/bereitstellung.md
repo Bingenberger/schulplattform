@@ -26,10 +26,10 @@ Fehlende Einträge blockieren die Installation nicht. Die betroffenen Apps stehe
 ```sh
 sudo -i
 git clone https://github.com/Bingenberger/schulplattform.git /opt/schulplattform
-cd /opt/schulplattform && git checkout v0.1.0
+cd /opt/schulplattform
 ```
 
-Release-Bundle (`releases/0.1.0`) und Vertrauensschlüssel getrennt beziehen. Vergleichen Sie den Fingerabdruck auf einem **anderen Weg** (z. B. telefonisch oder aus dieser Dokumentation auf einem anderen Gerät):
+`main` enthält das signierte Release-Bundle (`releases/0.1.1`). Den Vertrauensschlüssel getrennt beziehen. Vergleichen Sie den Fingerabdruck auf einem **anderen Weg** (z. B. telefonisch oder aus dieser Dokumentation auf einem anderen Gerät):
 
 ```sh
 python3 -c "import hashlib,base64;k=open('release-keys/schulplattform-release.pub').read().split('\n')[1];print('SHA256:'+hashlib.sha256(base64.b64decode(k)[-32:]).hexdigest())"
@@ -42,7 +42,7 @@ python3 -c "import hashlib,base64;k=open('release-keys/schulplattform-release.pu
 ./install.sh preflight          # nur lesend; muss "blockers": [] zeigen
 ./install.sh configure          # Fragen auf dem Terminal: Domains, Let's-Encrypt-Kontakt, IP, SMTP, Backup
 ./install.sh smtp-password      # nur bei SMTP mit Anmeldung; Eingabe unsichtbar
-./install.sh plan --bundle releases/0.1.0 --trusted-key release-keys/schulplattform-release.pub
+./install.sh plan --bundle releases/0.1.1 --trusted-key release-keys/schulplattform-release.pub
 ```
 
 `plan` zeigt die offenen Abnahmepunkte des Release, etwa die Lizenzprüfung A0.
@@ -52,7 +52,7 @@ Beginnen Sie mit `acme_environment = "staging"`.
 ## 5. Installieren
 
 ```sh
-./install.sh apply --bundle releases/0.1.0 --trusted-key release-keys/schulplattform-release.pub
+./install.sh apply --bundle releases/0.1.1 --trusted-key release-keys/schulplattform-release.pub
 ```
 
 Erwartet: Am Ende eine Tabelle je App mit `aktiv`, `zertifikat-ausstehend` oder `dns-ausstehend` samt dem fehlenden DNS-Eintrag.

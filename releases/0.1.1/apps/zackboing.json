@@ -1,0 +1,46 @@
+{
+  "acceptance": {
+    "amd64Build": "bdde8ad0da81613012b278bf0cb2df64a0eff55ffed3146c1c08c4b95cd0b85b",
+    "domainRollback": "e5a698215583ff69c1fa6f3d9ff64490f473879ae6b53ca4a25c28c7140bffac",
+    "licenses": "c370ffac86c9f988038489ca58796298a89948fb068f1256a86bb8cba19eed45",
+    "negativeAccess": "b1ae008cc9d8f7ce551c9be57048456459113bfca136710b034172653a446a0f",
+    "restore": "c55edec730f8ec66ca60535192b25f842120105201d7cad89372b28943c3fa7b",
+    "sbom": "e13aff419969f2cc2bc260d16bea680a6474b4a55475c735a0ff298c77339f2d",
+    "standalone": "01accf90562970946a475a27491483e64724b80e47e8c17b829f5fd0ecc603aa"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/zackboing/docker-compose.yml"
+  ],
+  "database": {
+    "account": "zackboing",
+    "engine": "sqlite",
+    "name": "zackboing"
+  },
+  "domainEnvironment": [
+    "ZACKBOING_PUBLIC_URL"
+  ],
+  "health": {
+    "live": "/health/live",
+    "ready": "/health/ready"
+  },
+  "id": "zackboing",
+  "image": "ghcr.io/bingenberger/zackboing:0.1.0@sha256:809c78a0637a0bcaeb779d48e80488b7555e2b30d21bc682921d29d10c156b7a",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "data",
+      "mount": "/data",
+      "owner": "10001:10001"
+    }
+  ],
+  "port": 3000,
+  "resources": {
+    "cpus": 1.0,
+    "exportSlotsPerProcess": 0,
+    "memoryMiB": 384,
+    "workers": 1
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "8ee2b9eec613d25b861e41de12ede251bdd7a0f0"
+}
