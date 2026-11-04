@@ -1,0 +1,104 @@
+$ ./install.sh plan --bundle .work/release-0.1.0-rc1 --trusted-key release-keys/schulplattform-release.pub
+{
+  "status": "signature-and-manifests-verified",
+  "release": "0.1.0",
+  "bundleDigest": "db0203960a4a6cfff944f685007336ed33e922dd59501b9718c0043b05e22f36",
+  "trustedKey": "SHA256:f43e8cabe5a101e8463b2f9a4601cc5bcb9fd15ac0dbabee662072a0fc6b3fd7",
+  "apps": [
+    "abgen",
+    "fahrradausbildung",
+    "grundschultafel",
+    "gswb",
+    "kompetenz-manager",
+    "leseflux",
+    "losverkauf",
+    "schulhelfer",
+    "schulwissen",
+    "zackboing"
+  ],
+  "deployable": true,
+  "images": {
+    "abgen": "ghcr.io/bingenberger/abgen:0.1.0@sha256:dc311a34b044d7cb00bc71ac7db6ad2ca442bf875ec27265706da04b2df814fa",
+    "abgen-pdf": "ghcr.io/bingenberger/abgen-pdf:0.1.0@sha256:d6418abaa3ab29fac5ad5cd9f96814523c38abd72ab62057bd8159db9812827c",
+    "fahrradausbildung": "ghcr.io/bingenberger/fahrradausbildung:0.1.0@sha256:aa3f4bc8d61661df19ec3c0f871d5baa019069461f0e17237cb463edd5578df5",
+    "grundschultafel": "ghcr.io/bingenberger/grundschultafel:0.1.0@sha256:b5593515d11199f53d036856d4c130e81ef6f1fdae6536899b870f1f0bf1602d",
+    "gswb": "ghcr.io/bingenberger/gswb:0.1.0@sha256:08014b8139b610453c830c0ba0237470f38c597582362713637ed1b8f7acf719",
+    "kompetenz-manager": "ghcr.io/bingenberger/kompetenz-manager:0.1.0@sha256:75bb194ad582ff1924c01a76ad277d6f5e94306f639a33ad4b14152ee5ff7a30",
+    "leseflux": "ghcr.io/bingenberger/leseflux:0.1.0@sha256:65cf31a8b2d501599be682655f136feaf6cce44c71b984f735fa1fbd8ebf5887",
+    "losverkauf": "ghcr.io/bingenberger/losverkauf:0.1.0@sha256:9e6982e633bcc5ce3749c1df7b596ef3351c7f9e0e104bcd24b736ed51808c46",
+    "schulhelfer": "ghcr.io/bingenberger/schulhelfer:0.1.0@sha256:def236d9681785a5f9250ca46728960f033104033b701b58e99cad6a6c6b5fa0",
+    "schulwissen": "ghcr.io/bingenberger/schulwissen:0.1.0@sha256:746321e64b903a2bf1647a346e3952810ce82323ce7944ff6f77137fddcf9759",
+    "zackboing": "ghcr.io/bingenberger/zackboing:0.1.0@sha256:809c78a0637a0bcaeb779d48e80488b7555e2b30d21bc682921d29d10c156b7a",
+    "schulplattform-dashboard": "ghcr.io/bingenberger/schulplattform-dashboard:0.1.0-rc1@sha256:1df5fd6cdb626cc247a4fd1f7fecda23dd1ac80f79ffbc0f66596062d40ee830",
+    "schulplattform-relay": "ghcr.io/bingenberger/schulplattform-relay:0.1.0-rc1@sha256:2a12c7bc12ad436f0cfc0548976459cb74e4c68995c021906f6656e7e7e9143b"
+  },
+  "openAcceptanceItems": [
+    [
+      "abgen",
+      "licenses",
+      "Work package A0 (project licence choice and third-party material review) is open; see docs/implementation/status.md."
+    ],
+    [
+      "fahrradausbildung",
+      "licenses",
+      "Work package A0 (project licence choice and third-party material review) is open; see docs/implementation/status.md."
+    ],
+    [
+      "grundschultafel",
+      "licenses",
+      "Work package A0 (project licence choice and third-party material review) is open; see docs/implementation/status.md."
+    ],
+    [
+      "gswb",
+      "licenses",
+      "Work package A0 (project licence choice and third-party material review) is open; see docs/implementation/status.md."
+    ],
+    [
+      "gswb",
+      "restore",
+      "No restore evidence recorded for gswb."
+    ],
+    [
+      "kompetenz-manager",
+      "licenses",
+      "Work package A0 (project licence choice and third-party material review) is open; see docs/implementation/status.md."
+    ],
+    [
+      "leseflux",
+      "licenses",
+      "Work package A0 (project licence choice and third-party material review) is open; see docs/implementation/status.md."
+    ],
+    [
+      "losverkauf",
+      "licenses",
+      "Work package A0 (project licence choice and third-party material review) is open; see docs/implementation/status.md."
+    ],
+    [
+      "schulhelfer",
+      "licenses",
+      "Work package A0 (project licence choice and third-party material review) is open; see docs/implementation/status.md."
+    ],
+    [
+      "schulwissen",
+      "licenses",
+      "Work package A0 (project licence choice and third-party material review) is open; see docs/implementation/status.md."
+    ],
+    [
+      "zackboing",
+      "licenses",
+      "Work package A0 (project licence choice and third-party material review) is open; see docs/implementation/status.md."
+    ]
+  ]
+}
+exit_code=0
+
+# Negative 1: image digest edited in apps/gswb.json (bundle.json unchanged)
+Release blocked: Release artifact checksum mismatch
+exit_code=1
+
+# Negative 2: digest edited and bundle.json re-hashed without the signing key
+Release blocked: Release signature verification failed
+exit_code=1
+
+# Negative 3: registry serves a different digest than pinned
+RegistryError: Published digest differs from the pinned digest

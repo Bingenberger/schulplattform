@@ -117,3 +117,18 @@ def test_busy_app_stop_explains_safe_next_step(dashboard):
     assert "synthetic-private-detail" not in response.text
     with store.connect() as db:
         assert db.execute("SELECT outcome FROM audit ORDER BY id DESC LIMIT 1").fetchone()[0] == "blocked"
+
+
+def test_uninitialised_dashboard_only_points_to_console(tmp_path, monkeypatch):
+    from schulplattform.dashboard import from_env
+    monkeypatch.setenv("SP_DASHBOARD_STATE", str(tmp_path / "empty"))
+    monkeypatch.setenv("SP_DEPLOYMENT_SOCKET", str(tmp_path / "none.sock"))
+    monkeypatch.setenv("SP_DEPLOYMENT_KEY_FILE", str(tmp_path / "none.key"))
+    monkeypatch.setenv("SP_APP_CATALOGUE", str(tmp_path / "none.json"))
+    monkeypatch.setenv("SP_DASHBOARD_HOSTS", "localhost")
+    client = from_env().test_client()
+    assert client.get("/health/ready").status_code == 200
+    for path in ("/", "/login", "/admin"):
+        response = client.get(path)
+        assert response.status_code == 503 and "admin-setup" in response.text
+    assert client.post("/login", data={"username": "x", "password": "y"}).status_code == 503

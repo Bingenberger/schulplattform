@@ -318,78 +318,122 @@ class BackupService:
 
 
 def restore(service, app_id, archive, key=None, confirm=False):
-    """Replace one app's data with an archive (platform backup or old-server export).
-
-    Destructive for that app's volumes, therefore only with confirm=True. Order:
-    stop app -> remove its containers (never other apps) -> remove and recreate its
-    named volumes -> PostgreSQL: fresh cluster via the app's init script, then
-    pg_restore as superuser so ownership and roles match the dump -> files and
-    SQLite copies into the empty volumes as UID 10001 -> explicit migration job ->
-    start -> health. Returns facts for the restore report.
-    """
+    """Replace one app's data with a platform backup archive (.spbk). See restore_directory()."""
     if not confirm:
         raise StateError("Restore replaces this app's data; confirmation required")
+    work = Path(tempfile.mkdtemp(prefix=f".restore-{app_id}-", dir=service.layout.backups))
+    try:
+        header = service.unpack(archive, work, key)
+        if header.get("app") != app_id:
+            raise StateError("Archive belongs to a different app")
+        facts = restore_directory(service, app_id, work)
+        facts["archive"] = Path(archive).name
+        return facts
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def restore_directory(service, app_id, work, legacy=False):
+    """Replace one app's data with an unpacked archive directory (platform backup or old-server export).
+
+    Destructive for that app's volumes; callers must have obtained confirmation. Order:
+    stop app -> remove its containers (never other apps) -> remove and recreate its named
+    volumes -> files and SQLite copies into the empty volumes as UID 10001 -> PostgreSQL
+    via the app's init script, then pg_restore (legacy: objects owned by the app role,
+    because old installs used the app user as superuser) -> carried-over secrets ->
+    explicit migration job -> start -> health.
+    """
     platform = service.platform
     stack = service.stack
     if app_id not in stack.apps:
         raise StateError("App is not installed")
-    work = Path(tempfile.mkdtemp(prefix=f".restore-{app_id}-", dir=service.layout.backups))
-    try:
-        header = service.unpack(archive, work, key)
-        info = json.loads((work / "backup.json").read_text())
-        if info["app"] != app_id or header.get("app") != app_id:
-            raise StateError("Archive belongs to a different app")
-        manifest = platform.release.manifests[app_id]
-        if info["engine"] != manifest["database"]["engine"] and not info.get("legacyEngine"):
-            raise StateError("Archive storage engine differs from the installed release")
-        volumes = [v for v in stack.compose(app_id, "config", "--volumes").split() if v]
-        stack.compose(app_id, "stop", "--timeout", "130")
-        stack.compose(app_id, "rm", "-f", "-s")
-        for volume in volumes:
-            stack.command([stack.docker, "volume", "rm", f"sp-{app_id}_{volume}"], check=False)
-            stack.command([stack.docker, "volume", "create", "--label", f"com.docker.compose.project=sp-{app_id}",
-                           "--label", f"com.docker.compose.volume={volume}", f"sp-{app_id}_{volume}"])
-        os.chmod(work, 0o755)
-        for path in work.rglob("*"):
-            os.chmod(path, 0o755 if path.is_dir() else 0o644)
-        facts = {"app": app_id, "archive": Path(archive).name, "sourceRelease": info.get("release"),
-                 "createdAt": info.get("createdAt"), "volumes": [], "sqlite": len(info.get("sqlite", []))}
-        for volume in info.get("volumes", []):
-            if volume not in volumes:
-                raise StateError(f"Archive volume {volume} unknown to this release")
-            name = f"sp-{app_id}_{volume}"
-            stack.command([stack.docker, "run", "--rm", "--network", "none", "--read-only", "--user", APP_UID,
-                           "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
-                           "-v", f"{name}:/dst", "-v", f"{work}/volumes/{volume}:/in:ro",
-                           "-v", f"{work}/sqlite/{volume}:/sqlite:ro", HELPER, "sh", "-c",
-                           "tar -C /dst --no-same-owner -xf /in/files.tar && "
-                           "cd /sqlite && find . -type f -exec sh -c 'mkdir -p \"/dst/$(dirname \"$1\")\" && "
-                           "cp \"$1\" \"/dst/$1\" && chmod 600 \"/dst/$1\"' _ {} \\;"])
-            facts["volumes"].append(volume)
-        if info["engine"].startswith("postgres"):
-            db_service = DATABASE_SERVICE[app_id]
-            stack.compose(app_id, "up", "-d", "--pull", "never", "--no-build", "--wait", "--wait-timeout", "120",
-                          db_service)
-            container = stack.container(app_id, db_service)
-            stack.command([stack.docker, "cp", str(work / "database.dump"), f"{container['Id']}:/tmp/restore.dump"])
-            stack.command([stack.docker, "exec", container["Id"], "pg_restore", "-U", "postgres", "-d",
-                           info["database"], "--clean", "--if-exists", "--exit-on-error", "/tmp/restore.dump"])
-            stack.command([stack.docker, "exec", container["Id"], "rm", "-f", "/tmp/restore.dump"])
-            query = ("SELECT (SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog','information_schema')),"
-                     " (SELECT count(*) FROM pg_constraint WHERE contype='f'),"
-                     " (SELECT count(DISTINCT tableowner) FROM pg_tables WHERE schemaname='public'),"
-                     " (SELECT string_agg(DISTINCT tableowner, ',') FROM pg_tables WHERE schemaname='public')")
-            row = stack.command([stack.docker, "exec", container["Id"], "psql", "-At", "-U", "postgres", "-d",
-                                 info["database"], "-c", query]).strip().split("|")
-            facts["postgres"] = {"tables": int(row[0]), "foreignKeys": int(row[1]), "owners": row[3]}
-        stack.migrate(app_id)
-        stack.start(app_id)
-        if not stack.healthy(app_id):
-            raise StateError("App not healthy after restore")
-        facts["healthy"] = True
-        return facts
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
+    work = Path(work)
+    info = json.loads((work / "backup.json").read_text())
+    if info["app"] != app_id:
+        raise StateError("Archive belongs to a different app")
+    manifest = platform.release.manifests[app_id]
+    expected = manifest["database"]["engine"]
+    if info["engine"] != expected and not (legacy and info["engine"] in ("sqlite", "files")
+                                           and expected in ("sqlite", "files")):
+        raise StateError(f"Archive storage engine {info['engine']} differs from the installed release ({expected})")
+    volumes = [v for v in stack.compose(app_id, "config", "--volumes").split() if v]
+    for volume in info.get("volumes", []):
+        if volume not in volumes:
+            raise StateError(f"Archive volume {volume} unknown to this release")
+    stack.compose(app_id, "stop", "--timeout", "130")
+    stack.compose(app_id, "rm", "-f", "-s")
+    for volume in volumes:
+        stack.command([stack.docker, "volume", "rm", f"sp-{app_id}_{volume}"], check=False)
+        stack.command([stack.docker, "volume", "create", "--label", f"com.docker.compose.project=sp-{app_id}",
+                       "--label", f"com.docker.compose.volume={volume}", f"sp-{app_id}_{volume}"])
+    os.chmod(work, 0o755)
+    for path in work.rglob("*"):
+        if path.is_symlink():
+            raise StateError("Symlink in archive refused")
+        os.chmod(path, 0o755 if path.is_dir() else 0o644)
+    facts = {"app": app_id, "sourceRelease": info.get("release"), "legacy": legacy,
+             "createdAt": info.get("createdAt"), "volumes": [], "sqlite": len(info.get("sqlite", []))}
+    for volume in info.get("volumes", []):
+        name = f"sp-{app_id}_{volume}"
+        sqlite_dir = work / "sqlite" / volume
+        sqlite_dir.mkdir(parents=True, exist_ok=True)
+        stack.command([stack.docker, "run", "--rm", "--network", "none", "--read-only", "--user", APP_UID,
+                       "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
+                       "-v", f"{name}:/dst", "-v", f"{work}/volumes/{volume}:/in:ro",
+                       "-v", f"{sqlite_dir}:/sqlite:ro", HELPER, "sh", "-c",
+                       "tar -C /dst --no-same-owner --no-same-permissions -xf /in/files.tar && "
+                       "cd /sqlite && find . -type f -exec sh -c 'mkdir -p \"/dst/$(dirname \"$1\")\" && "
+                       "cp \"$1\" \"/dst/$1\" && chmod 600 \"/dst/$1\"' _ {} \\;"])
+        facts["volumes"].append(volume)
+    if info["engine"].startswith("postgres"):
+        db_service = DATABASE_SERVICE[app_id]
+        stack.compose(app_id, "up", "-d", "--pull", "never", "--no-build", "--wait", "--wait-timeout", "120",
+                      db_service)
+        container = stack.container(app_id, db_service)
+        role = manifest["database"]["account"]
+        stack.command([stack.docker, "cp", str(work / "database.dump"), f"{container['Id']}:/tmp/restore.dump"])
+        options = ["--no-owner", f"--role={role}"] if legacy else []
+        stack.command([stack.docker, "exec", container["Id"], "pg_restore", "-U", "postgres", "-d",
+                       info["database"], "--clean", "--if-exists", "--exit-on-error", *options, "/tmp/restore.dump"])
+        stack.command([stack.docker, "exec", container["Id"], "rm", "-f", "/tmp/restore.dump"])
+        facts["postgres"] = postgres_counts(stack, container["Id"], info["database"])
+    carried = []
+    for relative in info.get("secrets", []):
+        source = work / "secrets" / relative
+        target = service.layout.runtime / relative
+        if not source.is_file() or target.is_symlink() or ".." in Path(relative).parts:
+            raise StateError("Invalid carried secret")
+        value = source.read_text().strip()
+        if len(value) < 32:
+            raise StateError(f"Carried secret {relative} shorter than 32 characters; replace it and re-issue links")
+        temporary = target.with_name("." + target.name + ".import")
+        temporary.write_text(value)
+        os.chmod(temporary, 0o444)
+        os.replace(temporary, target)
+        carried.append(relative)
+    facts["carriedSecrets"] = carried
+    stack.migrate(app_id)
+    stack.start(app_id)
+    if not stack.healthy(app_id):
+        raise StateError("App not healthy after restore")
+    facts["healthy"] = True
+    return facts
+
+
+def postgres_counts(stack, container_id, database):
+    tables = stack.command([stack.docker, "exec", container_id, "psql", "-At", "-U", "postgres", "-d", database,
+                            "-c", "SELECT quote_ident(schemaname)||'.'||quote_ident(tablename) FROM pg_tables "
+                                  "WHERE schemaname NOT IN ('pg_catalog','information_schema') ORDER BY 1"]).split()
+    counts = {}
+    for table in tables:
+        value = stack.command([stack.docker, "exec", container_id, "psql", "-At", "-U", "postgres", "-d", database,
+                               "-c", f"SELECT count(*) FROM {table}"]).strip()
+        counts[table.replace('"', "")] = int(value) if value.isdigit() else None
+    owners = stack.command([stack.docker, "exec", container_id, "psql", "-At", "-U", "postgres", "-d", database,
+                            "-c", "SELECT string_agg(DISTINCT tableowner, ',') FROM pg_tables WHERE schemaname='public'"])
+    fks = stack.command([stack.docker, "exec", container_id, "psql", "-At", "-U", "postgres", "-d", database,
+                         "-c", "SELECT count(*) FROM pg_constraint WHERE contype='f'"])
+    return {"tables": counts, "owners": owners.strip(), "foreignKeys": int(fks.strip() or 0)}
 
 
 def _tar_reader(directory):

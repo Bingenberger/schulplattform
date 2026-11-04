@@ -318,12 +318,43 @@ def setup_admin(directory, username):
 
 
 
+def setup_pending_app(trusted_hosts=None):
+    """Served until the first administrator exists: no login, no actions, only a console hint."""
+    app = Flask(__name__)
+    app.config.update(TRUSTED_HOSTS=trusted_hosts or ["localhost", "127.0.0.1"])
+
+    @app.after_request
+    def private(response):
+        response.headers.update({"Cache-Control": "no-store", "X-Frame-Options": "DENY",
+                                 "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})
+        return response
+
+    @app.get("/health/live")
+    def live():
+        return {"status": "alive"}
+
+    @app.get("/health/ready")
+    def ready():
+        return {"status": "setup-pending"}
+
+    @app.route("/", defaults={"path": ""}, methods=["GET", "POST"])
+    @app.route("/<path:path>", methods=["GET", "POST"])
+    def pending(path):
+        return ("<!doctype html><meta charset=utf-8><title>Schulplattform</title>"
+                "<p style='font-family:system-ui;margin:2rem'>Die Plattformverwaltung ist noch nicht eingerichtet. "
+                "Bitte auf dem Server an der Konsole <code>./install.sh admin-setup</code> ausführen.</p>"), 503
+    return app
+
+
 def from_env():
     import json
     directory = os.environ["SP_DASHBOARD_STATE"]
+    hosts = os.environ["SP_DASHBOARD_HOSTS"].split(",")
+    if not (Path(directory) / "dashboard.sqlite3").is_file():
+        return setup_pending_app(hosts)
     return create_app(directory, os.environ["SP_DEPLOYMENT_SOCKET"], os.environ["SP_DEPLOYMENT_KEY_FILE"],
                       json.loads(Path(os.environ["SP_APP_CATALOGUE"]).read_text()),
-                      trusted_hosts=os.environ["SP_DASHBOARD_HOSTS"].split(","))
+                      trusted_hosts=hosts)
 
 
 def main():

@@ -286,5 +286,8 @@ class Platform:
                 username = tty.readline().strip()
         if not re.fullmatch(r"[a-z][a-z0-9._-]{2,40}", username):
             raise StateError("Benutzername: 3–41 Zeichen, Kleinbuchstaben, Ziffern, . _ -")
-        self.stack.compose("infra", "exec", "dashboard", "python", "-m", "schulplattform.dashboard", "setup",
-                           "--state-dir", "/state", "--username", username, tty=True, capture=False)
+        # Short-lived container on the same state volume and UID; works before the first admin exists.
+        self.stack.compose("infra", "run", "--rm", "--no-deps", "--pull", "never", "dashboard", "python", "-m",
+                           "schulplattform.dashboard", "setup", "--state-dir", "/state", "--username", username,
+                           tty=True, capture=False)
+        self.stack.compose("infra", "restart", "dashboard")

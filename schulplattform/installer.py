@@ -125,7 +125,8 @@ def warnings(host):
 
 
 PRODUCTION = ["configure", "plan", "apply", "status", "reconcile", "domain-change", "start", "stop",
-              "admin-setup", "app-setup", "smtp-password", "backup", "restore-probe", "restore"]
+              "admin-setup", "app-setup", "smtp-password", "backup", "restore-probe", "restore",
+              "import-key", "import"]
 
 
 def _main(argv=None):
@@ -144,7 +145,8 @@ def _main(argv=None):
     parser.add_argument('--app', help='reconcile/backup: limit to one app')
     parser.add_argument('--all', action='store_true', help='backup: every installed app')
     parser.add_argument('--quiet', action='store_true')
-    parser.add_argument('--confirm-replace', action='store_true', help="restore: replace this app's data")
+    parser.add_argument('--confirm-replace', action='store_true', help="restore/import: replace this app's data")
+    parser.add_argument('--dry-run', action='store_true', help='import: decrypt and report only')
     parser.add_argument('--no-host', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.action.startswith("pilot-"):
@@ -275,6 +277,17 @@ def _main(argv=None):
             parser.error('restore APP ARCHIVE --confirm-replace')
         facts = restore(BackupService(platform_), target[0], Path(target[1]), confirm=args.confirm_replace)
         print(json.dumps(facts, indent=2, ensure_ascii=False))
+    elif args.action == 'import-key':
+        from .importer import create_transfer_key
+        path, _value = create_transfer_key(platform_)
+        print(f"Transferschlüssel: {path}\nDiese Datei sicher (z. B. per scp) auf den Altserver kopieren und dort "
+              "mit --key-file angeben. Nach Abschluss des Umzugs auf beiden Servern löschen.")
+    elif args.action == 'import':
+        from .importer import run_import
+        if len(target) != 2 or args.dry_run == args.confirm_replace:
+            parser.error('import APP ARCHIVE (--dry-run | --confirm-replace)')
+        print(json.dumps(run_import(platform_, target[0], Path(target[1]), confirm=args.confirm_replace),
+                         indent=2, ensure_ascii=False))
     elif args.action == 'restore-probe':
         from .backups import BackupService
         if len(target) != 1:
