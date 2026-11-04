@@ -2,61 +2,61 @@
   {
     "app": "abgen",
     "baseCommit": "50db999ccc689cdad3a6b2c930d24dee650eaec2",
-    "implementationCommit": "0e72023ebfbef3bede8c06de35ac5d7836e88829",
+    "implementationCommit": "585c7ff5fdef9ce12c832f521ec5c2faf10fd447",
     "patch": "patches/abgen/changes.patch"
   },
   {
     "app": "schulwissen",
     "baseCommit": "a9673bc343a3a6eea1c15f533d0e89061e669b32",
-    "implementationCommit": "ce697abe0b64a6b7867f5cc1bf97c038d529ecd3",
+    "implementationCommit": "cf4408a3cdf9982545f628b8f65be907c4af08ee",
     "patch": "patches/schulwissen/changes.patch"
   },
   {
     "app": "gswb",
     "baseCommit": "7c2875b0439395487431ffaf543b0bbb3f37a8bf",
-    "implementationCommit": "aa0ea29f8209a4af575dfcac001e512fcbcd789d",
+    "implementationCommit": "7514a580ed6140ef2a9973deec698720f628abe7",
     "patch": "patches/gswb/changes.patch"
   },
   {
     "app": "zackboing",
     "baseCommit": "05e78a1e829a7634cd35deb5ab06c7c8a5e9d365",
-    "implementationCommit": "8ee2b9eec613d25b861e41de12ede251bdd7a0f0",
+    "implementationCommit": "22fad5cce6eb329e01d6a28025a7d88c33be9b68",
     "patch": "patches/zackboing/changes.patch"
   },
   {
     "app": "kompetenz-manager",
     "baseCommit": "dd5f14c8badfa5c604cfdcf70a2ae0bf40267a20",
-    "implementationCommit": "b42fbdf52d777bc5e258d15a1d9173e6970f7245",
+    "implementationCommit": "7ed8a6bc2af20791ab0fc1ff26f95ac7e65aa023",
     "patch": "patches/kompetenz-manager/changes.patch"
   },
   {
     "app": "leseflux",
     "baseCommit": "6ad61b28a31d41d98e03d3be835a6c678ad6e439",
-    "implementationCommit": "3862d194588e5f4d03f0cc8bc763650e4b528b73",
+    "implementationCommit": "f02e9a2dd225fdce26e47ef06d482c8f7c547fc2",
     "patch": "patches/leseflux/changes.patch"
   },
   {
     "app": "fahrradausbildung",
     "baseCommit": "d9a9a6c8e02dd7fd5a14a5e2151948d7ec32c207",
-    "implementationCommit": "92b6e590cab5f88087d1a4521e4a53fa90f272cd",
+    "implementationCommit": "19c91fa7e1f3addf79d61525dc1534a673ca49bb",
     "patch": "patches/fahrradausbildung/changes.patch"
   },
   {
     "app": "grundschultafel",
     "baseCommit": "496466cac7cc2b3e48a6acd2940ebc91029c145f",
-    "implementationCommit": "f628e1267df216202ea61be399ef414004e9d7a7",
+    "implementationCommit": "b90b1dd7cdc2c522c73bb2bcd419f1e22820a09e",
     "patch": "patches/grundschultafel/changes.patch"
   },
   {
     "app": "schulhelfer",
     "baseCommit": "01fb181a120a215d8ec9935a05ade3abbcba3309",
-    "implementationCommit": "7df1e3793736e9556b483d8d1e144691a563bcda",
+    "implementationCommit": "71e10ee8108a0c19902faf4caa4d9427263946b7",
     "patch": "patches/schulhelfer/changes.patch"
   },
   {
     "app": "losverkauf",
     "baseCommit": "2e471ea8abc5fb6acac8acabb292d8e99ede2787",
-    "implementationCommit": "4627267f3513794bd93327391a7194b900bcacc1",
+    "implementationCommit": "df97c21f99f51c76a1d689923a56043c8beda663",
     "patch": "patches/losverkauf/changes.patch"
   }
 ]

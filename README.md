@@ -1,149 +1,151 @@
-# Schulplattform – Umsetzung in Arbeit
+# Schulplattform
 
-Die Plattform bündelt eigenständige Apps für einen selbst gehosteten Schulserver.
-Maßgeblich sind der [Auftrag](Coding_Agent_Umsetzungsauftrag_Schulplattform.md) und
-der [Umfangsbeschluss](docs/platform-audit/scope-decision.md).
+Die Schulplattform installiert zehn eigenständige Schul-Apps gebündelt auf **einem** selbst gehosteten Linux-Server und macht sie zentral wartbar:
 
-**Aktuell ist der lokale Zehn-App-Pilot einschließlich abgen geprüft.** Die vollständige
-Installation auf leerem Ubuntu 24.04 sowie Produktions- und Releaseabnahme sind noch offen.
-[Umsetzungsstand und Testnachweise](docs/implementation/status.md).
-Abgen ist eigenständig und im gemeinsamen Pilot mit PostgreSQL 18,
-Yjs, PDF und Domainrückfall geprüft: [Abnahme und Grenzen](docs/implementation/abgen.md).
+- Installation mit einem Befehl
+- je App eine eigene Subdomain mit automatischem TLS-Zertifikat (Let's Encrypt)
+- zentrales Dashboard mit Domains, Zertifikaten, Mailversand, Sicherungen und Updates
+- verschlüsselte Sicherung und Wiederherstellung
+- Werkzeug für den Umzug vom bisherigen Server
 
-## Produktion (Nachauftrag N1–N6)
+Jede App bleibt ein eigenes Repository mit eigener `docker-compose.yml` und lässt sich auch **ohne** Plattform betreiben. Die Plattform legt nur eine Override-Datei darüber.
 
-Ein leerer Ubuntu-24.04-Server, DNS-Einträge je Hostname, ein Kommando:
+| App | Zweck | Repository | Release-Image |
+| --- | --- | --- | --- |
+| gswb | Grundschul-Wörterbuch (öffentliche Suche, Redaktion) | [gswb](https://github.com/Bingenberger/gswb) | `ghcr.io/bingenberger/gswb` |
+| schulwissen | Schulinterne Wissens- und Beschlussdatenbank | [schulwissen](https://github.com/Bingenberger/schulwissen) | `ghcr.io/bingenberger/schulwissen` |
+| zackboing | Quiz und Klassenspiele | [zackboing](https://github.com/Bingenberger/zackboing) | `ghcr.io/bingenberger/zackboing` |
+| schulhelfer | Helferlisten für Schulfeste | [schulhelfer](https://github.com/Bingenberger/schulhelfer) | `ghcr.io/bingenberger/schulhelfer` |
+| losverkauf | Losverkauf mit Elternanmeldung | [losverkauf](https://github.com/Bingenberger/losverkauf) | `ghcr.io/bingenberger/losverkauf` |
+| grundschultafel | Digitale Tafel für Lehrkräfte | [grundschultafel](https://github.com/Bingenberger/grundschultafel) | `ghcr.io/bingenberger/grundschultafel` |
+| fahrradausbildung | Radfahrausbildung mit Posten-App | [fahrradausbildung](https://github.com/Bingenberger/fahrradausbildung) | `ghcr.io/bingenberger/fahrradausbildung` |
+| leseflux | Leseflüssigkeitstraining | [leseflux](https://github.com/Bingenberger/leseflux) | `ghcr.io/bingenberger/leseflux` |
+| kompetenz-manager | Kompetenzbeobachtung und Schülerakte | [kompetenz-manager](https://github.com/Bingenberger/kompetenz-manager) | `ghcr.io/bingenberger/kompetenz-manager` |
+| abgen | Arbeitsblatt-Editor (gemeinsames Bearbeiten, PDF) | [abgen](https://github.com/Bingenberger/abgen) | `ghcr.io/bingenberger/abgen`, `…/abgen-pdf` |
+
+Infrastruktur auf dem Server:
+- Caddy als Proxy mit ACME
+- ein Postfix-Mail-Relay (`schulplattform-relay`)
+- das Dashboard (`schulplattform-dashboard`)
+- ein lokaler Steuerdienst; nur er hat Docker-Zugriff
+
+## Installation auf einem neuen Server
+
+### Voraussetzungen
+
+- **Ubuntu Server 24.04 LTS, amd64, leer.** Kein vorinstalliertes Docker, nginx, Apache oder Datenbankdienst; der Installer bricht sonst ab, statt etwas zu überschreiben.
+- root-Zugang per SSH, Internetzugang (HTTPS) zu `github.com`, `ghcr.io`, `download.docker.com`, `pypi.org` und Let's Encrypt
+- feste öffentliche IPv4-Adresse; eingehend erreichbar sind 22, 80 und 443
+- je App ein DNS-A-Eintrag auf diese Adresse, dazu einer für die Verwaltungsdomain. Fehlende Einträge können nachgereicht werden.
+
+**Vorab installieren muss man nichts.** Ein Standard-Ubuntu-24.04 (geprüft am offiziellen Cloud-Image) enthält bereits `git`, `python3` (3.12), `curl`, `gpg`, `ufw` und `tar`.
+
+`install.sh` richtet beim ersten Aufruf selbst ein:
+- `python3-venv` und eine Python-Umgebung aus `requirements-host.lock`, mit Hash-Prüfung
+- Docker 29.1.3 samt Compose-Plugin aus der offiziellen Docker-Paketquelle; der Fingerabdruck des Repository-Schlüssels wird geprüft
+- die Firewall (`ufw`)
+- die Systemdienste
+
+Nur bei stark reduzierten Images ohne `git` vorher `apt install git` ausführen.
+
+### So kommt `install.sh` auf den Server
+
+Das Repository ist öffentlich. Auf dem Server als root:
 
 ```sh
-./install.sh preflight && ./install.sh configure
+git clone --branch v0.1.0 https://github.com/Bingenberger/schulplattform.git /opt/schulplattform
+cd /opt/schulplattform
+```
+
+Ohne git geht es auch so:
+
+```sh
+curl -fsSLO https://github.com/Bingenberger/schulplattform/archive/refs/tags/v0.1.0.tar.gz
+```
+
+Danach entpacken.
+
+Im Repository liegen das **signierte Release** (`releases/0.1.0`) und der öffentliche Prüfschlüssel (`release-keys/schulplattform-release.pub`). Vergleichen Sie dessen Fingerabdruck auf einem zweiten Weg, etwa telefonisch oder auf einem anderen Gerät:
+
+```sh
+python3 -c "import hashlib,base64;k=open('release-keys/schulplattform-release.pub').read().split('\n')[1];print('SHA256:'+hashlib.sha256(base64.b64decode(k)[-32:]).hexdigest())"
+# erwartet: SHA256:f43e8cabe5a101e8463b2f9a4601cc5bcb9fd15ac0dbabee662072a0fc6b3fd7
+```
+
+Das Release fixiert jedes Image über Version **und** Digest. Ein verändertes Bundle oder Image wird abgewiesen.
+
+### Installieren
+
+```sh
+./install.sh preflight      # nur lesend; muss "blockers": [] melden
+./install.sh configure      # Assistent: Domains je App, Verwaltungsdomain, Let's-Encrypt-Kontakt, IP, SMTP, Backup
+./install.sh smtp-password  # nur bei SMTP mit Anmeldung (verdeckte Eingabe)
 ./install.sh apply --bundle releases/0.1.0 --trusted-key release-keys/schulplattform-release.pub
-./install.sh admin-setup
+./install.sh admin-setup    # persönlicher Plattform-Admin mit TOTP
+./install.sh app-setup APP  # Erstzugang je App, bei Bedarf
 ```
 
-- Ablauf und Checkliste: [docs/betrieb/bereitstellung.md](docs/betrieb/bereitstellung.md)
-- Umzug vom Altserver: [docs/betrieb/umzug.md](docs/betrieb/umzug.md), Werkzeug `scripts/altserver/schulplattform_altserver.py`
-- Dashboard, Steuerdienst, Angriffsflächen: [docs/betrieb/dashboard.md](docs/betrieb/dashboard.md)
-- Abnahmestand: [docs/implementation/nachauftrag-status.md](docs/implementation/nachauftrag-status.md)
+Beginnen Sie mit `acme_environment = "staging"` und stellen Sie auf `production` um, wenn alle Hostnamen aktiv sind.
 
-Weitere Befehle:
-- `status`, `reconcile` (DNS/Zertifikate)
-- `domain-change APP HOST`, `start|stop APP`
-- `app-setup APP`, `smtp-password`
-- `backup --all`, `restore-probe APP`, `restore APP ARCHIV --confirm-replace`, `restore-platform`
-- `import-key`, `import APP ARCHIV --dry-run|--confirm-replace`
+`apply` ist wiederholbar: Ein zweiter Lauf ändert nichts, und ein abgebrochener Lauf setzt am letzten geprüften Schritt fort. Apps, deren DNS-Eintrag noch fehlt, stehen auf „DNS ausstehend“ und werden mit `./install.sh reconcile` (läuft auch stündlich) aktiviert.
 
-## Lokale Entwicklung
+Ausführliche Checkliste: [docs/betrieb/bereitstellung.md](docs/betrieb/bereitstellung.md)
+
+## Betrieb
+
+| Befehl | Zweck |
+| --- | --- |
+| `./install.sh status` | Zustand je App: DNS, Zertifikat, aktiv |
+| `./install.sh reconcile [--app APP]` | DNS erneut prüfen, Zertifikate holen |
+| `./install.sh domain-change APP HOST` | Domain wechseln, mit automatischem Rückfall |
+| `./install.sh start\|stop APP` | App starten oder stoppen (Daten bleiben) |
+| `./install.sh backup --all` | Plattform und alle Apps sichern, verschlüsselt, mit Kopie ins externe Ziel |
+| `./install.sh restore-probe APP` | Sicherung isoliert prüfen |
+| `./install.sh restore APP ARCHIV --confirm-replace` | App-Daten wiederherstellen |
+| `./install.sh restore-platform ARCHIV --confirm-replace` | Server nach Totalausfall neu aufbauen (vor `apply`) |
+
+Das Dashboard unter der Verwaltungsdomain zeigt dasselbe und erlaubt Domains, Mail, Sicherungen und Lebenszyklus (ausblenden, stoppen, deinstallieren, Daten löschen) über fest definierte Aktionen.
+
+Weitere Dokumentation:
+- Privilegien und Angriffsflächen: [docs/betrieb/dashboard.md](docs/betrieb/dashboard.md)
+- Updates und Rollback: [UPGRADE.md](UPGRADE.md)
+
+## Umzug vom bisherigen Server
+
+`scripts/altserver/schulplattform_altserver.py` läuft auf dem Altserver ausschließlich lesend: Es inventarisiert und exportiert verschlüsselt.
+
+Auf dem neuen Server:
+1. `./install.sh import-key` legt den Transferschlüssel an.
+2. `./install.sh import APP ARCHIV --dry-run` prüft das Archiv.
+3. `./install.sh import APP ARCHIV --confirm-replace` übernimmt die Daten.
+
+Runbook: [docs/betrieb/umzug.md](docs/betrieb/umzug.md)
+
+## Stand und Grenzen
+
+Release 0.1.0 ist in lokalen Ubuntu-24.04-VMs mit Test-CA und Test-DNS abgenommen: [docs/implementation/nachauftrag-status.md](docs/implementation/nachauftrag-status.md).
+
+Offen sind:
+- die Abnahme auf dem echten Server (Let's Encrypt, Erreichbarkeit, SMTP-Anbieter, Lastmessungen)
+- die Lizenzprüfung (A0)
+- der Übernahmeweg für alte schulhelfer-Datenbanken
+
+Es gibt kein Single Sign-on, keine zentrale Benutzersperrung und keinen zentralen Logout; die Apps behalten ihre eigenen Anmeldungen.
+
+## Entwicklung
 
 ```sh
-python3 scripts/checkout_apps.py
-python3 -m venv .venv
-.venv/bin/pip install -r requirements-dev.txt
-```
-
-Die Appquellen liegen in ignorierten eigenständigen Git-Repositories unter
-`.work/apps/`. Die [Patchübersicht](patches/index.json) nennt Basis- und Ergebnis-
-commits. Auf einem frischen Checkout die zugehörigen Patches mit `git am`
-anwenden. Der Checkouthelfer erhält bestehende Änderungen und setzt abweichende
-Commits nicht zurück.
-
-```sh
+python3 scripts/checkout_apps.py          # App-Repositories nach .work/apps/ (ignoriert)
+python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/python -m pytest -q tests
-./install.sh preflight
 ```
 
-Der Preflight erfasst den Host lesend. Vorhandenes Docker, Proxy- oder
-Datenbankdienste erfordern einen ausdrücklichen Übernahmeplan.
+- **Plattformcode:** `schulplattform/` mit Katalog, Konfiguration, Stack, Routing, Backups, Installer, Dashboard und Steuerdienst. Die Schemas liegen in `schemas/`, der Release-Builder in `scripts/make_release.py`.
+- **App-Änderungen:** Die Plattform-bezogenen Änderungen der App-Repos sind in `patches/` nachvollziehbar (`patches/index.json`).
+- **VM-Abnahme:** `tests/vm/` startet QEMU/KVM im Container mit Pebble und Test-DNS (`prepare.sh`, `vm.py`, `sync.sh`).
+- **Lokaler Pilot:** Der frühere Zehn-App-Pilot (`./install.sh pilot-up --state-dir .work/pilot-vN --apps …`) bleibt für die Entwicklung erhalten. Berichte je App stehen in [docs/implementation/](docs/implementation/).
 
-## Zweierpilot
-
-Nach den [Vorbereitungsschritten](docs/implementation/pilot.md):
-
-```sh
-./install.sh pilot-up --state-dir .work/pilot-v2
-./install.sh pilot-status --state-dir .work/pilot-v2
-./install.sh pilot-stop --state-dir .work/pilot-v2
-./install.sh pilot-start --state-dir .work/pilot-v2
-```
-
-Der Pilot verwendet die eigenständigen Compose-Dateien mit ergänzenden Overrides,
-eigene Testvolumes, getrennte Appnetze, Caddy-TLS und Mailpit. Nur der Proxy ist am
-Host-Loopback erreichbar. Keine DNSänderung oder globale CA-Installation.
-Wiederholte Installation ist ohne Versionswechsel ein No-op; gestoppte Apps
-werden über den gesonderten Startbefehl aktiviert.
-
-Zackboing lässt sich in einer neuen Pilotinstallation ergänzen:
-
-```sh
-.venv/bin/python scripts/build_zackboing.py
-./install.sh pilot-up --state-dir .work/pilot-v3 --apps gswb,schulwissen,zackboing
-```
-
-[Standalone, Bootstrap, Spieltest und Restore](docs/implementation/zackboing.md).
-Bestehende Installationen behalten ihre Auswahl. Für den Viererpilot zusätzlich
-`scripts/build_schulhelfer.py` ausführen und in einem neuen Zustandsordner
-`--apps gswb,schulwissen,zackboing,schulhelfer` wählen.
-[Schulhelfer: Standalone, Domainwechsel und Restore](docs/implementation/schulhelfer.md).
-
-Losverkauf ergänzt einen neuen Fünferpilot nach dem Build mit
-`scripts/build_losverkauf.py` und Auswahl
-`--apps gswb,schulwissen,zackboing,schulhelfer,losverkauf` in einem neuen
-Zustandsordner. [Abnahme, Mailqueue und Grenzen](docs/implementation/losverkauf.md).
-
-Grundschultafel ergänzt einen neuen Sechserpilot nach dem Build mit
-scripts/build_grundschultafel.py und der Auswahl
-gswb,schulwissen,zackboing,schulhelfer,losverkauf,grundschultafel über --apps.
-[Persönliche PINs, mobile Uploads, Domainwechsel und Dateirestore](docs/implementation/grundschultafel.md).
-
-Fahrradausbildung ergänzt nach scripts/build_fahrradausbildung.py einen neuen
-Siebenerpilot mit --apps gswb,schulwissen,zackboing,schulhelfer,losverkauf,grundschultafel,fahrradausbildung.
-[Migration, Posten-PWA, QR-Domainwechsel und PG-/Dateirestore](docs/implementation/fahrradausbildung.md).
-
-## Releaseprüfung
-
-```sh
-./install.sh plan --bundle /pfad/zum/bundle --trusted-key /separat/provisionierter/release-key.pem
-```
-
-Der Schlüssel muss unabhängig vom Bundle bereitgestellt sein. Die CLI prüft
-Ed25519-Signatur, signiertes Dateiinventar, Hashes, Manifest-Schema, Image-Digests
-und Abnahmenachweise. Ohne gültige Signatur gibt es keinen gültigen Plan.
-Es existiert noch kein freigegebenes Releasebundle. `apply` bleibt bis zur
-vollständigen Host-Provisionierung gesperrt.
-
-## Betriebsgrenzen
-
-Die lokalen Prüfungen belegen Standalone-Starts, privaten Backendzugang, TLS,
-Negativzugriffe, Mail in den Sink, Domainwechsel mit Rückfall und einen synthetischen
-PostgreSQL-Restore sowie einen kombinierten Zackboing-DB-/Medienrestore. Sie ersetzen keine vollständige Produktionsabnahme.
-
-Das [Dashboard](docs/implementation/dashboard.md) mit TOTP und eingeschränktem
-Unix-Steuerdienst unterstützt die zehn Pilot-Apps; aktive Zackboing-Spiele blockieren Stop.
-Verschlüsseltes Offsitebackup, konsistente gemeinsame DB-/Datei-/Schlüsselsicherung,
-weitere Dashboardfunktionen und Zielservermessungen sind offen.
-RPO/RTO und die geschätzten 16 GB RAM/4 vCPU sind noch nicht bestätigt.
-
-Kein Keycloak, keine zentrale Benutzersperrung und kein zentraler Logout.
-Lokale Appanmeldungen bleiben erhalten. Testvolumes werden bei Stop behalten.
-Kein externer SMTP-Upstream; keine Produktiv- oder DNSumstellung.
-
-Leseflux ergänzt einen neuen Achterpilot nach scripts/build_leseflux.py mit
---apps gswb,schulwissen,zackboing,schulhelfer,losverkauf,grundschultafel,fahrradausbildung,leseflux.
-[Lokale Kinderzugänge, Sitzungswiderruf und Restore](docs/implementation/leseflux.md).
-
-Kompetenz-Manager ergänzt nach scripts/build_kompetenz.py den Neunerpilot mit
---apps gswb,schulwissen,zackboing,schulhelfer,losverkauf,grundschultafel,fahrradausbildung,leseflux,kompetenz-manager.
-[SQLite, lokale Rechte, begrenzte PDF-Exporte und Restore](docs/implementation/kompetenz-manager.md).
-
-Abgen ergänzt nach scripts/build_abgen.py den Zehnerpilot in einem neuen Zustandsordner:
-
-```sh
-./install.sh pilot-up --state-dir .work/pilot-v21 --apps gswb,schulwissen,zackboing,schulhelfer,losverkauf,grundschultafel,fahrradausbildung,leseflux,kompetenz-manager,abgen
-```
-
-Eigenes PostgreSQL 18, privater Chromium-Dienst und dauerhafter Yjs-Zustand; die
-Erstmigration erzeugt kein Konto. [Standalone, Domain-/QR-/WSS-Rückfall, Dashboard und Restore](docs/implementation/abgen.md).
-
-Weitere Nachweise: [Schulwissen-Restore mit echter HTTP-/Medien-/Rechteprüfung](docs/implementation/schulwissen-restore.md) und
-[erste lokale Leerlaufstichprobe aller zehn Apps](docs/messungen/README.md).
-Die Messwerkzeuge erfassen Cgroup-, Host-, DB- und ausgewählte Queuewerte; der
-120-Sekunden-Lauf ersetzt keine Zielserver-, Last- oder Dauerlaufabnahme.
+Aufträge und Audit:
+- [Umsetzungsauftrag](Coding_Agent_Umsetzungsauftrag_Schulplattform.md)
+- [Nachauftrag](Coding_Agent_Nachauftrag_Installation_Domains.md)
+- [Audit](docs/platform-audit/)

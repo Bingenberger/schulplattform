@@ -1,7 +1,7 @@
 From 66148e21ab6acb6b7c02aa5a1e4b10645380514f Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Mon, 2 Nov 2026 11:23:36 +0100
-Subject: [PATCH 1/4] Bind administrative login to a personal identity
+Subject: [PATCH 1/5] Bind administrative login to a personal identity
 
 ---
  PLATFORM.md                   | 10 ++++++++++
@@ -100,7 +100,7 @@ index fe8fb9f..0875fbe 100644
 From b0267aa458f9a8455dad63b541c8ad3ebb89f8b1 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Tue, 3 Nov 2026 06:28:26 +0100
-Subject: [PATCH 2/4] Add isolated ticket-sale runtime, explicit migrations and
+Subject: [PATCH 2/5] Add isolated ticket-sale runtime, explicit migrations and
  durable mail dispatcher
 
 ---
@@ -2814,7 +2814,7 @@ index 0000000..96984e5
 From 9b4e7762269bd54d96ba23426a218d9df38d5bb4 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Tue, 3 Nov 2026 06:37:14 +0100
-Subject: [PATCH 3/4] Add isolated ticket-sale runtime, explicit migrations and
+Subject: [PATCH 3/5] Add isolated ticket-sale runtime, explicit migrations and
  durable mail dispatcher
 
 ---
@@ -2872,7 +2872,7 @@ index 96984e5..c756ee8 100644
 From 4627267f3513794bd93327391a7194b900bcacc1 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 08:19:22 +0100
-Subject: [PATCH 4/4] Publish versioned amd64 release images to GHCR on version
+Subject: [PATCH 4/5] Publish versioned amd64 release images to GHCR on version
  tags
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -2943,6 +2943,64 @@ index 0000000..185ce46
 +          done
 +          { echo '### Published images'; echo; echo '```'; cat ../digests.txt; echo '```'; } >> "${GITHUB_STEP_SUMMARY}"
 +          docker logout ghcr.io
+-- 
+2.43.0
+
+
+From df97c21f99f51c76a1d689923a56043c8beda663 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Wed, 4 Nov 2026 12:13:37 +0100
+Subject: [PATCH 5/5] README: Installation im Rahmen der Schulplattform und
+ Standalone; veraltete Angaben korrigiert
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ README.md | 32 ++++++++++++++++++++++++++++++++
+ 1 file changed, 32 insertions(+)
+
+diff --git a/README.md b/README.md
+index 728310b..4e4e130 100644
+--- a/README.md
++++ b/README.md
+@@ -7,6 +7,38 @@ bestätigt Zuordnungen und bietet Mail, CSV und PDF an.
+ Der geprüfte Stand mit Migration, Secrets, Mailqueue, Backup und Grenzen steht
+ in [PLATFORM.md](PLATFORM.md).
+ 
++<!-- schulplattform:installation -->
++## Installation
++
++### Im Rahmen der Schulplattform
++
++Empfohlen für den Schulserver: Die [Schulplattform](https://github.com/Bingenberger/schulplattform) installiert diese App zusammen mit den
++anderen Schul-Apps auf einem leeren Ubuntu-24.04-Server, mit eigener Subdomain, TLS-Zertifikat, Mailversand,
++Sicherung und Dashboard. Sie verwendet das signierte Release-Image `ghcr.io/bingenberger/losverkauf`
++und die unveränderte `docker-compose.yml` dieses Repositorys plus eine Override-Datei.
++
++1. In der Plattformkonfiguration (`./install.sh configure` bzw. `/etc/schulplattform/platform.toml`)
++   unter `[apps.losverkauf]` `enabled = true` und den Hostnamen setzen, z. B. `lose.ihre-schule.de`,
++   und beim DNS-Provider einen A-Eintrag auf den Server anlegen.
++2. `./install.sh apply …` installiert die App. Migration, Proxy, Zertifikat und Sicherung übernimmt die Plattform.
++3. `./install.sh app-setup losverkauf` legt den persönlichen Verwaltungszugang an (Name und Passwort am Terminal; gespeichert wird nur ein Werkzeug-Hash).
++4. Daten vom bisherigen Server übernehmen: `./install.sh import losverkauf …` nach dem
++   [Umzugs-Runbook](https://github.com/Bingenberger/schulplattform/blob/main/docs/betrieb/umzug.md).
++
++### Standalone mit Docker Compose
++
++Ohne Plattform, z. B. zum Ausprobieren oder für einen eigenen Server mit eigenem Proxy.
++Benötigt Docker Engine mit Compose v2 (amd64). Die App lauscht danach nur auf `http://127.0.0.1:5006`.
++
++Siehe Abschnitt **„Standalone“** unten (`prepare_secrets.py`, Build, `python -m los_migrate`). Die Bezirkskarte gehört nach `/data/maps/bezirke.geojson`.
++
++Statt selbst zu bauen, kann das veröffentlichte Image verwendet werden (dann `docker compose build` weglassen):
++
++```sh
++docker pull ghcr.io/bingenberger/losverkauf:0.1.0 && docker tag ghcr.io/bingenberger/losverkauf:0.1.0 losverkauf:0.1.0-dev
++```
++<!-- /schulplattform:installation -->
++
+ ## Standalone
+ 
+ ```sh
 -- 
 2.43.0
 

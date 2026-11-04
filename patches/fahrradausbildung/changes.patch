@@ -1,7 +1,7 @@
 From 8d1e4991a73967917def574ee75f321e181feb3b Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Tue, 3 Nov 2026 09:14:17 +0100
-Subject: [PATCH 1/4] Add explicit PostgreSQL migration, shared worker limits
+Subject: [PATCH 1/5] Add explicit PostgreSQL migration, shared worker limits
  and standalone isolation
 
 ---
@@ -1346,7 +1346,7 @@ index 0000000..cee6ad5
 From dc699c4ad8218b8928083111e511723caf279faf Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Tue, 3 Nov 2026 09:29:35 +0100
-Subject: [PATCH 2/4] Add explicit PostgreSQL migration, shared worker limits
+Subject: [PATCH 2/5] Add explicit PostgreSQL migration, shared worker limits
  and standalone isolation
 
 ---
@@ -1426,7 +1426,7 @@ index 07b7251..02c5d6d 100644
 From 4e007ffd20e5236cf82b7d4a9f72f873fa1ae2fe Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Tue, 3 Nov 2026 11:12:59 +0100
-Subject: [PATCH 3/4] Add explicit PostgreSQL migration, shared worker limits
+Subject: [PATCH 3/5] Add explicit PostgreSQL migration, shared worker limits
  and standalone isolation
 
 ---
@@ -1464,7 +1464,7 @@ index 89ae578..d79a55c 100644
 From 92b6e590cab5f88087d1a4521e4a53fa90f272cd Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 08:19:22 +0100
-Subject: [PATCH 4/4] Publish versioned amd64 release images to GHCR on version
+Subject: [PATCH 4/5] Publish versioned amd64 release images to GHCR on version
  tags
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -1535,6 +1535,75 @@ index 0000000..836a712
 +          done
 +          { echo '### Published images'; echo; echo '```'; cat ../digests.txt; echo '```'; } >> "${GITHUB_STEP_SUMMARY}"
 +          docker logout ghcr.io
+-- 
+2.43.0
+
+
+From 19c91fa7e1f3addf79d61525dc1534a673ca49bb Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Wed, 4 Nov 2026 12:17:55 +0100
+Subject: [PATCH 5/5] README: Installation im Rahmen der Schulplattform und
+ Standalone; veraltete Angaben korrigiert
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ README.md | 43 +++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 43 insertions(+)
+
+diff --git a/README.md b/README.md
+index 5bc8f03..433be0f 100644
+--- a/README.md
++++ b/README.md
+@@ -3,6 +3,49 @@
+ Webanwendung zur Begleitung der Radfahrausbildung an Grundschulen.
+ Verbindliche Spezifikation: [`fahrradpruefung-app-spec.md`](fahrradpruefung-app-spec.md).
+ 
++<!-- schulplattform:installation -->
++## Installation
++
++### Im Rahmen der Schulplattform
++
++Empfohlen für den Schulserver: Die [Schulplattform](https://github.com/Bingenberger/schulplattform) installiert diese App zusammen mit den
++anderen Schul-Apps auf einem leeren Ubuntu-24.04-Server, mit eigener Subdomain, TLS-Zertifikat, Mailversand,
++Sicherung und Dashboard. Sie verwendet das signierte Release-Image `ghcr.io/bingenberger/fahrradausbildung`
++und die unveränderte `docker-compose.yml` dieses Repositorys plus eine Override-Datei.
++
++1. In der Plattformkonfiguration (`./install.sh configure` bzw. `/etc/schulplattform/platform.toml`)
++   unter `[apps.fahrradausbildung]` `enabled = true` und den Hostnamen setzen, z. B. `rad.ihre-schule.de`,
++   und beim DNS-Provider einen A-Eintrag auf den Server anlegen.
++2. `./install.sh apply …` installiert die App. Migration, Proxy, Zertifikat und Sicherung übernimmt die Plattform.
++3. `./install.sh app-setup fahrradausbildung` legt den persönlichen Systemadmin per E-Mail an (`python -m app.kommandos systemadmin-anlegen`, Passwort am Terminal).
++4. Daten vom bisherigen Server übernehmen: `./install.sh import fahrradausbildung …` nach dem
++   [Umzugs-Runbook](https://github.com/Bingenberger/schulplattform/blob/main/docs/betrieb/umzug.md).
++
++### Standalone mit Docker Compose
++
++Ohne Plattform, z. B. zum Ausprobieren oder für einen eigenen Server mit eigenem Proxy.
++Benötigt Docker Engine mit Compose v2 (amd64). Die App lauscht danach nur auf `http://127.0.0.1:8000`.
++
++```sh
++python3 prepare_secrets.py
++export FP_SECRETS_DIR="$PWD/.private"
++export FP_OEFFENTLICHE_URL="https://fahrrad.example.org"
++docker compose build
++docker compose up -d --wait db
++docker compose run --rm --no-deps app python -m app.migrate
++docker compose up -d --no-build
++docker compose exec app python -m app.kommandos systemadmin-anlegen PERSOENLICHE_EMAIL
++```
++
++Hinter einem eigenen Proxy `FP_PROXY_IPS` exakt setzen (siehe [PLATFORM.md](PLATFORM.md)).
++
++Statt selbst zu bauen, kann das veröffentlichte Image verwendet werden (dann `docker compose build` weglassen):
++
++```sh
++docker pull ghcr.io/bingenberger/fahrradausbildung:0.1.0 && docker tag ghcr.io/bingenberger/fahrradausbildung:0.1.0 fahrradausbildung:0.1.0-dev
++```
++<!-- /schulplattform:installation -->
++
+ ## Stand
+ 
+ - [x] Schritt 1 – Datenmodell, Migrationen, Mandanten-Schicht, Tests
 -- 
 2.43.0
 

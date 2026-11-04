@@ -32,7 +32,7 @@ cd /opt/schulplattform && git checkout v0.1.0
 Release-Bundle (`releases/0.1.0`) und Vertrauensschlüssel getrennt beziehen. Vergleichen Sie den Fingerabdruck auf einem **anderen Weg** (z. B. telefonisch oder aus dieser Dokumentation auf einem anderen Gerät):
 
 ```sh
-.venv/bin/python -c "from schulplattform.release_bundle import key_fingerprint as f; print(f('release-keys/schulplattform-release.pub'))"
+python3 -c "import hashlib,base64;k=open('release-keys/schulplattform-release.pub').read().split('\n')[1];print('SHA256:'+hashlib.sha256(base64.b64decode(k)[-32:]).hexdigest())"
 # erwartet: SHA256:f43e8cabe5a101e8463b2f9a4601cc5bcb9fd15ac0dbabee662072a0fc6b3fd7
 ```
 
