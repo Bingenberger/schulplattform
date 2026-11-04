@@ -1,5 +1,7 @@
 # Runbook: Umzug vom Altserver auf den neuen Server
 
+Laufen die Apps auf **mehreren Altservern**, gilt alles hier je Server: Werkzeug und Transferschlüssel auf jeden Altserver kopieren, Inventar je Server erstellen. Apps, die auf einem Server nicht installiert sind, meldet das Inventar als nicht vorhanden.
+
 Grundsatz: Auf dem Altserver wird **nichts verändert**. Das Werkzeug liest dort nur und schreibt seine Archive in ein Verzeichnis, das Sie angeben. Der Altserver bleibt bis zur Abnahme der Rückfallweg.
 
 ## 0. Vorbereitung (Tage vorher)
@@ -39,7 +41,8 @@ Grundsatz: Auf dem Altserver wird **nichts verändert**. Das Werkzeug liest dort
 | fahrradausbildung | Docker Compose, PostgreSQL 16 | **übernommen**, Alembic 0007 → 0008, Zeilen vollständig, Eigentümer `fahrrad` | – |
 | schulhelfer | nativ, SQLite (`create_all`) | **verweigert** (unversionierte Datenbank) | Ein Adoptionspfad im App-Code fehlt. Die App blieb auf dem gesicherten Stand. |
 | schulwissen, leseflux, abgen | Docker Compose, PostgreSQL | nicht getestet | Export- und Importweg identisch zu fahrradausbildung. abgen: Drizzle-Historie muss passen. |
-| gswb, zackboing, kompetenz-manager, grundschultafel | nativ | nicht getestet | Zuordnung der Pfade im Werkzeug hinterlegt. kompetenz-manager übernimmt nur einen passenden Ausgangsstand. grundschultafel: eigene Medien ausdrücklich importieren. |
+| kompetenz-manager | nativ, SQLite **oder PostgreSQL** (`DATABASE_URL` im `EnvironmentFile` des Dienstes) | PostgreSQL → SQLite **übernommen** (Test mit echtem PostgreSQL 16 und Stand `dd5f14c`), Schema 0001 bestätigt | Der Export wandelt mit der Python-Umgebung der App aus einem lesenden Snapshot um und bricht ab, wenn Tabellen oder Spalten vom Datenmodell abweichen. Dienst und Arbeitsverzeichnis werden selbst erkannt, abweichende Pfade mit `--path`/`--app`. |
+| gswb, zackboing, grundschultafel | nativ | nicht getestet | Zuordnung der Pfade im Werkzeug hinterlegt. grundschultafel: eigene Medien ausdrücklich importieren. |
 
 ## 3. Wer muss sich neu anmelden?
 

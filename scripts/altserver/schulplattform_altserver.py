@@ -52,7 +52,9 @@ APPS = {
                    "extra": {"static/bezirke.geojson": ("data", "maps/bezirke.geojson")}},
     "grundschultafel": {"kind": "native", "default": "/opt/grundschultafel", "volumes": {"data": "data"}},
     "kompetenz-manager": {"kind": "native", "default": "/opt/kompetenz-manager",
-                          "volumes": {"instance": "instance", "templates": "odt_templates"}},
+                          "volumes": {"instance": "instance", "templates": "odt_templates"},
+                          # Old installs may run on PostgreSQL (DATABASE_URL); the platform uses SQLite.
+                          "database_url": True, "sqlite_target": ("instance", "schule.db")},
     "schulwissen": {"kind": "compose", "db": ("db", "schulwissen", "schulwissen"), "engine": "postgres16",
                     "volumes": {"medien": ("app", "/medien")}},
     "fahrradausbildung": {"kind": "compose", "db": ("db", "fahrrad", "fahrrad"), "engine": "postgres16",
@@ -114,7 +116,9 @@ def env_values(path):
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 key, value = line.split("=", 1)
-                values[key.strip()] = value.strip().strip('"').strip("'")
+                key = key.strip()
+                key = key[len("export "):].strip() if key.startswith("export ") else key
+                values[key] = value.strip().strip('"').strip("'")
     except OSError:
         pass
     return values
@@ -235,6 +239,120 @@ def compose_projects():
     return sorted(projects.values(), key=lambda e: e["project"])
 
 
+def unit_for(base, preferred=None):
+    """The running systemd unit serving from this directory (old installs use their own unit names)."""
+    for service in running_services():
+        if service["workingDirectory"] == str(base):
+            return service["unit"]
+    return preferred
+
+
+def unit_values(unit):
+    """Environment of a unit: its EnvironmentFile(s) and Environment= lines. Values stay in memory."""
+    values = {}
+    if not unit:
+        return values
+    files = run(["systemctl", "show", unit, "-p", "EnvironmentFiles", "--value"]).stdout
+    for item in files.split("\n"):
+        path = item.strip().split(" ")[0].lstrip("-")
+        if path:
+            values.update(env_values(path))
+    values.update(unit_environment(unit))
+    return values
+
+
+def database_url(base, unit):
+    url = unit_values(unit).get("DATABASE_URL") or env_values(base / ".env.local").get("DATABASE_URL") or ""
+    return "postgresql://" + url[len("postgres://"):] if url.startswith("postgres://") else url
+
+
+def redacted_database(url):
+    """Engine and database name only, never credentials."""
+    if not url:
+        return {"engine": "sqlite"}
+    scheme, _, rest = url.partition("://")
+    return {"engine": scheme.split("+")[0], "database": rest.rsplit("/", 1)[-1].split("?")[0]}
+
+
+# Runs with the old app's own Python environment so the app's models define the target schema.
+# Read-only on the source: one REPEATABLE READ READ ONLY transaction for a consistent snapshot.
+CONVERT = r"""
+import json, os, sys
+sys.path.insert(0, sys.argv[1])
+from sqlalchemy import create_engine, func, inspect, select, text
+from extensions import db
+import models  # noqa: F401  registers all tables
+mode, target = sys.argv[2], (sys.argv[3] if len(sys.argv) > 3 else None)
+source = create_engine(os.environ["KM_SOURCE_URL"])
+meta = db.metadata
+inspector = inspect(source)
+names = set(inspector.get_table_names())
+expected = set(meta.tables)
+issues = {"extraTables": sorted(names - expected), "missingTables": sorted(expected - names), "columns": {}}
+for table in meta.sorted_tables:
+    if table.name in names:
+        have = {c["name"] for c in inspector.get_columns(table.name)}
+        want = {c.name for c in table.columns}
+        if have != want:
+            issues["columns"][table.name] = {"extra": sorted(have - want), "missing": sorted(want - have)}
+compatible = not (issues["extraTables"] or issues["missingTables"] or issues["columns"])
+result = {"compatible": compatible, "issues": issues, "counts": {}}
+with source.connect() as src:
+    src.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"))
+    for table in meta.sorted_tables:
+        if table.name in names:
+            result["counts"][table.name] = src.execute(select(func.count()).select_from(table)).scalar()
+    if mode == "convert":
+        if not compatible:
+            print(json.dumps(result)); sys.exit(2)
+        destination = create_engine("sqlite:///" + target)
+        meta.create_all(destination)
+        copied = {}
+        with destination.begin() as dst:
+            for table in meta.sorted_tables:
+                rows, batch = 0, []
+                for row in src.execute(select(table)).mappings():
+                    batch.append(dict(row)); rows += 1
+                    if len(batch) == 1000:
+                        dst.execute(table.insert(), batch); batch = []
+                if batch:
+                    dst.execute(table.insert(), batch)
+                copied[table.name] = rows
+        result["copied"] = copied
+        if copied != result["counts"]:
+            print(json.dumps(result)); sys.exit(3)
+print(json.dumps(result))
+"""
+
+
+def app_python(base, unit):
+    program = ""
+    for service in running_services():
+        if service["unit"] == unit:
+            program = service["program"]
+    for candidate in ([Path(program).parent / "python"] if program else []) + [base / "venv/bin/python"]:
+        if candidate.is_file():
+            return candidate
+    raise SystemExit(f"No Python environment of the app found (looked next to {program or base})")
+
+
+def convert_database(base, unit, url, mode, target=None):
+    argv = [str(app_python(base, unit)), "-I", "-c", CONVERT, str(base), mode] + ([str(target)] if target else [])
+    env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "KM_SOURCE_URL": url, "PYTHONDONTWRITEBYTECODE": "1"}
+    result = subprocess.run(argv, capture_output=True, text=True, timeout=7200, env=env, cwd="/")
+    try:
+        report = json.loads(result.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        tail = result.stderr.strip().splitlines()[-1:] or ["no output"]
+        raise SystemExit(f"Database check failed: {tail[0][:300]}")
+    if result.returncode == 2:
+        raise SystemExit("Source schema does not match the app's models; nothing exported: "
+                         + json.dumps(report["issues"]))
+    if result.returncode:
+        raise SystemExit("Row counts differ after copying; nothing exported")
+    return report
+
+
 def inventory(overrides, projects):
     report = {"schemaVersion": 1, "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
               "host": os.uname().nodename, "apps": {}}
@@ -249,7 +367,16 @@ def inventory(overrides, projects):
                     continue
                 entry["path"] = str(base)
                 entry["commit"] = git_commit(base)
-                entry["unitActive"] = run(["systemctl", "is-active", spec.get("unit", f"{app}.service")]).stdout.strip()
+                unit = unit_for(base, spec.get("unit", f"{app}.service"))
+                entry["unit"] = unit
+                entry["unitActive"] = run(["systemctl", "is-active", unit]).stdout.strip()
+                if spec.get("database_url"):
+                    url = database_url(base, unit)
+                    entry["database"] = redacted_database(url)
+                    if url.startswith("postgresql"):
+                        report_ = convert_database(base, unit, url, "check")
+                        entry["database"].update(compatible=report_["compatible"], issues=report_["issues"],
+                                                 tables=report_["counts"])
                 entry["data"] = {}
                 for volume, root in roots.items():
                     item = {"path": str(root), "exists": root.is_dir(), "bytes": size(root) if root.is_dir() else 0}
@@ -310,15 +437,41 @@ def export(app, key_file, out_dir, path=None, project=None):
             base, roots = resolve_native(app, path)
             info.update(engine="sqlite" if app != "grundschultafel" else "files", sourcePath=str(base),
                         sourceCommit=git_commit(base))
+            converted = None
+            if spec.get("database_url"):
+                unit = unit_for(base, spec.get("unit", f"{app}.service"))
+                url = database_url(base, unit)
+                if url.startswith("postgresql"):
+                    volume, name = spec["sqlite_target"]
+                    converted = work / "sqlite" / volume / name
+                    converted.parent.mkdir(parents=True)
+                    report_ = convert_database(base, unit, url, "convert", converted)
+                    info["sourceDatabase"] = redacted_database(url)
+                    info["converted"] = {"from": "postgresql", "to": f"{volume}/{name}",
+                                         "rows": sum(report_["copied"].values())}
             for volume, root in roots.items():
                 if not root.is_dir():
                     continue
                 snap = work / "volumes" / volume
                 sqlite_dir = work / "sqlite" / volume
                 snap.mkdir(parents=True)
-                sqlite_dir.mkdir(parents=True)
+                sqlite_dir.mkdir(parents=True, exist_ok=True)
                 skipped = []
-                for db in sorted(p for p in root.rglob("*") if p.suffix in SQLITE_SUFFIXES and p.is_file()):
+                if converted and converted.parent == sqlite_dir:
+                    # The converted database replaces whatever stale SQLite files lie in the source directory.
+                    name = converted.name
+                    skipped += [p.name for p in root.iterdir() if p.name.startswith(name)]
+                    copy = sqlite3.connect(converted)
+                    integrity = copy.execute("PRAGMA integrity_check").fetchone()[0]
+                    violations = len(copy.execute("PRAGMA foreign_key_check").fetchall())
+                    copy.close()
+                    facts = sqlite_facts(converted)
+                    info["sqlite"].append({"volume": volume, "file": name, "integrity": integrity,
+                                           "foreignKeyViolations": violations,
+                                           "userVersion": facts.get("userVersion"), "alembic": None})
+                    info["counts"][f"{volume}/{name}"] = facts.get("tables", {})
+                for db in sorted(p for p in root.rglob("*") if p.suffix in SQLITE_SUFFIXES and p.is_file()
+                                 and not (converted and converted.parent == sqlite_dir)):
                     relative = db.relative_to(root)
                     target = sqlite_dir / relative
                     target.parent.mkdir(parents=True, exist_ok=True)
