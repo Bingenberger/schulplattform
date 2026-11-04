@@ -1,0 +1,513 @@
+"""Production stack for a single host: render and operate.
+
+Inputs are the validated host configuration (config.py) and a verified release
+(release_bundle.py). Each app keeps its own standalone docker-compose.yml from
+the release; the platform adds a generated override per app plus one
+infrastructure project (Caddy, mail relay or sink, dashboard).
+
+Networking is deterministic: every app gets an internal proxy network
+<base>.<index>.0/24 on which Caddy is .2 and the mail relay .3. Apps therefore
+trust exactly one proxy address, known before any container starts.
+
+The Docker socket is only used by this host-side code (installer, deployment
+service), never by the dashboard container.
+"""
+import hashlib
+import http.client
+import ipaddress
+import json
+import os
+from pathlib import Path
+import shutil
+import socket
+import ssl
+import stat
+import subprocess
+import time
+
+from . import catalogue
+from .catalogue import APPS, MAIL_PORT
+from .config import enabled_apps, network_base
+from .proxy import production_caddyfile
+from .secrets import SecretStore
+from .state import StateError
+from .storage import atomic_json
+
+DASHBOARD_UID = 10001
+MANAGEMENT_INDEX = 0
+
+
+class Layout:
+    def __init__(self, root):
+        self.root = Path(root)
+        self.secrets = self.root / "secrets"
+        self.runtime = self.root / "runtime"
+        self.apps = self.root / "apps"
+        self.generated = self.root / "generated"
+        self.state = self.root / "state"
+        self.domains = self.root / "domains"
+        self.caddy_data = self.root / "caddy/data"
+        self.check = self.root / "caddy/check"
+        self.management = self.root / "management"
+        self.releases = self.root / "releases"
+        self.backups = self.root / "backups"
+        self.log = self.root / "state/operations.jsonl"
+
+    def prepare(self):
+        for path, mode in [(self.root, 0o711), (self.secrets, 0o700), (self.runtime, 0o711),
+                           (self.apps, 0o755), (self.generated, 0o700), (self.state, 0o700),
+                           (self.domains, 0o700), (self.caddy_data.parent, 0o700), (self.caddy_data, 0o700),
+                           (self.check, 0o755), (self.management, 0o750), (self.releases, 0o700),
+                           (self.backups, 0o700)]:
+            path.mkdir(parents=True, exist_ok=True, mode=mode)
+            info = path.lstat()
+            if path.is_symlink() or not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid():
+                raise StateError(f"Unsafe platform directory: {path}")
+            os.chmod(path, mode)
+
+
+def proxy_network(app):
+    return f"sp-{app}-proxy"
+
+
+def subnet(config, index):
+    base = network_base(config)
+    return ipaddress.ip_network((int(base.network_address) + index * 256, 24))
+
+
+def host_address(config, index, host):
+    return str(subnet(config, index).network_address + host)
+
+
+def origin(hostname):
+    return "https://" + hostname
+
+
+class Stack:
+    def __init__(self, layout, config, release, compose=("docker", "compose"), run=None, docker="docker"):
+        self.layout = layout
+        self.config = config
+        self.release = release
+        self.compose_argv = tuple(compose)
+        self.docker = docker
+        self._run = run or self._subprocess
+        self.apps = enabled_apps(config)
+        self.mail_mode = config["smtp"]["mode"]
+
+    # --- process execution ----------------------------------------------------
+    def _subprocess(self, argv, env=None, capture=True, timeout=600, tty=False):
+        result = subprocess.run(argv, env=env, text=True, timeout=timeout,
+                                stdin=None if tty else subprocess.DEVNULL,
+                                stdout=None if tty else subprocess.PIPE,
+                                stderr=None if tty else subprocess.PIPE)
+        return result.returncode, (result.stdout or "") if capture else ""
+
+    def command(self, argv, capture=True, timeout=600, tty=False, check=True):
+        code, output = self._run(list(argv), env=self.environment(), capture=capture, timeout=timeout, tty=tty)
+        self.layout.log.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        with self.layout.log.open("a") as stream:
+            # Command names and exit codes only; output can contain application data.
+            stream.write(json.dumps({"at": time.time(), "command": [Path(argv[0]).name, *argv[1:4]],
+                                     "exitCode": code}) + "\n")
+        if code and check:
+            raise StateError(f"Command failed: {Path(argv[0]).name} {' '.join(argv[1:4])} (exit {code})")
+        return output
+
+    def environment(self):
+        env = {key: value for key, value in os.environ.items()
+               if key in ("PATH", "HOME", "LANG", "LC_ALL", "DOCKER_HOST", "DOCKER_CONFIG")}
+        for app in APPS.values():
+            for variable, relative in app.compose_env.items():
+                env[variable] = ("unused-overridden-by-secret-file" if relative == "!unused"
+                                 else str(self.layout.runtime / relative))
+        name_file = self.layout.runtime / "gswb-editor-name"
+        env["EDITOR_USERNAME"] = name_file.read_text().strip() if name_file.exists() else ""
+        return env
+
+    def compose(self, app, *args, **kwargs):
+        if app == "infra":
+            files = ["-f", str(self.layout.generated / "infra.yml")]
+            project = "sp-infra"
+        else:
+            files = ["-f", str(self.layout.apps / app / "docker-compose.yml"),
+                     "-f", str(self.layout.generated / f"{app}.yml")]
+            project = "sp-" + app
+        return self.command([*self.compose_argv, "-p", project, "--project-directory",
+                             str(self.layout.apps / app if app != "infra" else self.layout.generated),
+                             *files, *args], **kwargs)
+
+    # --- rendering ------------------------------------------------------------
+    def mail_host(self):
+        return "mailrelay" if self.mail_mode in ("relay", "sink") else "mail-disabled.invalid"
+
+    def mail_from(self):
+        smtp = self.config["smtp"]
+        if smtp.get("sender"):
+            name = smtp.get("sender_name", "Schulplattform")
+            return json.dumps(f"{name} <{smtp['sender']}>")
+        return json.dumps("Schulplattform <noreply@" + self.config["platform"]["management_domain"] + ">")
+
+    def materialize_secrets(self):
+        store = SecretStore(self.layout.secrets)
+        values = {}
+        for app_id in self.apps:
+            for relative, kind in APPS[app_id].secrets:
+                if kind.startswith("random:"):
+                    values[relative] = store.get_or_create(kind.split(":", 1)[1])
+        for app_id in self.apps:
+            for relative, kind in APPS[app_id].secrets:
+                path = self.layout.runtime / relative
+                path.parent.mkdir(parents=True, exist_ok=True, mode=0o711)
+                if kind.startswith("random:"):
+                    value = values[relative]
+                elif kind == "empty":
+                    value = None  # created empty once; later filled only by explicit local setup
+                elif kind.startswith("url:"):
+                    template = kind.split(":", 1)[1]
+                    value = template
+                    for name in ("postgres-app", "rad-db-app", "lese-db-app", "abgen-db-app"):
+                        if "{" + name + "}" in value:
+                            value = value.replace("{" + name + "}", store.get_or_create(name))
+                else:
+                    raise StateError("Unknown secret kind")
+                self._project(path, value)
+        if self.mail_mode == "relay" and self.config["smtp"].get("username"):
+            password = store.path("smtp-password")
+            if not password.exists():
+                raise StateError("SMTP password not set; run './install.sh smtp-password' on the console")
+
+    @staticmethod
+    def _project(path, value):
+        if path.is_symlink():
+            raise StateError("Secret projection symlink refused")
+        if path.exists():
+            if value is not None and path.read_text() != value:
+                raise StateError(f"Secret projection mismatch for {path.name}; refusing overwrite")
+            return
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+        with os.fdopen(fd, "w") as stream:
+            stream.write(value or "")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(path, 0o444)
+
+    def context(self, app_id, hostname):
+        app = APPS[app_id]
+        values = {
+            "host": hostname, "origin": origin(hostname),
+            "proxy_ip": host_address(self.config, app.index, 2),
+            "proxy_network": proxy_network(app_id),
+            "mail_host": self.mail_host(), "mail_port": MAIL_PORT, "mail_from": self.mail_from(),
+            "runtime": str(self.layout.runtime),
+            "postgres16": catalogue.INFRASTRUCTURE["postgres16"],
+            "postgres18": catalogue.INFRASTRUCTURE["postgres18"],
+        }
+        for service, image in app.images.items():
+            values["image_" + service] = self.release.image(image)
+        return values
+
+    def render(self, domains):
+        """Write compose copies, overrides, infra project and Caddyfile for the given domains."""
+        self.layout.prepare()
+        self.materialize_secrets()
+        for app_id in self.apps:
+            target = self.layout.apps / app_id
+            self.release.install_compose(app_id, target)
+            context = self.context(app_id, domains[app_id])
+            override = APPS[app_id].override.format(**context)
+            self._write(self.layout.generated / f"{app_id}.yml", override, 0o600)
+            for relative, template in APPS[app_id].extra_files.items():
+                self._write(self.layout.runtime / relative, template.format(**context), 0o444)
+        self._write(self.layout.generated / "infra.yml", json.dumps(self.infrastructure(), indent=2), 0o600)
+        self.write_caddyfile(domains, self.routed(domains))
+
+    @staticmethod
+    def _write(path, text, mode):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists() and path.read_text() == text:
+            os.chmod(path, mode)
+            return False
+        temporary = path.with_name("." + path.name + ".new")
+        if temporary.exists():
+            os.chmod(temporary, 0o600)
+            temporary.unlink()
+        with open(temporary, "w") as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, mode)
+        os.replace(temporary, path)
+        return True
+
+    def infrastructure(self):
+        config = self.config
+        networks = {
+            "edge": {"name": "sp-edge"},
+            "management": {"name": "sp-management", "internal": True,
+                           "ipam": {"config": [{"subnet": str(subnet(config, MANAGEMENT_INDEX))}]}},
+        }
+        proxy_networks = {}
+        for app_id in self.apps:
+            index = APPS[app_id].index
+            networks[f"{app_id}-proxy"] = {"name": proxy_network(app_id), "internal": True,
+                                           "ipam": {"config": [{"subnet": str(subnet(config, index))}]}}
+            proxy_networks[f"{app_id}-proxy"] = {"ipv4_address": host_address(config, index, 2)}
+        caddy_volumes = [f"{self.layout.generated}/Caddyfile:/etc/caddy/Caddyfile:ro",
+                         f"{self.layout.caddy_data}:/data", "caddy-config:/config",
+                         f"{self.layout.check}:/srv/check:ro"]
+        if config["platform"]["acme_environment"] == "custom" and config["platform"].get("acme_ca_root"):
+            caddy_volumes.append(f"{config['platform']['acme_ca_root']}:/etc/caddy/acme-root.pem:ro")
+        services = {
+            "proxy": {
+                "image": catalogue.INFRASTRUCTURE["caddy"], "restart": "unless-stopped",
+                "ports": ["80:80", "443:443"],
+                "volumes": caddy_volumes,
+                "networks": {"edge": {},
+                             "management": {"ipv4_address": host_address(config, MANAGEMENT_INDEX, 2)},
+                             **proxy_networks},
+                "cap_drop": ["ALL"], "cap_add": ["NET_BIND_SERVICE"],
+                "security_opt": ["no-new-privileges:true"],
+                "mem_limit": "256m", "cpus": 1.0, "pids_limit": 256,
+            },
+            "dashboard": {
+                "image": self.release.image("schulplattform-dashboard"), "restart": "unless-stopped",
+                "user": f"{DASHBOARD_UID}:{DASHBOARD_UID}",
+                "read_only": True, "cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"],
+                "tmpfs": ["/tmp:size=64m,mode=1777"], "mem_limit": "384m", "cpus": 0.5, "pids_limit": 128,
+                "environment": {
+                    "SP_DASHBOARD_STATE": "/state", "SP_DEPLOYMENT_SOCKET": "/run/management/deploy.sock",
+                    "SP_DEPLOYMENT_KEY_FILE": "/run/management-key/deployment-key",
+                    "SP_APP_CATALOGUE": "/run/management/apps.json",
+                    "SP_DASHBOARD_HOSTS": config["platform"]["management_domain"],
+                },
+                "volumes": ["dashboard-state:/state",
+                            f"{self.layout.management}:/run/management:ro",
+                            f"{self.layout.runtime}/dashboard:/run/management-key:ro"],
+                "networks": {"management": {"aliases": ["dashboard"]}},
+            },
+        }
+        if self.mail_mode in ("relay", "sink"):
+            mail_networks = {"edge": {}}
+            client_networks = []
+            for app_id in self.apps:
+                if APPS[app_id].mail:
+                    index = APPS[app_id].index
+                    mail_networks[f"{app_id}-proxy"] = {"ipv4_address": host_address(config, index, 3),
+                                                       "aliases": ["mailrelay"]}
+                    client_networks.append(str(subnet(config, index)))
+            if self.mail_mode == "relay":
+                smtp = config["smtp"]
+                relay = {
+                    "image": self.release.image("schulplattform-relay"), "restart": "unless-stopped",
+                    "read_only": True, "cap_drop": ["ALL"],
+                    "cap_add": ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETUID", "SETGID", "KILL"],
+                    "security_opt": ["no-new-privileges:true"],
+                    "tmpfs": ["/etc/postfix:mode=0755", "/run", "/tmp", "/var/lib/postfix"],
+                    "volumes": ["relay-spool:/var/spool/postfix"],
+                    "environment": {"RELAY_UPSTREAM_HOST": smtp["host"], "RELAY_UPSTREAM_PORT": str(smtp["port"]),
+                                    "RELAY_SECURITY": smtp["security"], "RELAY_SENDER": smtp["sender"],
+                                    "RELAY_SENDER_NAME": smtp.get("sender_name", "Schulplattform"),
+                                    "RELAY_USERNAME": smtp.get("username", ""),
+                                    "RELAY_NETWORKS": " ".join(client_networks) or "127.0.0.1/32"},
+                    "mem_limit": "128m", "cpus": 0.5, "pids_limit": 128,
+                    "networks": mail_networks,
+                }
+                if smtp.get("username"):
+                    relay["volumes"].append(f"{self.layout.secrets}/smtp-password:/run/secrets/smtp-password:ro")
+                services["mailrelay"] = relay
+            else:
+                services["mailrelay"] = {
+                    "image": catalogue.INFRASTRUCTURE["mailpit"], "restart": "unless-stopped",
+                    "environment": {"MP_DATABASE": "/tmp/mailpit.db", "MP_MAX_MESSAGES": "500",
+                                    "MP_SMTP_BIND_ADDR": f"0.0.0.0:{MAIL_PORT}"},
+                    "read_only": True, "user": "10001:10001", "cap_drop": ["ALL"],
+                    "security_opt": ["no-new-privileges:true"], "tmpfs": ["/tmp:size=64m,mode=1777"],
+                    "mem_limit": "128m", "cpus": 0.5, "pids_limit": 128,
+                    "networks": {**mail_networks, "management": {"aliases": ["mailsink"]}},
+                }
+        for service in services.values():
+            service["logging"] = {"driver": "json-file", "options": {"max-size": "10m", "max-file": "3"}}
+        volumes = {"caddy-config": {}, "dashboard-state": {}}
+        if self.mail_mode == "relay":
+            volumes["relay-spool"] = {}
+        return {"name": "sp-infra", "services": services, "networks": networks, "volumes": volumes}
+
+    # --- routing --------------------------------------------------------------
+    def routed(self, domains):
+        """Apps whose hostname passed the DNS check and that are not in maintenance."""
+        status = self.domain_status()
+        return {app for app in self.apps
+                if status.get(app, {}).get("hostname") == domains[app]
+                and status.get(app, {}).get("dns") == "ok"
+                and not status.get(app, {}).get("maintenance")}
+
+    def domain_status(self):
+        path = self.layout.domains / "status.json"
+        return json.loads(path.read_text()) if path.exists() else {}
+
+    def write_caddyfile(self, domains, routed, maintenance=()):
+        platform = self.config["platform"]
+        routes = []
+        for app_id in sorted(routed):
+            app = APPS[app_id]
+            routes.append((domains[app_id], None if app_id in maintenance else f"{app_id}:{app.port}"))
+        management_routed = self.domain_status().get("_management", {}).get("dns") == "ok"
+        text = production_caddyfile(
+            routes, management=(platform["management_domain"], "dashboard:8000") if management_routed else None,
+            email=platform["acme_email"], environment=platform["acme_environment"],
+            acme_ca=platform.get("acme_ca"), custom_root="/etc/caddy/acme-root.pem"
+            if platform.get("acme_ca_root") else None)
+        return self._write(self.layout.generated / "Caddyfile", text, 0o644)
+
+    def reload_proxy(self):
+        container = self.container("infra", "proxy")
+        if container and container["State"].get("Running"):
+            for action in ("validate", "reload"):
+                self.command([self.docker, "exec", container["Id"], "caddy", action,
+                              "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"])
+
+    # --- inspection -----------------------------------------------------------
+    def container(self, app, service):
+        cid = self.compose(app, "ps", "-a", "-q", service, check=False).strip()
+        if not cid or "\n" in cid:
+            return None
+        output = self.command([self.docker, "inspect", cid], check=False)
+        try:
+            return json.loads(output)[0]
+        except (ValueError, IndexError):
+            return None
+
+    def service_state(self, app, service):
+        container = self.container(app, service)
+        if not container:
+            return {"exists": False, "running": False, "health": "absent", "image": None}
+        state = container["State"]
+        return {"exists": True, "running": state.get("Running") is True,
+                "health": state.get("Health", {}).get("Status", "running" if state.get("Running") else "stopped"),
+                "image": container["Config"].get("Image")}
+
+    def healthy(self, app_id):
+        services = APPS[app_id].services + APPS[app_id].database_services
+        return all(self.service_state(app_id, service)["health"] == "healthy" for service in services)
+
+    # --- lifecycle --------------------------------------------------------------
+    def pull(self):
+        images = sorted(set(self.release.all_images(self.apps, self.mail_mode)))
+        for reference in images:
+            present = self.command([self.docker, "image", "inspect", "--format", "{{.Id}}", reference], check=False)
+            if not present.strip():
+                self.command([self.docker, "pull", "--quiet", reference], timeout=1800)
+        return images
+
+    def infrastructure_up(self):
+        (self.layout.runtime / "dashboard").mkdir(mode=0o711, exist_ok=True)
+        self.compose("infra", "up", "-d", "--pull", "never", "--remove-orphans", "--wait", "--wait-timeout", "120")
+
+    def migrate(self, app_id):
+        app = APPS[app_id]
+        if app.database_services:
+            self.compose(app_id, "up", "-d", "--pull", "never", "--no-build", "--wait", "--wait-timeout", "120",
+                         *app.database_services)
+        for argv in app.migrations:
+            self.compose(app_id, "run", "--rm", "--no-deps", "--pull", "never", app.migration_service, *argv,
+                         timeout=1800)
+
+    def start(self, app_id):
+        app = APPS[app_id]
+        self.compose(app_id, "up", "-d", "--pull", "never", "--no-build", "--wait", "--wait-timeout", "180",
+                     *app.database_services, *app.services)
+
+    def stop(self, app_id):
+        app = APPS[app_id]
+        self.compose(app_id, "stop", "--timeout", "130", *reversed(app.services))
+
+    # --- verification ---------------------------------------------------------
+    def tls_context(self):
+        platform = self.config["platform"]
+        if platform["acme_environment"] == "custom" and platform.get("acme_ca_root"):
+            return ssl.create_default_context(cafile=platform["acme_ca_root"])
+        if platform["acme_environment"] == "staging":
+            # Staging certificates chain to non-public roots; hostname is still checked below.
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            return context
+        return ssl.create_default_context()
+
+    def request(self, hostname, path, method="GET", headers=(), address="127.0.0.1", port=443, timeout=10):
+        context = self.tls_context()
+        raw = socket.create_connection((address, port), timeout=timeout)
+        sock = context.wrap_socket(raw, server_hostname=hostname)
+        try:
+            if self.config["platform"]["acme_environment"] == "staging":
+                if hostname not in self._san(sock.getpeercert(True)):
+                    raise StateError("Certificate does not cover hostname")
+            connection = http.client.HTTPSConnection(hostname, port, context=context, timeout=timeout)
+            connection.sock = sock
+            connection.request(method, path, headers=dict(headers))
+            response = connection.getresponse()
+            body = response.read(65536)
+            return response.status, body
+        finally:
+            sock.close()
+
+    @staticmethod
+    def _san(der):
+        from cryptography import x509
+        certificate = x509.load_der_x509_certificate(der)
+        try:
+            return certificate.extensions.get_extension_for_class(x509.SubjectAlternativeName).value \
+                .get_values_for_type(x509.DNSName)
+        except x509.ExtensionNotFound:
+            return []
+
+    def verify_app(self, app_id, hostname):
+        """TLS readiness through the proxy plus the app's negative-access checks."""
+        app = APPS[app_id]
+        results = {}
+        status, _ = self.request(hostname, app.ready)
+        if status != 200:
+            raise StateError(f"{app_id}: TLS readiness returned {status}")
+        results["ready"] = status
+        for check in app.checks:
+            status, _ = self.request(hostname, check.path, check.method, check.headers)
+            if status != check.expected:
+                raise StateError(f"{app_id}: {check.method} {check.path} returned {status}, expected {check.expected}")
+            results[f"{check.method} {check.path}"] = status
+        for service in app.services:
+            container = self.container(app_id, service)
+            if not container or any(container["NetworkSettings"]["Ports"].values()):
+                raise StateError(f"{app_id}/{service}: backend publishes a host port")
+            if container["Config"]["User"] in ("", "0", "root") or not container["HostConfig"]["ReadonlyRootfs"]:
+                raise StateError(f"{app_id}/{service}: non-root/read-only contract violated")
+        results["private-backend"] = True
+        return results
+
+    def write_management_catalogue(self, domains):
+        entries = {}
+        for app_id in self.apps:
+            entries[app_id] = {"name": DISPLAY.get(app_id, app_id), "description": DESCRIPTION.get(app_id, ""),
+                               "url": origin(domains[app_id]), "public": app_id == "gswb"}
+        path = self.layout.management / "apps.json"
+        self._write(path, json.dumps(entries, ensure_ascii=False, indent=2), 0o644)
+
+
+DISPLAY = {"gswb": "Wörterbuch", "schulwissen": "Schulwissen", "zackboing": "Zackboing", "schulhelfer": "Schulhelfer",
+           "losverkauf": "Losverkauf", "grundschultafel": "Grundschultafel",
+           "fahrradausbildung": "Fahrradausbildung", "leseflux": "Leseflux",
+           "kompetenz-manager": "Kompetenz-Manager", "abgen": "Arbeitsblätter"}
+DESCRIPTION = {"gswb": "Öffentliche Wörterbuchsuche", "schulwissen": "Schulinterne Inhalte",
+               "zackboing": "Quiz und Spiele", "schulhelfer": "Helferlisten", "losverkauf": "Losverkauf",
+               "grundschultafel": "Persönliche Lehrertafel", "fahrradausbildung": "Radfahrausbildung und Posten",
+               "leseflux": "Leseübungen", "kompetenz-manager": "Kompetenzen und Berichte",
+               "abgen": "Arbeitsblätter gemeinsam erstellen"}
+
+
+def digest_file(path):
+    with open(path, "rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def remove_tree(path):
+    if Path(path).exists():
+        shutil.rmtree(path)

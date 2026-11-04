@@ -10,6 +10,8 @@ import pytest
 from werkzeug.security import generate_password_hash
 
 APPS = Path(__file__).resolve().parents[1] / '.work/apps'
+if not (APPS / 'gswb').is_dir():
+    pytest.skip('isolated app checkouts (.work/apps) not present', allow_module_level=True)
 sys.path.insert(0, str(APPS / 'gswb'))
 from grundschul_woerterbuch import create_app
 

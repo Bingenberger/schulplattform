@@ -3,56 +3,230 @@
   "$id": "urn:schulplattform:app:1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "id", "sourceCommit", "image", "port", "database", "persistence", "domainEnvironment", "buildTimePublicUrl", "health", "resources", "acceptance"],
+  "required": [
+    "schemaVersion",
+    "id",
+    "sourceCommit",
+    "image",
+    "port",
+    "database",
+    "persistence",
+    "domainEnvironment",
+    "buildTimePublicUrl",
+    "health",
+    "resources",
+    "acceptance"
+  ],
   "properties": {
-    "schemaVersion": {"const": 1},
-    "id": {"enum": ["schulwissen", "kompetenz-manager", "abgen", "fahrradausbildung", "leseflux", "zackboing", "gswb", "grundschultafel", "schulhelfer", "losverkauf"]},
-    "sourceCommit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
-    "image": {"type": "string", "pattern": "^[a-z0-9][a-z0-9./_-]*:[a-zA-Z0-9_][a-zA-Z0-9_.-]*@sha256:[a-f0-9]{64}$"},
-    "port": {"type": "integer", "minimum": 1024, "maximum": 65535},
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "enum": [
+        "schulwissen",
+        "kompetenz-manager",
+        "abgen",
+        "fahrradausbildung",
+        "leseflux",
+        "zackboing",
+        "gswb",
+        "grundschultafel",
+        "schulhelfer",
+        "losverkauf"
+      ]
+    },
+    "sourceCommit": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "image": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9./_-]*:[a-zA-Z0-9_][a-zA-Z0-9_.-]*@sha256:[a-f0-9]{64}$"
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1024,
+      "maximum": 65535
+    },
     "database": {
-      "type": "object", "additionalProperties": false,
-      "required": ["engine", "name", "account"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "engine",
+        "name",
+        "account"
+      ],
       "properties": {
-        "engine": {"enum": ["postgres16", "postgres18", "sqlite", "files"]},
-        "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,62}$"},
-        "account": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,62}$"}
+        "engine": {
+          "enum": [
+            "postgres16",
+            "postgres18",
+            "sqlite",
+            "files"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "account": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        }
       }
     },
-    "persistence": {"type": "array", "minItems": 1, "items": {
-      "type": "object", "additionalProperties": false,
-      "required": ["id", "mount", "owner", "backup"],
-      "properties": {
-        "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,40}$"},
-        "mount": {"type": "string", "pattern": "^/[a-zA-Z0-9_/-]+$"},
-        "owner": {"type": "string", "pattern": "^[1-9][0-9]*:[1-9][0-9]*$"},
-        "backup": {"const": true}
-      }
-    }},
-    "domainEnvironment": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"}},
-    "buildTimePublicUrl": {"type": "boolean"},
-    "health": {"type": "object", "additionalProperties": false, "required": ["live", "ready"], "properties": {
-      "live": {"type": "string", "pattern": "^/[a-zA-Z0-9/_-]+$"},
-      "ready": {"type": "string", "pattern": "^/[a-zA-Z0-9/_-]+$"}
-    }},
-    "resources": {"type": "object", "additionalProperties": false,
-      "required": ["memoryMiB", "cpus", "workers", "exportSlotsPerProcess"],
-      "properties": {
-        "memoryMiB": {"type": "integer", "minimum": 128, "maximum": 4096},
-        "cpus": {"type": "number", "exclusiveMinimum": 0, "maximum": 4},
-        "workers": {"type": "integer", "minimum": 1, "maximum": 4},
-        "exportSlotsPerProcess": {"type": "integer", "minimum": 0, "maximum": 1}
+    "persistence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "mount",
+          "owner",
+          "backup"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,40}$"
+          },
+          "mount": {
+            "type": "string",
+            "pattern": "^/[a-zA-Z0-9_/-]+$"
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*:[1-9][0-9]*$"
+          },
+          "backup": {
+            "const": true
+          }
+        }
       }
     },
-    "acceptance": {"type": "object", "additionalProperties": false,
-      "required": ["amd64Build", "standalone", "negativeAccess", "restore", "domainRollback", "licenses", "sbom"],
+    "domainEnvironment": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9_]*$"
+      }
+    },
+    "buildTimePublicUrl": {
+      "type": "boolean"
+    },
+    "health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "live",
+        "ready"
+      ],
       "properties": {
-        "amd64Build": {"$ref": "#/$defs/evidence"}, "standalone": {"$ref": "#/$defs/evidence"},
-        "negativeAccess": {"$ref": "#/$defs/evidence"}, "restore": {"$ref": "#/$defs/evidence"},
-        "domainRollback": {"$ref": "#/$defs/evidence"}, "licenses": {"$ref": "#/$defs/evidence"},
-        "sbom": {"$ref": "#/$defs/evidence"}
+        "live": {
+          "type": "string",
+          "pattern": "^/[a-zA-Z0-9/_-]+$"
+        },
+        "ready": {
+          "type": "string",
+          "pattern": "^/[a-zA-Z0-9/_-]+$"
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "memoryMiB",
+        "cpus",
+        "workers",
+        "exportSlotsPerProcess"
+      ],
+      "properties": {
+        "memoryMiB": {
+          "type": "integer",
+          "minimum": 128,
+          "maximum": 4096
+        },
+        "cpus": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 4
+        },
+        "workers": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "exportSlotsPerProcess": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "amd64Build",
+        "standalone",
+        "negativeAccess",
+        "restore",
+        "domainRollback",
+        "licenses",
+        "sbom"
+      ],
+      "properties": {
+        "amd64Build": {
+          "$ref": "#/$defs/evidence"
+        },
+        "standalone": {
+          "$ref": "#/$defs/evidence"
+        },
+        "negativeAccess": {
+          "$ref": "#/$defs/evidence"
+        },
+        "restore": {
+          "$ref": "#/$defs/evidence"
+        },
+        "domainRollback": {
+          "$ref": "#/$defs/evidence"
+        },
+        "licenses": {
+          "$ref": "#/$defs/evidence"
+        },
+        "sbom": {
+          "$ref": "#/$defs/evidence"
+        }
+      }
+    },
+    "auxiliaryImages": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[a-z][a-z0-9-]{0,40}$": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9./_-]*:[a-zA-Z0-9_][a-zA-Z0-9_.-]*@sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "compose": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^compose/[a-z][a-z0-9-]{0,40}/[A-Za-z0-9._/-]{1,120}$"
       }
     }
   },
-  "$defs": {"evidence": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+  "$defs": {
+    "evidence": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
 }
