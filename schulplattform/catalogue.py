@@ -361,6 +361,13 @@ secrets:
       MAIL_SECURITY: none
       MAIL_FROM: {mail_from}
     networks: [default, proxy]
+    # The upstream check imports the whole Flask app; on 0.5 CPU that takes ~5.7 s on a real
+    # VPS and exceeded the upstream 5 s timeout, so 'up --wait' failed with a working worker.
+    healthcheck:
+      interval: 60s
+      timeout: 30s
+      start_period: 60s
+      retries: 3
 """ + _PROXY_NETWORK),
     App("abgen", 10, 3000, "/api/health/ready", ("app", "pdf"), database_services=("postgres",),
         images={"app": "abgen", "pdf": "abgen-pdf"},

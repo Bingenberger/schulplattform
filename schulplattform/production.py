@@ -164,6 +164,9 @@ class Platform:
         return destination
 
     def step_apps(self, _identity):
+        # A resumed apply may run newer host code than the completed render step:
+        # bring overrides up to date before (re)starting unhealthy apps.
+        self.stack.render_apps(self.current_domains())
         for app in self.stack.apps:
             if not self.stack.healthy(app):
                 self.stack.migrate(app)

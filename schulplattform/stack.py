@@ -223,6 +223,12 @@ class Stack:
         """Write compose copies, overrides, infra project and Caddyfile for the given domains."""
         self.layout.prepare()
         self.materialize_secrets()
+        self.render_apps(domains)
+        self._write(self.layout.generated / "infra.yml", json.dumps(self.infrastructure(), indent=2), 0o600)
+        self.write_caddyfile(domains, self.routed(domains))
+
+    def render_apps(self, domains):
+        """Compose copies and per-app overrides; unchanged files are left untouched."""
         for app_id in self.apps:
             target = self.layout.apps / app_id
             self.release.install_compose(app_id, target)
@@ -231,8 +237,6 @@ class Stack:
             self._write(self.layout.generated / f"{app_id}.yml", override, 0o600)
             for relative, template in APPS[app_id].extra_files.items():
                 self._write(self.layout.runtime / relative, template.format(**context), 0o444)
-        self._write(self.layout.generated / "infra.yml", json.dumps(self.infrastructure(), indent=2), 0o600)
-        self.write_caddyfile(domains, self.routed(domains))
 
     @staticmethod
     def _write(path, text, mode):

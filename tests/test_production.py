@@ -219,3 +219,27 @@ def test_router_uses_candidate_domains_during_transaction(tmp_path):
     assert "gswb" in stack.routed(candidate)
     stack.write_caddyfile(candidate, stack.routed(candidate))
     assert "neu.schule.example {" in (layout.generated / "caddy" / "Caddyfile").read_text()
+
+
+def test_kompetenz_worker_healthcheck_has_room_for_slow_vps(tmp_path):
+    # Real VPS: the upstream check (full Flask import on 0.5 CPU) took ~5.7 s against a 5 s timeout.
+    layout, _, _ = render(tmp_path, sample())
+    override = yaml.load((layout.generated / "kompetenz-manager.yml").read_text(), Loader=_TagLoader)
+    check = override["services"]["worker"]["healthcheck"]
+    assert check["timeout"] == "30s" and check["start_period"] == "60s"
+
+
+def test_resumed_apply_refreshes_overrides_before_starting_apps(tmp_path):
+    from schulplattform.production import Platform
+    layout, stack, domains = render(tmp_path, sample())
+    stale = layout.generated / "kompetenz-manager.yml"
+    stale.write_text("services: {}\n")
+    platform = Platform.__new__(Platform)
+    platform.stack = stack
+    platform.current_domains = lambda: domains
+    started = []
+    stack.healthy = lambda app: app != "kompetenz-manager"
+    stack.migrate = lambda app: None
+    stack.start = lambda app: started.append((app, "timeout: 30s" in stale.read_text()))
+    platform.step_apps(None)
+    assert started == [("kompetenz-manager", True)]
