@@ -14,12 +14,19 @@ label{display:block;margin:.9rem 0}input{display:block;padding:.7rem;max-width:2
 button{padding:.65rem 1rem;border:0;border-radius:.3rem;background:#175b70;color:white;cursor:pointer;font:inherit}
 button.secondary{background:#52646c}form.inline{display:inline-block;margin:.4rem .5rem .4rem 0}
 .error{color:#9c2d2d}small,.muted{color:#52646c}table{border-collapse:collapse;width:100%;background:white}
-th,td{text-align:left;border-bottom:1px solid #d6e0e4;padding:.7rem}code{overflow-wrap:anywhere}
+th,td{text-align:left;border-bottom:1px solid #d6e0e4;padding:.7rem;vertical-align:top}code{overflow-wrap:anywhere}
+.badge{display:inline-block;padding:.15rem .55rem;border-radius:1rem;font-size:.85rem;background:#e2e8eb}
+.ok{background:#d8efe0;color:#1c5a33}.warn{background:#fbedd0;color:#6b4a07}.bad{background:#f6d9d9;color:#7d2323}
+.notice{border-left:4px solid #175b70;padding:.6rem 1rem;background:#eef5f7;margin:1rem 0}
+.notice.error{border-color:#9c2d2d;background:#fbeeee}select{padding:.6rem;font:inherit}
+.table-wrap{overflow-x:auto}nav.sub{gap:1rem;margin:.5rem 0 1rem}
 </style>
 </head>
 <body>
 <header><nav><strong>Schulplattform</strong><a href="{{ url_for('tiles') }}">Apps</a>
-{% if g.admin %}<a href="{{ url_for('admin') }}">Administration</a>
+{% if g.admin %}<a href="{{ url_for('admin') }}">Administration</a><a href="{{ url_for('domains') }}">Domains</a>
+<a href="{{ url_for('certificates') }}">Zertifikate</a><a href="{{ url_for('mail') }}">Mail</a>
+<a href="{{ url_for('backups') }}">Sicherungen</a><a href="{{ url_for('updates') }}">Updates</a>
 <form class="inline" method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button>Abmelden</button></form>
 {% else %}<a href="{{ url_for('login') }}">Administration anmelden</a>{% endif %}
 </nav></header>

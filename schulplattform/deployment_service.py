@@ -154,7 +154,69 @@ class ProductionEngine:
             return BackupService(platform).backup(app)
         if action == "update-check":
             return self.update_check(platform)
+        if action == "uninstall":
+            return self.uninstall(platform, app)
+        if action == "enable":
+            return self.enable(platform, app)
+        if action == "purge":
+            return self.purge(platform, app, params["confirm"])
         raise ValueError("Unknown action")
+
+    def uninstall(self, platform, app):
+        """Remove containers and route; data stays in its volumes and in a fresh archive."""
+        from .backups import BackupService
+        if app not in platform.stack.apps:
+            raise StateError("App is not installed")
+        archive = BackupService(platform).backup(app)
+        if APPS[app].drain == "quiz":
+            pending = self.drain(platform, app, "prepare-stop")
+            if pending.get("activeGames"):
+                self.drain(platform, app, "cancel-stop")
+                raise DeploymentBusy("Active games must finish before uninstall")
+        platform.router().set_maintenance(app, True)
+        platform.stack.compose(app, "down", "--remove-orphans")  # never -v: volumes are kept
+        platform.set_enabled(app, False)
+        platform = self.factory()
+        platform.stack.render(platform.current_domains())
+        platform.stack.infrastructure_up()
+        platform.stack.write_management_catalogue(platform.current_domains())
+        platform.router().apply_routes()
+        return {"app": app, "installed": False, "archive": archive["archive"], "volumesKept": True}
+
+    def enable(self, platform, app):
+        """Re-activate an app: existing volumes are reused, no bootstrap is repeated."""
+        if app in platform.stack.apps:
+            return self.status(platform, app, platform.router().load())
+        platform.set_enabled(app, True)
+        platform = self.factory()
+        domains = platform.current_domains()
+        platform.stack.render(domains)
+        platform.stack.pull()
+        platform.stack.infrastructure_up()
+        platform.stack.migrate(app)
+        platform.stack.start(app)
+        platform.stack.write_management_catalogue(domains)
+        router = platform.router()
+        router.set_maintenance(app, False)
+        router.reconcile(only={app}, wait_seconds=90)
+        return self.status(platform, app, router.load())
+
+    def purge(self, platform, app, confirmation):
+        """Irreversible: delete the volumes of an uninstalled app after an archive exists."""
+        from .backups import BackupService
+        if confirmation != app:
+            raise StateError("Confirmation does not match the app id")
+        if app in platform.stack.apps:
+            raise StateError("Uninstall the app before deleting its data")
+        archive = BackupService(platform).latest(app)
+        removed = []
+        listing = platform.stack.command([platform.stack.docker, "volume", "ls", "-q", "--filter",
+                                          f"label=com.docker.compose.project=sp-{app}"])
+        for volume in listing.split():
+            if volume.startswith(f"sp-{app}_"):
+                platform.stack.command([platform.stack.docker, "volume", "rm", volume])
+                removed.append(volume)
+        return {"app": app, "removedVolumes": removed, "archiveKept": archive.name}
 
     def smtp_test(self, platform, recipient):
         mode = platform.stack.mail_mode

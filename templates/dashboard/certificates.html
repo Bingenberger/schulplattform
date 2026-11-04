@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% from "_macros.html" import phase %}
+{% block title %}Zertifikate{% endblock %}
+{% block body %}<h1>Zertifikate</h1><p>Caddy erneuert Zertifikate automatisch rund 30 Tage vor Ablauf.</p>
+<div class="table-wrap"><table><thead><tr><th>Hostname</th><th>Zustand</th><th>Aussteller</th><th>Gültig bis</th><th>Resttage</th></tr></thead><tbody>
+{% set rows = [] %}{% if data.management %}{% set _ = rows.append(data.management) %}{% endif %}
+{% for app_id, status in data.apps.items() if status.installed %}{% set _ = rows.append(status) %}{% endfor %}
+{% for row in rows %}{% set cert = row.certificate or {} %}<tr><td><code>{{ row.hostname }}</code></td><td>{{ phase(row.phase) }}</td>
+<td>{{ cert.issuer or '–' }}{% if cert.staging %} <span class="badge warn">Staging</span>{% endif %}</td>
+<td>{{ cert.notAfter[:10] if cert.notAfter else '–' }}</td>
+<td>{% if cert.daysLeft is defined %}<span class="badge {{ 'ok' if cert.daysLeft > 20 else 'warn' if cert.daysLeft > 7 else 'bad' }}">{{ cert.daysLeft }}</span>{% else %}–{% endif %}</td></tr>
+{% endfor %}</tbody></table></div>{% endblock %}

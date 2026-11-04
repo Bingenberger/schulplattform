@@ -1,17 +1,45 @@
-{% extends "base.html" %}{% block title %}Plattform verwalten{% endblock %}
-{% block body %}<h1>Plattform verwalten</h1><p>Angemeldet als {{ g.admin.username }}.</p>
-{% for app_id,entry,status in services %}<section><h2>{{ entry.name }}</h2>
-<p>Zustand: <strong>{{ {'healthy':'bereit','unhealthy':'nicht bereit','starting':'startet','stopped':'gestoppt','unbekannt':'unbekannt'}.get(status.health, status.health) }}</strong></p>
-<p class="muted">Version: {{ entry.get('version','Entwicklungsstand') }}</p>
+{% extends "base.html" %}{% from "_macros.html" import phase, health, post %}
+{% block title %}Plattform verwalten{% endblock %}
+{% block body %}<h1>Plattform verwalten</h1><p>Angemeldet als {{ g.admin.username }}.
+{% if data.release %}<span class="muted">Release {{ data.release }}</span>{% endif %}</p>
+{% if not data.available %}<p class="notice error">Der Steuerdienst ist nicht erreichbar; angezeigt wird nur der Grundzustand.</p>{% endif %}
+{% if data.management %}<p>Verwaltungsdomain <code>{{ data.management.hostname }}</code> {{ phase(data.management.phase) }}</p>{% endif %}
+{% for app_id,entry,status in services %}<section><h2>{{ entry.name }}{% if app_id in hidden %} <span class="badge">Kachel ausgeblendet</span>{% endif %}</h2>
+<p>{{ health(status.health) }} {% if status.phase %}{{ phase(status.phase) }}{% endif %}
+{% if status.maintenance %}<span class="badge warn">Wartungsseite aktiv</span>{% endif %}</p>
+{% if status.hostname %}<p><code>{{ status.hostname }}</code>
+{% if status.certificate and status.certificate.valid %}<span class="muted"> · Zertifikat bis {{ status.certificate.notAfter[:10] }}</span>{% endif %}</p>{% endif %}
+{% if status.phase in ('dns-ausstehend','fehler') and status.reason %}<p class="notice">{{ status.reason }}</p>{% endif %}
+<p class="muted">Version: {{ status.version or entry.get('version','–') }}</p>
 {% if status.image %}<details><summary>Image-Kennung</summary><code>{{ status.image }}</code></details>{% endif %}
 <form class="inline" method="post" action="{{ url_for('action', app_id=app_id, action='start') }}">
 <input type="hidden" name="csrf" value="{{ csrf() }}"><button>Starten</button></form>
 <form class="inline" method="post" action="{{ url_for('action', app_id=app_id, action='stop') }}">
 <input type="hidden" name="csrf" value="{{ csrf() }}"><button class="secondary">Stoppen · Daten behalten</button></form>
+{% if data.available %}
+{{ post(url_for('app_operation', app_id=app_id, operation='dns-recheck'), 'DNS erneut prüfen', 'secondary') }}
+{{ post(url_for('app_operation', app_id=app_id, operation='maintenance-off' if status.maintenance else 'maintenance-on'),
+        'Wartungsseite aus' if status.maintenance else 'Wartungsseite an', 'secondary') }}
+{{ post(url_for('app_operation', app_id=app_id, operation='show' if app_id in hidden else 'hide'),
+        'Kachel einblenden' if app_id in hidden else 'Kachel ausblenden', 'secondary') }}
+<a href="{{ url_for('domain_change', app_id=app_id) }}">Domain ändern</a>
+<details><summary>Deinstallieren oder Daten löschen</summary>
+<p>Deinstallieren entfernt Container und Route. Vorher wird eine Sicherung erstellt; die Daten bleiben in ihren Volumes und lassen sich wieder aktivieren, ohne Ersteinrichtung.</p>
+{% if status.installed %}{{ post(url_for('app_operation', app_id=app_id, operation='uninstall'), 'Deinstallieren · Daten archivieren', 'secondary') }}
+{% else %}{{ post(url_for('app_operation', app_id=app_id, operation='enable'), 'Wieder aktivieren') }}
+<form method="post" action="{{ url_for('app_operation', app_id=app_id, operation='purge') }}">
+<input type="hidden" name="csrf" value="{{ csrf() }}">
+<label>Unwiderruflich löschen: zur Bestätigung <code>{{ app_id }}</code> eingeben<input name="confirm" autocomplete="off"></label>
+<button class="secondary">Daten endgültig löschen</button></form>{% endif %}
+</details>{% endif %}
 </section>{% endfor %}
-<h2>Betriebsprotokoll</h2><table><thead><tr><th>Zeit</th><th>Person</th><th>Aktion</th><th>App</th><th>Ergebnis</th></tr></thead>
+<h2>Betriebsprotokoll</h2><div class="table-wrap"><table><thead><tr><th>Zeit</th><th>Person</th><th>Aktion</th><th>App</th><th>Ergebnis</th></tr></thead>
 <tbody>{% for event in audit %}<tr><td>{{ event.at|stamp }}</td><td>{{ event.actor }}</td>
-<td>{{ {'start':'Start','stop':'Stopp'}.get(event.action,event.action) }}</td><td>{{ event.app_id }}</td>
+<td>{{ {'start':'Start','stop':'Stopp','domain-change':'Domainwechsel','dns-recheck':'DNS-Prüfung',
+       'smtp-update':'SMTP-Einstellungen','smtp-password':'SMTP-Passwort gesetzt','smtp-test':'Testmail',
+       'backup-now':'Sicherung','uninstall':'Deinstallation','enable':'Aktivierung','purge':'Datenlöschung',
+       'maintenance-on':'Wartungsseite an','maintenance-off':'Wartungsseite aus','tile-hide':'Kachel ausgeblendet',
+       'tile-show':'Kachel eingeblendet'}.get(event.action,event.action) }}</td><td>{{ event.app_id }}</td>
 <td>{{ {'accepted':'angefordert','completed':'abgeschlossen','failed':'fehlgeschlagen','blocked':'noch ein Spiel aktiv'}.get(event.outcome,event.outcome) }}</td></tr>
-{% else %}<tr><td colspan="5">Noch keine administrativen Änderungen.</td></tr>{% endfor %}</tbody></table>
+{% else %}<tr><td colspan="5">Noch keine administrativen Änderungen.</td></tr>{% endfor %}</tbody></table></div>
 {% endblock %}

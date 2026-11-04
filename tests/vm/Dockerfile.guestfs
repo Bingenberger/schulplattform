@@ -1,0 +1,5 @@
+# Test harness only: offline inspection of stopped test VM disks (libguestfs, no host root needed).
+FROM sp-vm-qemu:1
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      libguestfs-tools linux-image-generic \
+    && rm -rf /var/lib/apt/lists/*

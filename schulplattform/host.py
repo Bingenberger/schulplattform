@@ -22,8 +22,12 @@ DOCKER_PACKAGES_VERSION = "5:29.1.3-1~ubuntu.24.04~noble"
 COMPOSE_PLUGIN_VERSION = "2.40.3-1~ubuntu.24.04~noble"
 BASE_PACKAGES = ("ca-certificates", "curl", "gnupg", "python3-venv", "ufw", "sqlite3")
 DAEMON_JSON = Path("/etc/docker/daemon.json")
+# Docker's default 172.17.0.0/16 bridge collides with common admin/VPN networks: replies to an SSH
+# client in that range would be routed into docker0 and the session would hang. Use a dedicated
+# range next to the platform's proxy networks (10.231.0.0/16) instead.
 DAEMON_CONFIG = {"log-driver": "json-file", "log-opts": {"max-size": "10m", "max-file": "3"},
-                 "live-restore": True, "no-new-privileges": True}
+                 "live-restore": True, "no-new-privileges": True, "bip": "10.232.0.1/24",
+                 "default-address-pools": [{"base": "10.232.0.0/16", "size": 24}]}
 MARKER = "host.json"
 UNIT_DIR = Path("/etc/systemd/system")
 
@@ -60,14 +64,24 @@ class Provisioner:
 
     # --- packages ----------------------------------------------------------------
     def installed(self, package):
-        result = self.run(["dpkg-query", "-W", "-f=${Status} ${Version}", package], check=False)
-        return result.stdout.split(" ")[3] if result.returncode == 0 and "install ok installed" in result.stdout else None
+        result = self.run(["dpkg-query", "-W", "-f=${Status}|${Version}", package], check=False)
+        if result.returncode:
+            return None
+        status, _, version = result.stdout.partition("|")
+        # "install ok installed" or, after apt-mark hold, "hold ok installed"
+        return version.strip() if status.split()[1:] == ["ok", "installed"] else None
 
     def base_packages(self):
         missing = [p for p in BASE_PACKAGES if not self.installed(p)]
         if missing:
             self.run(["apt-get", "update", "-q"], env=APT_ENV)
             self.run(["apt-get", "install", "-y", "-q", "--no-install-recommends", *missing], env=APT_ENV)
+
+    def diagnose(self):
+        """Names of failing host checks (for operator messages; no secrets)."""
+        checks = {"base-packages": self.base_packages_ok, "docker-repository": self.docker_repository_ok,
+                  "docker": self.docker_ok, "firewall": self.firewall_ok}
+        return [name for name, check in checks.items() if not check()]
 
     def base_packages_ok(self):
         return all(self.installed(p) for p in BASE_PACKAGES)
@@ -114,13 +128,21 @@ class Provisioner:
 
     # --- firewall -----------------------------------------------------------------
     def ssh_ports(self):
-        output = self.run(["ss", "-H", "-ltnp"], check=False).stdout
+        """Every port an SSH daemon may answer on: sshd listeners, ssh.socket (socket activation,
+        Ubuntu 24.04 default) and the port of the current SSH session. Never fewer than one."""
         ports = set()
+        output = self.run(["ss", "-H", "-ltnp"], check=False).stdout
         for line in output.splitlines():
-            if '"sshd"' in line or "sshd" in line.split()[-1]:
-                match = re.search(r":(\d+)\s", line.split()[3] + " ")
+            fields = line.split()
+            if len(fields) >= 4 and '"sshd"' in line:
+                match = re.search(r":(\d+)$", fields[3])
                 if match:
                     ports.add(int(match.group(1)))
+        listen = self.run(["systemctl", "show", "ssh.socket", "-p", "Listen", "--value"], check=False).stdout
+        ports |= {int(p) for p in re.findall(r":(\d+) \(Stream\)", listen)}
+        session = os.environ.get("SSH_CONNECTION", "").split()
+        if len(session) == 4 and session[3].isdigit():
+            ports.add(int(session[3]))
         return sorted(ports) or [22]
 
     def firewall(self):

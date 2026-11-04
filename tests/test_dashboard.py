@@ -11,8 +11,10 @@ SEED = base64.b32encode(b"12345678901234567890").decode()
 class Client:
     def __init__(self):
         self.calls = []
-    def execute(self, action, app):
+    def execute(self, action, app, params=None):
         self.calls.append((action, app))
+        if action == "overview":
+            raise ValueError("synthetic: overview not available in this fake")
         return {"running": action != "stop", "health": "healthy", "image": "sha256:synthetic"}
 
 
@@ -50,7 +52,7 @@ def test_anonymous_admin_csrf_and_shell_inputs_denied(dashboard):
     assert not backend.calls
     assert login(client, clock).status_code == 302
     assert client.post("/admin/actions/gswb/shell", data={"csrf": csrf(client, "/admin")}).status_code == 404
-    assert not any(action != "status" for action, app in backend.calls)
+    assert not any(action not in ("status", "overview") for action, app in backend.calls)
 
 
 def test_tiles_require_public_route_or_confirmed_access_projection(dashboard):

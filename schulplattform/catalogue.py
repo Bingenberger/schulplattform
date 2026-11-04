@@ -43,6 +43,13 @@ PLATFORM_IMAGES = ("schulplattform-dashboard", "schulplattform-relay")
 
 MAIL_PORT = 1025  # both the relay and the sink listen here on the app proxy networks
 
+# Variables whose value is derived from the hostname (shown in the domain change preview).
+DOMAIN_VARIABLES = {"gswb": (), "schulwissen": ("SW_ALLOWED_HOSTS", "SW_OEFFENTLICHE_URL"),
+                    "zackboing": ("ZACKBOING_PUBLIC_URL",), "schulhelfer": ("BASE_URL",),
+                    "losverkauf": ("BASE_URL",), "grundschultafel": ("BASE_URL",),
+                    "fahrradausbildung": ("FP_OEFFENTLICHE_URL",), "leseflux": ("CORS_ORIGIN",),
+                    "kompetenz-manager": ("APP_BASE_URL",), "abgen": ("WEB_ORIGIN",)}
+
 
 @dataclass(frozen=True)
 class Check:

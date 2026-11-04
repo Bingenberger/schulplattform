@@ -71,6 +71,18 @@ class Domains:
             with exclusive(self.directory / "domains.lock"):
                 self._recover()
 
+    def add(self, app, domain):
+        """Register a newly enabled app; never changes an existing app's domain."""
+        with exclusive(self.operation_lock):
+            with exclusive(self.directory / "domains.lock"):
+                current = json.loads(self.path.read_text())
+                if app in current["domains"]:
+                    return current
+                candidate = {"generation": str(uuid.uuid4()), "domains": current["domains"] | {app: domain}}
+                self.validate(candidate["domains"])
+                atomic_json(self.path, candidate)
+                return candidate
+
     def change(self, app, domain):
         with exclusive(self.operation_lock):
             return self._change_locked(app, domain)

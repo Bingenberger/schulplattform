@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% from "_macros.html" import post %}
+{% block title %}Sicherungen{% endblock %}
+{% block body %}<h1>Sicherungen</h1>
+<p>Tägliche Sicherung um {{ data.backupConfig.schedule if data.backupConfig else '–' }} Uhr, Aufbewahrung {{ data.backupConfig.retention_days if data.backupConfig else '–' }} Tage.
+Externes Ziel: {{ data.backupConfig.offsite if data.backupConfig and data.backupConfig.offsite else 'nicht konfiguriert' }}.</p>
+<p class="notice">Sicherungen sind verschlüsselt. Der Schlüssel liegt auf dem Server und muss zusätzlich außerhalb des Servers verwahrt werden; ohne ihn ist eine Sicherung wertlos.</p>
+<div class="table-wrap"><table><thead><tr><th>App</th><th>Letzte Sicherung</th><th>Größe</th><th>Extern</th><th>Restore-Probe</th><th></th></tr></thead><tbody>
+{% for app_id, status in data.apps.items() if status.installed %}{% set b = data.backups.get(app_id, {}) %}
+<tr><td>{{ catalogue.get(app_id, {}).get('name', app_id) }}</td><td>{{ b.lastSuccess or '–' }}{% if b.lastFailure %}<br><span class="badge bad">Fehler {{ b.lastFailure }}</span>{% endif %}</td>
+<td>{{ ((b.size or 0) / 1048576)|round(1) }} MiB</td><td>{{ b.offsite.status if b.offsite else '–' }}</td>
+<td>{{ b.restoreProbe or '–' }}</td><td>{{ post(url_for('app_operation', app_id=app_id, operation='backup-now'), 'Jetzt sichern', 'secondary') }}</td></tr>
+{% endfor %}</tbody></table></div>{% endblock %}

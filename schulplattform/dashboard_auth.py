@@ -62,6 +62,13 @@ PRAGMA user_version=1;
 """
 
 
+AUDIT_ACTIONS = {"start", "stop", "domain-change", "dns-recheck", "maintenance-on", "maintenance-off",
+                 "smtp-update", "smtp-password", "smtp-test", "backup-now", "uninstall", "enable", "purge",
+                 "tile-hide", "tile-show"}
+AUDIT_TARGETS = {"gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel",
+                 "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen", "_platform"}
+
+
 class AdminStore:
     def __init__(self, directory, clock=time.time, initialize=False):
         self.directory = Path(directory)
@@ -177,7 +184,7 @@ class AdminStore:
             db.execute("INSERT OR IGNORE INTO access_projection VALUES(?,?)", (identity, app_id))
 
     def audit(self, identity, action, app_id, outcome):
-        if action not in ("start", "stop") or app_id not in ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen") or outcome not in ("accepted", "failed", "completed", "blocked"):
+        if action not in AUDIT_ACTIONS or app_id not in AUDIT_TARGETS or outcome not in ("accepted", "failed", "completed", "blocked"):
             raise ValueError("Invalid audit event")
         with self.connect() as db:
             db.execute("INSERT INTO audit(at,actor,action,app_id,outcome) VALUES(?,?,?,?,?)",

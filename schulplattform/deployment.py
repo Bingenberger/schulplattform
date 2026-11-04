@@ -41,6 +41,9 @@ EXTENDED = {
     "smtp-test": ({PLATFORM}, {"recipient": _text(320, EMAIL)}),
     "backup-now": (APPS, {}),
     "update-check": ({PLATFORM}, {}),
+    "uninstall": (APPS, {}),
+    "enable": (APPS, {}),
+    "purge": (APPS, {"confirm": _text(40, re.compile(r"^[a-z][a-z-]{0,39}$"))}),
 }
 
 

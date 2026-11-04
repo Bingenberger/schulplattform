@@ -1,0 +1,59 @@
+# Acceptance configuration for the test VM (synthetic hostnames under .test, local ACME CA).
+schema = 1
+
+[platform]
+management_domain = "verwaltung.schule.test"
+acme_email = "it@schule.test"
+acme_environment = "custom"
+acme_ca = "https://acme.schule.test:14000/dir"
+acme_ca_root = "/opt/pebble/ca.pem"
+issued_root = "/opt/pebble/issued-roots.pem"
+public_ipv4 = "10.0.2.15"
+
+[smtp]
+mode = "sink"
+
+[backup]
+schedule = "02:30"
+retention_days = 14
+offsite = "/srv/backup-offsite"
+
+[apps.gswb]
+enabled = true
+hostname = "woerterbuch.schule.test"
+
+[apps.schulwissen]
+enabled = true
+hostname = "wissen.schule.test"
+
+[apps.zackboing]
+enabled = true
+hostname = "quiz.schule.test"
+
+[apps.schulhelfer]
+enabled = true
+hostname = "helfer.schule.test"
+
+[apps.losverkauf]
+enabled = true
+hostname = "lose.schule.test"
+
+[apps.grundschultafel]
+enabled = true
+hostname = "tafel.schule.test"
+
+[apps.fahrradausbildung]
+enabled = true
+hostname = "rad.schule.test"
+
+[apps.leseflux]
+enabled = true
+hostname = "lesen.schule.test"
+
+[apps.kompetenz-manager]
+enabled = true
+hostname = "kompetenz.schule.test"
+
+[apps.abgen]
+enabled = true
+hostname = "blaetter.schule.test"

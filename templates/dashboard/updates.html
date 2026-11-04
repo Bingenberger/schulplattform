@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Updates{% endblock %}
+{% block body %}<h1>Updates</h1>
+<p>Installiert: Release <strong>{{ data.release or '–' }}</strong></p>
+{% set available = (data.updates or {}).get('available', []) %}
+{% if available %}<ul>{% for item in available %}<li>{{ item.version }} – {{ 'Signatur geprüft' if item.verified else 'Signatur ungültig' }}
+{% if item.openItems %}, {{ item.openItems }} offene Abnahmepunkte{% endif %}</li>{% endfor %}</ul>
+<p>Ein Update wird über die Konsole eingespielt (<code>./install.sh apply --bundle … --reconfigure</code>); vorher wird gesichert, danach geprüft.</p>
+{% else %}<p>Kein neueres signiertes Release auf dem Server abgelegt.</p>{% endif %}
+<h2>Offene Abnahmepunkte des installierten Release</h2>
+<div class="table-wrap"><table><thead><tr><th>App</th><th>Punkt</th><th>Hinweis</th></tr></thead><tbody>
+{% for app, item, summary in data.openAcceptanceItems or [] %}<tr><td>{{ app }}</td><td>{{ item }}</td><td>{{ summary }}</td></tr>
+{% else %}<tr><td colspan="3">Keine.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}

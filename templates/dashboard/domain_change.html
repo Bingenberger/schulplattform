@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% block title %}Domain ändern{% endblock %}
+{% block body %}<h1>Domain ändern: {{ entry.name }}</h1>
+{% if error %}<p class="notice error">{{ error }}</p>{% endif %}
+<p>Aktuell: <code>{{ current }}</code></p>
+{% if not candidate %}
+<form method="get"><label>Neuer Hostname<input name="hostname" required pattern="[a-z0-9.-]+" placeholder="neu.schule.example"></label>
+<button>Vorschau anzeigen</button></form>
+{% else %}
+<section><h2>Vorschau</h2>
+<table><thead><tr><th>Bereich</th><th>Bisher</th><th>Neu</th></tr></thead><tbody>
+<tr><td>Proxy-Route und Zertifikat</td><td><code>{{ current }}</code></td><td><code>{{ candidate }}</code></td></tr>
+{% for variable in variables %}<tr><td><code>{{ variable }}</code></td>
+<td><code>{{ ('https://' if 'URL' in variable or 'ORIGIN' in variable else '') ~ current }}{{ ',localhost' if variable == 'SW_ALLOWED_HOSTS' else '' }}</code></td>
+<td><code>{{ ('https://' if 'URL' in variable or 'ORIGIN' in variable else '') ~ candidate }}{{ ',localhost' if variable == 'SW_ALLOWED_HOSTS' else '' }}</code></td></tr>{% endfor %}
+</tbody></table>
+<p>Ablauf: DNS-Prüfung des neuen Namens → Sicherung der bisherigen Konfiguration → Zertifikat → neue Route und App-Konfiguration → Prüfung über TLS → bei Fehler automatische Rückkehr zur bisherigen Domain.</p>
+<p class="muted">Mail-, QR- und Elternlinks verwenden danach den neuen Namen. Bereits verschickte Links mit dem alten Namen funktionieren nicht mehr, sofern der alte Name nicht weiter auf den Server zeigt.</p>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="hostname" value="{{ candidate }}">
+<input type="hidden" name="confirmed" value="1"><button>Domain jetzt wechseln</button></form>
+<p><a href="{{ url_for('domain_change', app_id=app_id) }}">Abbrechen</a></p></section>
+{% endif %}{% endblock %}

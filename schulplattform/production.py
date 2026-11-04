@@ -58,8 +58,18 @@ class Platform:
         return self._domains
 
     def current_domains(self):
-        self.domains()
-        return json.loads((self.layout.domains / "current.json").read_text())["domains"]
+        store = self.domains()
+        domains = json.loads((self.layout.domains / "current.json").read_text())["domains"]
+        for app in self.stack.apps:
+            if app not in domains:
+                domains = store.add(app, self.config["apps"][app]["hostname"])["domains"]
+        return domains
+
+    def set_enabled(self, app, enabled):
+        data = dict(self.config)
+        data["apps"] = {key: dict(value) for key, value in self.config["apps"].items()}
+        data["apps"][app]["enabled"] = bool(enabled)
+        cfg.write(data, self.config_path)
 
     def router(self):
         self.domains()
@@ -85,8 +95,10 @@ class Platform:
     def probe_host(self, _identity):
         if not self.provision_host:
             return True
-        p = self.provisioner
-        return p.base_packages_ok() and p.docker_ok() and p.firewall_ok()
+        failing = self.provisioner.diagnose()
+        if failing:
+            print("Host-Prüfung nicht erfüllt: " + ", ".join(failing), file=sys.stderr)
+        return not failing
 
     def step_render(self, _identity):
         self.layout.prepare()

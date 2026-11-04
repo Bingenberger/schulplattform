@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}Mailversand{% endblock %}
+{% block body %}<h1>Mailversand</h1>
+{% if message %}<p class="notice {{ 'error' if message[0] == 'error' else '' }}">{{ message[1] }}</p>{% endif %}
+{% set smtp = data.smtp or {} %}
+<p>Modus: <strong>{{ {'relay':'Versand über SMTP-Anbieter','sink':'Test-Sink (kein externer Versand)','none':'kein Mailversand'}.get(smtp.mode, smtp.mode) }}</strong></p>
+<section><h2>SMTP-Anbieter</h2>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="form" value="settings">
+<label>Server<input name="host" value="{{ smtp.host or '' }}" required></label>
+<label>Port<input name="port" value="{{ smtp.port or 587 }}" inputmode="numeric" required></label>
+<label>Verschlüsselung<select name="security"><option value="starttls" {{ 'selected' if smtp.security != 'tls' }}>STARTTLS</option>
+<option value="tls" {{ 'selected' if smtp.security == 'tls' }}>TLS</option></select></label>
+<label>Benutzer (leer = ohne Anmeldung)<input name="username" value="{{ smtp.username or '' }}" autocomplete="off"></label>
+<label>Absenderadresse<input name="sender" value="{{ smtp.sender or '' }}" required></label>
+<label>Absendername<input name="sender_name" value="{{ smtp.sender_name or 'Schulplattform' }}"></label>
+<button>Speichern</button></form></section>
+<section><h2>Passwort</h2><p>Status: {{ 'gesetzt' if smtp.passwordSet else 'nicht gesetzt' }}. Das Passwort wird nie angezeigt.</p>
+<form method="post" autocomplete="off"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="form" value="password">
+<label>Neues Passwort<input type="password" name="password" autocomplete="new-password"></label><button>Passwort setzen</button></form></section>
+<section><h2>Testversand</h2>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="form" value="test">
+<label>Empfänger<input name="recipient" type="email" required></label><button>Testmail senden</button></form></section>
+{% endblock %}

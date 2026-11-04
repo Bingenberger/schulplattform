@@ -1,0 +1,17 @@
+{% macro phase(value) -%}
+{%- set labels = {'aktiv':('aktiv','ok'),'zertifikat-ausstehend':('Zertifikat ausstehend','warn'),
+  'dns-ausstehend':('DNS ausstehend','warn'),'fehler':('Fehler','bad'),'wartung':('Wartung','warn')} -%}
+{%- set item = labels.get(value, (value or 'unbekannt','')) -%}
+<span class="badge {{ item[1] }}">{{ item[0] }}</span>
+{%- endmacro %}
+{% macro health(value) -%}
+{%- set labels = {'healthy':('bereit','ok'),'unhealthy':('nicht bereit','bad'),'starting':('startet','warn'),
+  'stopped':('gestoppt',''),'degraded':('eingeschränkt','warn'),'absent':('nicht installiert',''),
+  'unbekannt':('unbekannt','')} -%}
+{%- set item = labels.get(value, (value or 'unbekannt','')) -%}
+<span class="badge {{ item[1] }}">{{ item[0] }}</span>
+{%- endmacro %}
+{% macro post(endpoint, label, cls='', confirm=None) -%}
+<form class="inline" method="post" action="{{ endpoint }}"><input type="hidden" name="csrf" value="{{ csrf() }}">
+<button class="{{ cls }}">{{ label }}</button></form>
+{%- endmacro %}

@@ -59,6 +59,7 @@ def inventory():
                      for name in ('nginx', 'apache2', 'caddy', 'postgresql', 'mysql')},
         'ntpSynchronized': command(['timedatectl', 'show', '-p', 'NTPSynchronized', '--value']),
         'platformOwnsDocker': _platform_owns_docker(),
+        'clockSkewSeconds': _clock_skew(),
     }
 
 
@@ -67,6 +68,27 @@ def _platform_owns_docker(root=Path('/var/lib/schulplattform')):
         return json.loads((root / 'state/host.json').read_text()).get('dockerInstalledByPlatform') is True
     except (OSError, ValueError):
         return False
+
+
+def _clock_skew(urls=('https://github.com/', 'https://pypi.org/', 'https://ghcr.io/')):
+    """Local clock minus the median HTTPS Date of several servers (seconds).
+
+    A single CDN can serve a cached Date header (observed: download.docker.com
+    one hour behind), so one source is never trusted alone.
+    """
+    import email.utils
+    import statistics
+    import time
+    import urllib.request
+    samples = []
+    for url in urls:
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, method='HEAD'), timeout=10) as response:
+                remote = email.utils.parsedate_to_datetime(response.headers['Date']).timestamp()
+            samples.append(time.time() - remote)
+        except (OSError, ValueError, TypeError, KeyError):
+            continue
+    return round(statistics.median(samples), 1) if len(samples) >= 2 else None
 
 
 def blockers(host):
@@ -81,7 +103,9 @@ def blockers(host):
     if any(value != 'free' for value in host['ports'].values()) and not owned:
         issues.append('Ports 80/443 are not available')
     if host['ntpSynchronized'] != 'yes':
-        issues.append('NTP synchronization not confirmed')
+        skew = host.get('clockSkewSeconds')
+        if skew is None or abs(skew) > 30:
+            issues.append('NTP synchronization not confirmed and clock skew unknown or above 30 s')
     return issues
 
 
@@ -94,6 +118,9 @@ def warnings(host):
         notes.append('Less than the estimated 160 GB free disk profile (estimate, not measured)')
     if not host['memory'].get('SwapTotal'):
         notes.append('No swap configured')
+    if host['ntpSynchronized'] != 'yes' and host.get('clockSkewSeconds') is not None \
+            and abs(host['clockSkewSeconds']) <= 30:
+        notes.append(f"NTP not confirmed; clock within {host['clockSkewSeconds']} s of HTTPS time (port 123 blocked?)")
     return notes
 
 

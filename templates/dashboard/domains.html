@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% from "_macros.html" import phase, post %}
+{% block title %}Domains{% endblock %}
+{% block body %}<h1>Domains</h1>
+<p>DNS-Einträge setzen Sie beim Provider: je Hostname ein A-Eintrag auf die Server-Adresse. Ein noch nicht umgestellter Hostname blockiert die übrigen Apps nicht.</p>
+{% if data.available %}{{ post(url_for('dns_recheck_all'), 'Alle DNS-Einträge erneut prüfen') }}{% endif %}
+<div class="table-wrap"><table><thead><tr><th>App</th><th>Hostname</th><th>Zustand</th><th>DNS</th><th></th></tr></thead><tbody>
+{% if data.management %}<tr><td>Verwaltung</td><td><code>{{ data.management.hostname }}</code></td><td>{{ phase(data.management.phase) }}</td>
+<td>{{ data.management.reason }}</td><td>nur über die Konsole änderbar</td></tr>{% endif %}
+{% for app_id, status in data.apps.items() if status.installed %}<tr><td>{{ catalogue.get(app_id, {}).get('name', app_id) }}</td>
+<td><code>{{ status.hostname }}</code></td><td>{{ phase(status.phase) }}</td>
+<td>{{ status.reason }}{% if status.dns == 'ok' and status.port80 %}<br><span class="muted">Port 80: {{ status.port80 }}</span>{% endif %}</td>
+<td><a href="{{ url_for('domain_change', app_id=app_id) }}">ändern</a></td></tr>{% endfor %}
+</tbody></table></div>{% endblock %}
