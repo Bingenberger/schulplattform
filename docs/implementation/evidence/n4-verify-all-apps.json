@@ -1,0 +1,64 @@
+{
+ "gswb": {
+  "ready": 200,
+  "GET /review": 401,
+  "POST /review/synthetic/approve": 401,
+  "GET /": 200,
+  "private-backend": true
+ },
+ "schulwissen": {
+  "ready": 200,
+  "GET /": 302,
+  "private-backend": true
+ },
+ "zackboing": {
+  "ready": 200,
+  "GET /api/admin/users": 401,
+  "POST /_platform/prepare-stop": 403,
+  "private-backend": true
+ },
+ "schulhelfer": {
+  "ready": 200,
+  "GET /admin": 303,
+  "GET /": 200,
+  "private-backend": true
+ },
+ "losverkauf": {
+  "ready": 200,
+  "GET /admin": 302,
+  "GET /": 403,
+  "private-backend": true
+ },
+ "grundschultafel": {
+  "ready": 200,
+  "GET /api/admin/users": 401,
+  "private-backend": true
+ },
+ "fahrradausbildung": {
+  "ready": 200,
+  "GET /verwaltung/": 303,
+  "GET /p/demo": 200,
+  "private-backend": true
+ },
+ "leseflux": {
+  "ready": 200,
+  "GET /api/auth/me": 401,
+  "GET /child/login": 200,
+  "private-backend": true
+ },
+ "kompetenz-manager": {
+  "ready": 200,
+  "GET /login": 200,
+  "GET /admin": 302,
+  "GET /setup": 403,
+  "private-backend": true
+ },
+ "abgen": {
+  "ready": 200,
+  "GET /api/auth/me": 401,
+  "POST /_platform/prepare-stop": 404,
+  "private-backend": true
+ }
+}
+published ports: {'proxy': ['80:80', '443:443']}
+dashboard has docker socket: False

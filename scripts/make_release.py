@@ -117,7 +117,7 @@ class Builder:
             path = self.out / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
-        metadata = {"schemaVersion": 1, "release": self.version, "architecture": "amd64",
+        metadata = {"schemaVersion": 1, "release": getattr(self, "bundle_version", self.version), "architecture": "amd64",
                     "files": {relative: sha256(data) for relative, data in sorted(self.files.items())}}
         raw = json.dumps(metadata, indent=2, sort_keys=True).encode() + b"\n"
         (self.out / "bundle.json").write_bytes(raw)
@@ -215,8 +215,10 @@ def main():
     parser.add_argument("--out", required=True)
     parser.add_argument("--apps", default=",".join(APP_IDS))
     parser.add_argument("--platform-version", help="tag of the platform images (default: --version)")
+    parser.add_argument("--bundle-version", help="release name of the bundle (default: --version)")
     args = parser.parse_args()
     builder = Builder(args.version, args.out)
+    builder.bundle_version = args.bundle_version or args.version
     index = {entry["app"]: entry for entry in json.loads((ROOT / "patches/index.json").read_text())}
     tested = json.loads((ROOT / "patches/tested-commits.json").read_text())
     manifests = []
@@ -239,7 +241,7 @@ def main():
     builder.write(args.signing_key)
     for manifest in manifests:
         validate_manifest(manifest, Path(args.out) / "evidence")
-    print(f"Release {args.version} written to {args.out}")
+    print(f"Release {builder.bundle_version} written to {args.out}")
 
 
 if __name__ == "__main__":

@@ -22,13 +22,16 @@ def now():
 
 class Router:
     def __init__(self, stack, domains_store, resolve=dnscheck.system_resolve, ask=dnscheck.query,
-                 clock=time.monotonic, sleep=time.sleep):
+                 clock=time.monotonic, sleep=time.sleep, domains=None):
         self.stack = stack
         self.domains = domains_store
+        self.override = dict(domains) if domains else None  # candidate domains during a transaction
         self.resolve, self.ask, self.clock, self.sleep = resolve, ask, clock, sleep
         self.path = stack.layout.domains / "status.json"
 
     def current(self):
+        if self.override is not None:
+            return self.override
         return json.loads((self.stack.layout.domains / "current.json").read_text())["domains"]
 
     def load(self):

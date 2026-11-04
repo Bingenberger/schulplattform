@@ -254,12 +254,12 @@ class Platform:
         self.stack.write_management_catalogue(domains)
         for app in self.stack.apps:
             self.stack.start(app)  # compose recreates only services whose configuration changed
-        router = Router(self.stack, self.domains())
+        router = Router(self.stack, self.domains(), domains=domains)
         router.check_dns()
         router.apply_routes()
 
     def _domain_verify(self, domains):
-        router = Router(self.stack, self.domains())
+        router = Router(self.stack, self.domains(), domains=domains)
         status = router.reconcile(wait_seconds=int(os.environ.get("SP_CERT_WAIT", "150")))
         for app, hostname in domains.items():
             if status.get(app, {}).get("hostname") != hostname or status[app].get("phase") != "aktiv":

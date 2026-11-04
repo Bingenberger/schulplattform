@@ -349,7 +349,8 @@ def setup_pending_app(trusted_hosts=None):
 def from_env():
     import json
     directory = os.environ["SP_DASHBOARD_STATE"]
-    hosts = os.environ["SP_DASHBOARD_HOSTS"].split(",")
+    # Loopback stays allowed for the container's own health check; Caddy only forwards the management domain.
+    hosts = os.environ["SP_DASHBOARD_HOSTS"].split(",") + ["127.0.0.1", "localhost"]
     if not (Path(directory) / "dashboard.sqlite3").is_file():
         return setup_pending_app(hosts)
     return create_app(directory, os.environ["SP_DEPLOYMENT_SOCKET"], os.environ["SP_DEPLOYMENT_KEY_FILE"],

@@ -367,6 +367,9 @@ def main(argv=None):
     except StateError as exc:
         print("Plattform: " + str(exc), file=sys.stderr)
         return 1
+    except RuntimeError as exc:  # DomainError, BundleError subclasses: messages are written for operators
+        print("Plattform: " + str(exc), file=sys.stderr)
+        return 1
     except (ValueError, OSError):
         print("Plattform: Konfiguration oder Dienstzugriff fehlgeschlagen; private Betriebsprotokolle prüfen.", file=sys.stderr)
         return 1

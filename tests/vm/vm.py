@@ -111,7 +111,7 @@ def push(name, source, destination):
     source = Path(source)
     tar = subprocess.Popen(["tar", "-C", str(source.parent), "-cf", "-", source.name], stdout=subprocess.PIPE)
     subprocess.run(ssh_argv(name, port) + [f"sudo -n mkdir -p {shlex.quote(destination)} && "
-                                           f"sudo -n tar -C {shlex.quote(destination)} -xf -"], stdin=tar.stdout, check=True)
+                                           f"sudo -n tar --warning=no-timestamp -C {shlex.quote(destination)} -xf -"], stdin=tar.stdout, check=True)
     tar.wait()
 
 

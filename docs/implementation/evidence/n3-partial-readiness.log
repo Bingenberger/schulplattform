@@ -1,0 +1,19 @@
+# Teilbereitschaft: vorher
+  zackboing          quiz.schule.test                         dns-ausstehend         läuft
+  losverkauf         lose.schule.test                         dns-ausstehend         läuft
+  abgen              blaetter.schule.test                     dns-ausstehend         läuft
+# DNS-Einträge für quiz, lose, blaetter beim (Test-)Provider gesetzt
+$ ./install.sh reconcile
+  verwaltung         verwaltung.schule.test                   aktiv                   Zertifikat bis 2027-02-02
+  gswb               woerterbuch.schule.test                  aktiv                  läuft Zertifikat bis 2027-02-02
+  schulwissen        wissen.schule.test                       aktiv                  läuft Zertifikat bis 2027-02-02
+  zackboing          quiz.schule.test                         aktiv                  läuft Zertifikat bis 2027-02-02
+  schulhelfer        helfer.schule.test                       aktiv                  läuft Zertifikat bis 2027-02-02
+  losverkauf         lose.schule.test                         aktiv                  läuft Zertifikat bis 2027-02-02
+  grundschultafel    tafel.schule.test                        aktiv                  läuft Zertifikat bis 2027-02-02
+  fahrradausbildung  rad.schule.test                          aktiv                  läuft Zertifikat bis 2027-02-02
+  leseflux           lesen.schule.test                        aktiv                  läuft Zertifikat bis 2027-02-02
+  kompetenz-manager  kompetenz.schule.test                    aktiv                  läuft Zertifikat bis 2027-02-02
+  abgen              blaetter.schule.test                     aktiv                  läuft Zertifikat bis 2027-02-02
+Nächster Schritt: ./install.sh admin-setup   (persönlicher Plattform-Admin mit TOTP)
+Erstzugang je App bei Bedarf: ./install.sh app-setup <app>   offen: abgen, fahrradausbildung, grundschultafel, gswb, kompetenz-manager, leseflux, losverkauf, schulhelfer, schulwissen, zackboing

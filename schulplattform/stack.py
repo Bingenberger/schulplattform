@@ -252,15 +252,23 @@ class Stack:
         networks = {
             "edge": {"name": "sp-edge"},
             "management": {"name": "sp-management", "internal": True,
-                           "ipam": {"config": [{"subnet": str(subnet(config, MANAGEMENT_INDEX))}]}},
+                           "ipam": {"config": [{"subnet": str(subnet(config, MANAGEMENT_INDEX)),
+                                                "ip_range": str(list(subnet(config, MANAGEMENT_INDEX)
+                                                                     .subnets(new_prefix=25))[1])}]}},
         }
         proxy_networks = {}
         for app_id in self.apps:
             index = APPS[app_id].index
+            net = subnet(config, index)
+            # Fixed addresses (.2 proxy, .3 mail relay) lie outside the dynamic range, so an app container
+            # started while the proxy is being recreated can never take the proxy's address.
             networks[f"{app_id}-proxy"] = {"name": proxy_network(app_id), "internal": True,
-                                           "ipam": {"config": [{"subnet": str(subnet(config, index))}]}}
+                                           "ipam": {"config": [{"subnet": str(net),
+                                                                "ip_range": str(list(net.subnets(new_prefix=25))[1])}]}}
             proxy_networks[f"{app_id}-proxy"] = {"ipv4_address": host_address(config, index, 2)}
-        caddy_volumes = [f"{self.layout.generated}/Caddyfile:/etc/caddy/Caddyfile:ro",
+        # Directory mount: atomic replace of the Caddyfile creates a new inode, which a single-file
+        # bind mount would never see.
+        caddy_volumes = [f"{self.layout.generated}/caddy:/etc/caddy/conf:ro",
                          f"{self.layout.caddy_data}:/data", "caddy-config:/config",
                          f"{self.layout.check}:/srv/check:ro"]
         if config["platform"]["acme_environment"] == "custom" and config["platform"].get("acme_ca_root"):
@@ -268,6 +276,7 @@ class Stack:
         services = {
             "proxy": {
                 "image": catalogue.INFRASTRUCTURE["caddy"], "restart": "unless-stopped",
+                "command": ["caddy", "run", "--config", "/etc/caddy/conf/Caddyfile", "--adapter", "caddyfile"],
                 "ports": ["80:80", "443:443"],
                 "volumes": caddy_volumes,
                 "networks": {"edge": {},
@@ -292,6 +301,12 @@ class Stack:
                             f"{self.layout.management}:/run/management:ro",
                             f"{self.layout.runtime}/dashboard:/run/management-key:ro"],
                 "networks": {"management": {"aliases": ["dashboard"]}},
+                "healthcheck": {
+                    "test": ["CMD", "python", "-c",
+                             "import urllib.request;urllib.request.urlopen(urllib.request.Request("
+                             "'http://127.0.0.1:8000/health/live',headers={'Host':'"
+                             + config["platform"]["management_domain"] + "'}),timeout=2)"],
+                    "interval": "15s", "timeout": "3s", "retries": 3},
             },
         }
         if self.mail_mode in ("relay", "sink"):
@@ -366,14 +381,14 @@ class Stack:
             email=platform["acme_email"], environment=platform["acme_environment"],
             acme_ca=platform.get("acme_ca"), custom_root="/etc/caddy/acme-root.pem"
             if platform.get("acme_ca_root") else None)
-        return self._write(self.layout.generated / "Caddyfile", text, 0o644)
+        return self._write(self.layout.generated / "caddy" / "Caddyfile", text, 0o644)
 
     def reload_proxy(self):
         container = self.container("infra", "proxy")
         if container and container["State"].get("Running"):
             for action in ("validate", "reload"):
                 self.command([self.docker, "exec", container["Id"], "caddy", action,
-                              "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"])
+                              "--config", "/etc/caddy/conf/Caddyfile", "--adapter", "caddyfile"])
 
     # --- inspection -----------------------------------------------------------
     def container(self, app, service):

@@ -68,6 +68,8 @@ ufw allow from 172.16.0.0/12 to $GUEST port 53 proto udp >/dev/null
 ufw allow from 172.16.0.0/12 to $GUEST port 14000 proto tcp >/dev/null
 ufw allow from 10.231.0.0/16 to $GUEST port 53 proto udp >/dev/null
 ufw allow from 10.231.0.0/16 to $GUEST port 14000 proto tcp >/dev/null
+ufw allow from 10.232.0.0/16 to $GUEST port 53 proto udp >/dev/null
+ufw allow from 10.232.0.0/16 to $GUEST port 14000 proto tcp >/dev/null
 sleep 2
 curl -sf --cacert $P/ca.pem https://acme.schule.test:14000/dir >/dev/null && echo "pebble: directory reachable"
 getent hosts acme.schule.test

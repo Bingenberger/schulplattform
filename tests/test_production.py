@@ -154,6 +154,10 @@ def test_infrastructure_publishes_only_proxy_and_isolates_mail(tmp_path):
     assert "/var/run/docker.sock" not in json.dumps(infra)
     assert "smtp-password" in json.dumps(relay["volumes"])
     assert infra["services"]["dashboard"]["read_only"] is True
+    assert infra["networks"]["gswb-proxy"]["ipam"]["config"][0] == {"subnet": "10.231.1.0/24",
+                                                                    "ip_range": "10.231.1.128/25"}
+    assert infra["services"]["proxy"]["networks"]["gswb-proxy"]["ipv4_address"] == "10.231.1.2"
+    assert any(v.endswith(":/etc/caddy/conf:ro") for v in infra["services"]["proxy"]["volumes"])
 
 
 def test_secret_projections_are_stable_and_never_overwritten(tmp_path):
@@ -179,13 +183,13 @@ def test_relay_requires_password_when_username_configured(tmp_path):
 
 def test_only_dns_verified_hosts_are_routed(tmp_path):
     layout, stack, domains = render(tmp_path, sample())
-    caddy = (layout.generated / "Caddyfile").read_text()
+    caddy = (layout.generated / "caddy" / "Caddyfile").read_text()
     assert "schule.example {" not in caddy  # nothing verified yet
     (layout.domains / "status.json").write_text(json.dumps({
         "gswb": {"hostname": domains["gswb"], "dns": "ok"},
         "abgen": {"hostname": domains["abgen"], "dns": "pending"}}))
     stack.write_caddyfile(domains, stack.routed(domains))
-    caddy = (layout.generated / "Caddyfile").read_text()
+    caddy = (layout.generated / "caddy" / "Caddyfile").read_text()
     assert "gswb.schule.example {" in caddy and "abgen.schule.example {" not in caddy
 
 
@@ -201,3 +205,17 @@ _TagLoader.add_multi_constructor("!", lambda loader, suffix, node: (
 def test_release_images_cover_catalogue():
     for app, images in RELEASE_IMAGES.items():
         assert set(APPS[app].images.values()) <= {name for name, _ in images}
+
+
+def test_router_uses_candidate_domains_during_transaction(tmp_path):
+    from schulplattform.routing import Router
+    layout, stack, domains = render(tmp_path, sample())
+    (layout.domains / "current.json").write_text(json.dumps({"generation": "x", "domains": domains}))
+    candidate = dict(domains, gswb="neu.schule.example")
+    ok = lambda host: {"A": ["80.67.169.12"], "AAAA": []}
+    router = Router(stack, None, resolve=ok, ask=None, domains=candidate)
+    status = router.check_dns()
+    assert status["gswb"]["hostname"] == "neu.schule.example" and status["gswb"]["dns"] == "ok"
+    assert "gswb" in stack.routed(candidate)
+    stack.write_caddyfile(candidate, stack.routed(candidate))
+    assert "neu.schule.example {" in (layout.generated / "caddy" / "Caddyfile").read_text()

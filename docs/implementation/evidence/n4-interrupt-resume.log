@@ -1,0 +1,18 @@
+# Abbruch und Fortsetzung (SIGKILL waehrend Schritt apps)
+Schritt beim Abbruch: infrastructure; kill -9 57937
+laufende Container nach Abbruch: 15
+Zustand nach Abbruch: failed | abgeschlossen: ['host', 'render', 'images'] | laufend: infrastructure
+$ ./install.sh apply   (gleicher Plan, ohne --reconfigure)
+exit=1
+Zustand: failed
+  09:00:35 host started
+  09:00:36 host verified
+  09:00:36 render started
+  09:00:36 render verified
+  09:00:36 images started
+  09:00:36 images verified
+  09:00:36 infrastructure started
+  09:00:36 infrastructure failed
+  09:11:23 infrastructure resuming
+  09:11:23 infrastructure failed
+Plattform: Command failed: docker compose -p sp-infra (exit 1)

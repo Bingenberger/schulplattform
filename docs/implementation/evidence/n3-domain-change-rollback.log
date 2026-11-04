@@ -1,0 +1,15 @@
+# Domainwechsel losverkauf (Elternlink mit Token, falscher Token zum Vergleich)
+vorher lose.schule.test: Elternlink=302 falscherToken=403 BASE_URL=https://lose.schule.test
+$ ./install.sh domain-change losverkauf losverkauf.schule.test
+  losverkauf         losverkauf.schule.test                   aktiv                  läuft Zertifikat bis 2027-02-02
+exit=0
+nachher losverkauf.schule.test: Elternlink=302 falscherToken=403 BASE_URL=https://losverkauf.schule.test
+platform.toml: hostname = "losverkauf.schule.test"
+
+# Absichtlich ungültige Änderung: Name nur für den Server auflösbar, nicht für die CA
+$ ./install.sh domain-change losverkauf kaputt.schule.test
+Plattform: Domain change rejected; previous configuration restored
+exit=1
+Domain danach: losverkauf.schule.test / Transaktion: rolled-back
+nach Rückfall losverkauf.schule.test: Elternlink=302 BASE_URL=https://losverkauf.schule.test
+platform.toml: hostname = "losverkauf.schule.test"
