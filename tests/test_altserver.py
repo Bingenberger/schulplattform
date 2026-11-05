@@ -418,3 +418,36 @@ def test_schulanmeldung_export_merges_old_default_and_configured_upload_folders(
     (base / "uploads/neu.pdf").write_bytes(b"%PDF andere Fassung")
     with pytest.raises(SystemExit, match="zwei Upload-Verzeichnissen"):
         altserver.export("schulanmeldung", key, tmp_path / "out2", path=str(base))
+
+
+def test_grundschultafel_export_moves_public_assets_into_the_data_volume(tmp_path, monkeypatch):
+    # Real old server (/var/www/tafelpopafel): notebooks and users under data/, images under
+    # public/assets; the platform image ships no images and reads /data/assets.
+    import shutil
+    import tarfile
+    import pytest
+    if not shutil.which("gpg"):
+        pytest.skip("gpg not installed")
+    base = tmp_path / "var/www/tafelpopafel"
+    uid = "0b6f5c1e-1111-4222-8333-944455556666"
+    (base / "data" / uid).mkdir(parents=True)
+    (base / "data/users.json").write_text('[{"id": "%s", "username": "frau.x"}]' % uid)
+    (base / "data" / uid / "nb1.json").write_text("{}")
+    (base / "public/assets/gallery/Mixed").mkdir(parents=True)
+    (base / "public/assets/gallery/Mixed/bild.png").write_bytes(b"png")
+    (base / "public/timer").mkdir(parents=True)
+    (base / "public/timer/index.html").write_text("timer")
+    monkeypatch.setattr(altserver, "unit_for", lambda base, preferred=None: preferred)
+    monkeypatch.setattr(altserver, "unit_values", lambda unit: {})
+    key = tmp_path / "transfer.key"
+    key.write_text("k" * 48)
+    summary = altserver.export("grundschultafel", key, tmp_path / "out", path=str(base))
+    plain = tmp_path / "plain.tar"
+    subprocess.run(["gpg", "--batch", "--quiet", "--passphrase-file", str(key), "-o", str(plain), "-d",
+                    summary["archive"]], check=True, env={"GNUPGHOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
+    with tarfile.open(plain) as outer:
+        outer.extractall(tmp_path / "x", filter="data")
+    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+        names = set(inner.getnames())
+    assert {"./users.json", f"./{uid}/nb1.json", "./assets/gallery/Mixed/bild.png"} <= names
+    assert not any("timer" in name for name in names)

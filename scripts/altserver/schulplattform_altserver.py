@@ -51,7 +51,11 @@ APPS = {
                    "exclude": {"data": ("backups",)},          # 'deploy.sh backup' copies (old personal data)
                    # The old version reads the district map from the app directory; the new one from the data volume.
                    "extra": {"static/bezirke.geojson": ("data", "maps/bezirke.geojson")}},
-    "grundschultafel": {"kind": "native", "default": "/opt/grundschultafel", "volumes": {"data": "data"}},
+    "grundschultafel": {"kind": "native", "default": "/opt/grundschultafel", "volumes": {"data": "data"},
+                        "unit": "tafelpopafel.service",
+                        # The old app served images from public/assets (backgrounds, journal, rs, gallery,
+                        # uploads); the new image ships none and reads TAFEL_ASSET_DIR=/data/assets.
+                        "extra_dirs": {"public/assets": ("data", "assets")}},
     "kompetenz-manager": {"kind": "native", "default": "/opt/kompetenz-manager",
                           "volumes": {"instance": "instance", "templates": "odt_templates"},
                           # Old installs may run on PostgreSQL (DATABASE_URL); the platform uses SQLite.
