@@ -32,7 +32,7 @@ ADOPTION = {
     "losverkauf": "Bekannte Legacy-Felder werden umgewandelt; IDs und edit_tokens bleiben erhalten; "
                   "Elterntoken unter 32 Zeichen müssen ersetzt und Links neu verteilt werden.",
     "zackboing": "Bestehende Tabellen und Nutzer-IDs bleiben; die Legacy-Migration setzt user_version 1.",
-    "grundschultafel": "Benutzer-UUIDs und Notizbücher bleiben; eigene Legacy-Medien werden ausdrücklich importiert.",
+    "grundschultafel": "Benutzer-UUIDs und Notizbücher bleiben; Bilder aus public/assets liegen danach in data/assets; alle melden sich neu an.",
     "leseflux": "AuthSession-Tabelle wird ergänzt; alte JWTs verlangen erneute Anmeldung.",
     "schulwissen": "Django-Migrationen laufen vorwärts; Rollen werden eingerichtet.",
     "gswb": "SQLite user_version wird durch den Migrationsjob gesetzt.",
