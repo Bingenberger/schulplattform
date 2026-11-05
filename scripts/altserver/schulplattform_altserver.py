@@ -77,6 +77,9 @@ APPS = {
                        "env_sources": {"data": (
                            ("sqlite", "SL_OFFICE_DATABASE_URL", "instance/database.db", "database.db"),
                            ("dir", "SL_OFFICE_UPLOAD_FOLDER", "uploads", "uploads"),
+                           # Real old server: the .env moved the uploads to documents/ later, the
+                           # older PDFs stayed in the default uploads/; both are merged.
+                           ("optional-dir", "", "uploads", "uploads"),
                            ("file", "SL_OFFICE_SCHOOL_SIGNATURE", "assets/briefkopf/unterschrift.png",
                             "briefkopf/unterschrift.png"))}},
     "sl-journal": {"kind": "native", "default": "/opt/schulleitungsjournal", "volumes": {"data": None},
@@ -194,6 +197,8 @@ def env_sources(app, base):
                     (base / "instance" / relative if relative else base / default)
             else:
                 path = Path(raw) if raw and raw.startswith("/") else base / (raw or default)
+            if kind == "optional-dir" and any(p == path for _, p, _, _ in resolved.get(volume, [])):
+                continue                    # the configured folder is the default one
             resolved.setdefault(volume, []).append((kind, path, target, tuple(rest[0]) if rest else ()))
     return resolved
 
@@ -645,6 +650,7 @@ def export(app, key_file, out_dir, path=None, project=None):
                 snap.mkdir(parents=True, exist_ok=True)
                 sqlite_dir.mkdir(parents=True, exist_ok=True)
                 with tarfile.open(snap / "files.tar", "w") as tar:
+                    added = set()
                     for kind, path, target, skip in items:
                         files = 1
                         if kind == "sqlite":
@@ -663,17 +669,28 @@ def export(app, key_file, out_dir, path=None, project=None):
                                                    "foreignKeyViolations": 0, "userVersion": facts.get("userVersion"),
                                                    "alembic": facts.get("alembic")})
                             info["counts"][f"{volume}/{target}"] = facts.get("tables", {})
-                        elif kind == "dir" and path.is_dir():
+                        elif kind in ("dir", "optional-dir") and path.is_dir():
                             files = 0
                             for item in sorted(path.rglob("*")):
                                 relative = str(item.relative_to(path))
                                 if item.is_symlink() or any(relative == s or relative.startswith(s + "/") for s in skip):
                                     continue
                                 arcname = f"./{target}/{relative}" if target else f"./{relative}"
+                                if item.is_dir():
+                                    if arcname not in added:
+                                        tar.add(item, arcname=arcname, recursive=False)
+                                        added.add(arcname)
+                                    continue
+                                if arcname in added:
+                                    raise SystemExit(f"{app}: {relative} liegt in zwei Upload-Verzeichnissen; "
+                                                     "bitte vor dem Export klären, welche Fassung gilt.")
                                 tar.add(item, arcname=arcname, recursive=False)
-                                files += item.is_file()
+                                added.add(arcname)
+                                files += 1
                         elif kind == "file" and path.is_file():
                             tar.add(path, arcname=f"./{target}", recursive=False)
+                        elif kind == "optional-dir":
+                            continue
                         elif kind == "dir":
                             # Real old server: the uploads (PDFs) were not where the .env/default said;
                             # skipping silently produced an archive without them.

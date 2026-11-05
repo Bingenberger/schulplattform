@@ -380,3 +380,41 @@ def test_losverkauf_export_skips_backup_copies_and_carries_tokens(tmp_path, monk
     assert sorted(p.name for p in (tmp_path / "x/sqlite/data").rglob("*.db")) == ["losverkauf.db"]
     assert (tmp_path / "x/secrets/losverkauf/parent-token").read_text() == "e" * 40
     assert summary["sqliteFiles"] == 1
+
+
+def test_schulanmeldung_export_merges_old_default_and_configured_upload_folders(tmp_path, monkeypatch):
+    # Real old server: SL_OFFICE_UPLOAD_FOLDER=/opt/SL-Office/documents held 1 PDF, the default
+    # uploads/ the other 198 from before the .env change.
+    import shutil
+    import sqlite3
+    import tarfile
+    import pytest
+    if not shutil.which("gpg"):
+        pytest.skip("gpg not installed")
+    base = tmp_path / "opt/SL-Office"
+    for folder in ("uploads", "documents", "instance"):
+        (base / folder).mkdir(parents=True)
+    sqlite3.connect(base / "instance/database.db").executescript(
+        "CREATE TABLE alembic_version(version_num TEXT); INSERT INTO alembic_version VALUES('x');")
+    for name in ("alt1.pdf", "alt2.pdf"):
+        (base / "uploads" / name).write_bytes(b"%PDF alt")
+    (base / "documents/neu.pdf").write_bytes(b"%PDF neu")
+    (base / ".env").write_text(f"SL_OFFICE_DATABASE_URL=sqlite:///{base}/instance/database.db\n"
+                               f"SL_OFFICE_UPLOAD_FOLDER={base}/documents\n")
+    monkeypatch.setattr(altserver, "unit_for", lambda base, preferred=None: preferred)
+    monkeypatch.setattr(altserver, "unit_values", lambda unit: {})
+    key = tmp_path / "transfer.key"
+    key.write_text("k" * 48)
+    summary = altserver.export("schulanmeldung", key, tmp_path / "out", path=str(base))
+    assert sorted(r["files"] for r in summary["relocated"] if r["to"] == "data:uploads") == [1, 2]
+    plain = tmp_path / "plain.tar"
+    subprocess.run(["gpg", "--batch", "--quiet", "--passphrase-file", str(key), "-o", str(plain), "-d",
+                    summary["archive"]], check=True, env={"GNUPGHOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
+    with tarfile.open(plain) as outer:
+        outer.extractall(tmp_path / "x", filter="data")
+    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+        names = inner.getnames()
+    assert {"./uploads/alt1.pdf", "./uploads/alt2.pdf", "./uploads/neu.pdf"} <= set(names)
+    (base / "uploads/neu.pdf").write_bytes(b"%PDF andere Fassung")
+    with pytest.raises(SystemExit, match="zwei Upload-Verzeichnissen"):
+        altserver.export("schulanmeldung", key, tmp_path / "out2", path=str(base))
