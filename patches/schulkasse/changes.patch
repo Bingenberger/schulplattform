@@ -487,6 +487,21 @@ index 472f039..bb3c2c9 100644
  def get_db():
      if "db" not in g:
          g.db = Database(current_app.config["DATABASE"])
+diff --git a/tests/test_monatsbericht.py b/tests/test_monatsbericht.py
+index b66f6bf..6896459 100644
+--- a/tests/test_monatsbericht.py
++++ b/tests/test_monatsbericht.py
+@@ -45,6 +45,10 @@ def test_monatsbericht_umbuchung_und_anfangsbestand(demo, admin_id, dateien):
+     kopie = demo.scalar("SELECT id FROM projekt WHERE kurzcode='KOPIE'")
+     ab.verteilen(demo, konto["id"], [{"projekt_id": spende, "betrag_cent": 100000}], admin_id)
+     ub.anlegen(demo, spende, kopie, 25000, "Kopierkosten aus Spenden", admin_id)
++    # Fester Buchungszeitpunkt im Berichtsmonat: anlegen() stempelt "jetzt", der Test soll
++    # nicht davon abhängen, an welchem Tag er läuft.
++    demo.execute("UPDATE umbuchung SET erstellt_am='2026-09-15 10:00:00' WHERE grund=?",
++                 ("Kopierkosten aus Spenden",))
+     v = monatsbericht(demo, 2026, 9)
+     sp = next(p for p in v["projekte"] if p["kurzcode"] == "SPENDE")
+     ko = next(p for p in v["projekte"] if p["kurzcode"] == "KOPIE")
 diff --git a/tests/test_platform.py b/tests/test_platform.py
 new file mode 100644
 index 0000000..be3e7b2
