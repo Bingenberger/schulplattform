@@ -1,0 +1,17 @@
+{
+  "app": "kompetenz-manager",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/kompetenz-standalone.json",
+      "sha256": "774cb62d89dfcc44049671b70e650328ce942e4b3cc60c7a5e9c7003a7475abb"
+    }
+  ],
+  "item": "standalone",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "b42fbdf52d777bc5e258d15a1d9173e6970f7245",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "standalone evidence from the local pilot work packages.",
+  "testedCommit": "5ddeb21c7dbfecef987ca498e0bc0694be3a348d"
+}

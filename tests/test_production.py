@@ -287,3 +287,47 @@ def test_fernet_secret_is_a_valid_key_and_stays_stable(tmp_path):
     stack.materialize_secrets()
     assert projection.read_text().strip() == key            # never regenerated
     assert (layout.secrets / "journal-master-key").read_text() == key
+
+
+def test_upgrade_adds_new_apps_to_an_existing_installation(tmp_path):
+    # 0.1.1 -> 0.2.0 on the real server: platform.toml and the domain store only know the ten
+    # original apps; after 'configure' enables the new ones, 'apply --reconfigure' must add their
+    # domain records, overrides and secrets without touching the existing ones.
+    from schulplattform.production import Platform
+    old_apps = APP_IDS[:10]
+    new_apps = APP_IDS[10:]
+    assert set(new_apps) == {"fundkiste", "schuleva", "schulkasse", "schulanmeldung", "sl-journal"}
+    old = sample()
+    old["apps"] = {app: old["apps"][app] for app in old_apps}
+    path = tmp_path / "platform.toml"
+    cfg.write(old, path)
+
+    def platform_for(config):
+        platform = Platform.__new__(Platform)
+        platform.config = cfg.load(path) if config is None else config
+        platform.layout = Layout(tmp_path / "root")
+        platform.layout.prepare()
+        platform.stack = Stack(platform.layout, platform.config, FakeRelease())
+        platform._domains = None
+        return platform
+
+    before = platform_for(None)
+    secret = lambda: (before.layout.runtime / "gswb-key").read_text()
+    (before.layout.secrets / "smtp-password").write_text("x" * 40)
+    (before.layout.secrets / "smtp-password").chmod(0o600)
+    domains = before.current_domains()
+    assert set(domains) == set(old_apps)
+    before.stack.render(domains)
+    gswb_key = secret()
+
+    cfg.write(sample(), path)                      # what the wizard writes after 'configure'
+    after = platform_for(None)
+    domains = after.current_domains()
+    assert set(domains) == set(APP_IDS)
+    assert all(domains[app] == f"{app}.schule.example" for app in new_apps)
+    after.stack.render(domains)
+    for app in new_apps:
+        assert (after.layout.generated / f"{app}.yml").is_file()
+    assert secret() == gswb_key                    # existing secrets are kept
+    stored = json.loads((after.layout.domains / "current.json").read_text())["domains"]
+    assert set(stored) == set(APP_IDS)

@@ -1,0 +1,17 @@
+{
+  "app": "schulwissen",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/pilot-checks.json",
+      "sha256": "a0d6aacfb551db300a2e0886ad0d45f47a8dcd98884f63df196d8c389594d06e"
+    }
+  ],
+  "item": "negativeAccess",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "ce697abe0b64a6b7867f5cc1bf97c038d529ecd3",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "negativeAccess evidence from the local pilot work packages.",
+  "testedCommit": "225e4dd144a42c79b7db0855aa850bf54ec7d956"
+}

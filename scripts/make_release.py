@@ -137,9 +137,10 @@ class Builder:
         (self.out / "bundle.sig").write_bytes(key.sign(raw))
 
 
-def app_manifest(builder, app_id, index_entry):
+def app_manifest(builder, app_id, index_entry, version=None):
+    version = version or builder.version
     cwd = ROOT / ".work/apps" / app_id
-    tag = "v" + builder.version
+    tag = "v" + version
     commit = run("git", "rev-parse", f"{tag}^{{commit}}", cwd=cwd).strip()
     # SSH over port 443: also works for private repositories (schulanmeldung).
     remote = run("git", "ls-remote", f"ssh://git@ssh.github.com:443/Bingenberger/{app_id}.git", f"refs/tags/{tag}^{{}}",
@@ -152,7 +153,7 @@ def app_manifest(builder, app_id, index_entry):
         raise SystemExit(f"{app_id}: release commit differs from the tested commit beyond the release workflow: {changed}")
     images, inspections = {}, {}
     for name, _target in RELEASE_IMAGES[app_id]:
-        reference = registry.pinned(f"{REGISTRY}/{name}:{builder.version}")
+        reference = registry.pinned(f"{REGISTRY}/{name}:{version}")
         info = registry.inspect(reference)
         if (info["architecture"], info["os"]) != ("amd64", "linux"):
             raise SystemExit(f"{name}: not a linux/amd64 image")
@@ -229,15 +230,18 @@ def main():
     parser.add_argument("--apps", default=",".join(APP_IDS))
     parser.add_argument("--platform-version", help="tag of the platform images (default: --version)")
     parser.add_argument("--bundle-version", help="release name of the bundle (default: --version)")
+    parser.add_argument("--app-version", action="append", default=[], metavar="APP=VERSION",
+                        help="tag of one app that differs from --version (repeatable)")
     args = parser.parse_args()
     builder = Builder(args.version, args.out)
     builder.bundle_version = args.bundle_version or args.version
     index = {entry["app"]: entry for entry in json.loads((ROOT / "patches/index.json").read_text())}
     tested = json.loads((ROOT / "patches/tested-commits.json").read_text())
+    overrides = dict(item.split("=", 1) for item in args.app_version)
     manifests = []
     for app_id in args.apps.split(","):
         entry = dict(index[app_id], testedCommit=tested[app_id])
-        manifests.append(app_manifest(builder, app_id, entry))
+        manifests.append(app_manifest(builder, app_id, entry, overrides.get(app_id)))
         print(f"{app_id}: {manifests[-1]['image']}")
     platform_version = args.platform_version or args.version
     platform_commit = run("git", "rev-parse", f"v{platform_version}^{{commit}}", cwd=ROOT).strip()

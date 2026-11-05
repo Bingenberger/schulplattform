@@ -1,0 +1,17 @@
+{
+  "app": "losverkauf",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/losverkauf-standalone.json",
+      "sha256": "ec2823c9868d2164eacd7f067672e0defdbb73b072794ba1d7fa0c40776ea77f"
+    }
+  ],
+  "item": "standalone",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "4627267f3513794bd93327391a7194b900bcacc1",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "standalone evidence from the local pilot work packages.",
+  "testedCommit": "9b4e7762269bd54d96ba23426a218d9df38d5bb4"
+}

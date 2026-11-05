@@ -1,0 +1,12 @@
+{
+  "app": "schulhelfer",
+  "artifacts": [],
+  "images": {
+    "schulhelfer": "ghcr.io/bingenberger/schulhelfer:0.1.0@sha256:def236d9681785a5f9250ca46728960f033104033b701b58e99cad6a6c6b5fa0"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}

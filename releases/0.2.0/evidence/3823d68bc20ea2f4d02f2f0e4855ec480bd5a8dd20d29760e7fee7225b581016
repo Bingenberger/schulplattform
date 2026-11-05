@@ -1,0 +1,84 @@
+{
+  "scope": "five-app pilot with verified local CA, synthetic district and personal administrator",
+  "apps": [
+    "gswb",
+    "schulwissen",
+    "zackboing",
+    "schulhelfer",
+    "losverkauf"
+  ],
+  "installationId": "8adc0e18-8a86-401d-a5ce-2116753bdb36",
+  "imageId": "sha256:03ab71f3b5ef448d4eaae0cec5f6b4b991f1df5e5ec0e6b1a7197dddb974606e",
+  "privateBackend": true,
+  "secureAdminCookie": true,
+  "domainChange": true,
+  "forcedFailureRollback": true,
+  "originalDomainRestored": true,
+  "existingEditTokenAndOwnership": true,
+  "twoNoopRuns": true,
+  "sameContainersKeysAndCheckpoints": true,
+  "stopMaintenance503": true,
+  "noRepeatedMigration": true,
+  "checks": [
+    {
+      "domain": "lose.localhost",
+      "parentTokenRequired": true,
+      "personalAdminLogin": true,
+      "csrfRequired": true,
+      "existingCapabilityOwnership": true,
+      "canonicalParentLink": true,
+      "pdfAndCsv": true,
+      "localLeaflet": true,
+      "mailUsesConfiguredOrigin": true,
+      "spoofedForwardedHostIgnored": true,
+      "personalResumeLink": true
+    },
+    {
+      "domain": "lose-neu.localhost",
+      "parentTokenRequired": true,
+      "personalAdminLogin": true,
+      "csrfRequired": true,
+      "existingCapabilityOwnership": true,
+      "canonicalParentLink": true,
+      "pdfAndCsv": true,
+      "localLeaflet": true,
+      "mailUsesConfiguredOrigin": true,
+      "spoofedForwardedHostIgnored": true,
+      "personalResumeLink": true
+    },
+    {
+      "domain": "lose-neu.localhost",
+      "parentTokenRequired": true,
+      "personalAdminLogin": true,
+      "csrfRequired": true,
+      "existingCapabilityOwnership": true,
+      "canonicalParentLink": true,
+      "pdfAndCsv": true,
+      "localLeaflet": true,
+      "mailUsesConfiguredOrigin": true,
+      "spoofedForwardedHostIgnored": true,
+      "personalResumeLink": true
+    },
+    {
+      "domain": "lose.localhost",
+      "parentTokenRequired": true,
+      "personalAdminLogin": true,
+      "csrfRequired": true,
+      "existingCapabilityOwnership": true,
+      "canonicalParentLink": true,
+      "pdfAndCsv": true,
+      "localLeaflet": true,
+      "mailUsesConfiguredOrigin": true,
+      "spoofedForwardedHostIgnored": true,
+      "personalResumeLink": true
+    }
+  ],
+  "limits": [
+    "No public DNS/ACME ownership test",
+    "No global session revocation",
+    "At-least-once mail can duplicate after SMTP/crash race",
+    "No encrypted offsite/secretstore backup or capacity measurement",
+    "No browser automation"
+  ],
+  "stoppedDataRetained": true
+}

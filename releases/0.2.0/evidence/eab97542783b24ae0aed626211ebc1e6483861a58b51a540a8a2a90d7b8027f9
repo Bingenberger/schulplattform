@@ -1,0 +1,36 @@
+{
+  "app": "fahrradausbildung",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/fahrrad-image.json",
+      "sha256": "c693257c08e635745111ce3511e065d37082296837ff058c30a0f2d159e76dec"
+    }
+  ],
+  "images": {
+    "fahrradausbildung": "ghcr.io/bingenberger/fahrradausbildung:0.1.0@sha256:aa3f4bc8d61661df19ec3c0f871d5baa019069461f0e17237cb463edd5578df5"
+  },
+  "inspection": {
+    "fahrradausbildung": {
+      "architecture": "amd64",
+      "attestationPredicates": [
+        "https://slsa.dev/provenance/v1",
+        "https://spdx.dev/Document"
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "92b6e590cab5f88087d1a4521e4a53fa90f272cd",
+        "org.opencontainers.image.source": "https://github.com/Bingenberger/fahrradausbildung",
+        "org.opencontainers.image.version": "0.1.0"
+      },
+      "os": "linux",
+      "user": "10001:10001"
+    }
+  },
+  "item": "amd64Build",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "92b6e590cab5f88087d1a4521e4a53fa90f272cd",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "Published linux/amd64 image(s) with revision label, SBOM and provenance.",
+  "testedCommit": "4e007ffd20e5236cf82b7d4a9f72f873fa1ae2fe"
+}

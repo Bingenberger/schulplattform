@@ -2,6 +2,7 @@
 """Write the managed release workflow into each isolated app checkout and commit it.
 
 Does not push. Image names and Dockerfile targets come from RELEASE_IMAGES.
+usage: install_release_workflows.py [APP ...]   (default: every app)
 """
 from pathlib import Path
 import subprocess
@@ -18,7 +19,9 @@ MESSAGE = ("Publish versioned amd64 release images to GHCR on version tags\n\n"
 
 
 def main():
-    for app, images in RELEASE_IMAGES.items():
+    selected = sys.argv[1:] or list(RELEASE_IMAGES)
+    for app in selected:
+        images = RELEASE_IMAGES[app]
         cwd = ROOT / ".work/apps" / app
         spec = " ".join(f"{name}={target or '-'}" for name, target in images)
         path = cwd / TARGET

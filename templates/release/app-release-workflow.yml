@@ -22,10 +22,15 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Checkout tagged commit
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
           git init -q src
-          git -C src fetch -q --depth=1 "https://github.com/${GITHUB_REPOSITORY}.git" "${GITHUB_SHA}"
+          # The token makes the fetch work for private repositories as well.
+          auth="$(printf 'x-access-token:%s' "${REPO_TOKEN}" | base64 -w0)"
+          git -C src -c http.extraheader="AUTHORIZATION: basic ${auth}" \
+            fetch -q --depth=1 "https://github.com/${GITHUB_REPOSITORY}.git" "${GITHUB_SHA}"
           git -C src checkout -q FETCH_HEAD
       - name: Build and publish
         env:

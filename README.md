@@ -22,6 +22,11 @@ Jede App bleibt ein eigenes Repository mit eigener `docker-compose.yml` und läs
 | leseflux | Leseflüssigkeitstraining | [leseflux](https://github.com/Bingenberger/leseflux) | `ghcr.io/bingenberger/leseflux` |
 | kompetenz-manager | Kompetenzbeobachtung und Schülerakte | [kompetenz-manager](https://github.com/Bingenberger/kompetenz-manager) | `ghcr.io/bingenberger/kompetenz-manager` |
 | abgen | Arbeitsblatt-Editor (gemeinsames Bearbeiten, PDF) | [abgen](https://github.com/Bingenberger/abgen) | `ghcr.io/bingenberger/abgen`, `…/abgen-pdf` |
+| fundkiste | Fundsachen mit Foto und QR-Code | [fundkiste](https://github.com/Bingenberger/fundkiste) | `ghcr.io/bingenberger/fundkiste` |
+| schuleva | Schulbefragungen mit TANs und Auswertung | [schuleva](https://github.com/Bingenberger/schuleva) | `ghcr.io/bingenberger/schuleva` |
+| schulkasse | Klassen- und Schulkassen | [schulkasse](https://github.com/Bingenberger/schulkasse) | `ghcr.io/bingenberger/schulkasse` |
+| schulanmeldung | Schulanmeldung und Sekretariat (SL-Office) | privat | `ghcr.io/bingenberger/schulanmeldung` |
+| sl-journal | Schulleitungsjournal (verschlüsselt) | [SL-Journal](https://github.com/Bingenberger/SL-Journal) | `ghcr.io/bingenberger/sl-journal` |
 
 Infrastruktur auf dem Server:
 - Caddy als Proxy mit ACME
@@ -65,7 +70,7 @@ curl -fsSLO https://github.com/Bingenberger/schulplattform/archive/refs/heads/ma
 
 Danach entpacken.
 
-Der Branch `main` enthält den Code des aktuellen Release, dessen **signiertes Bundle** (`releases/0.1.1`) und den öffentlichen Prüfschlüssel (`release-keys/schulplattform-release.pub`). Vergleichen Sie den Fingerabdruck des Schlüssels auf einem zweiten Weg, etwa telefonisch oder auf einem anderen Gerät:
+Der Branch `main` enthält den Code des aktuellen Release, dessen **signiertes Bundle** (`releases/0.2.0`) und den öffentlichen Prüfschlüssel (`release-keys/schulplattform-release.pub`). Vergleichen Sie den Fingerabdruck des Schlüssels auf einem zweiten Weg, etwa telefonisch oder auf einem anderen Gerät:
 
 ```sh
 python3 -c "import hashlib,base64;k=open('release-keys/schulplattform-release.pub').read().split('\n')[1];print('SHA256:'+hashlib.sha256(base64.b64decode(k)[-32:]).hexdigest())"
@@ -79,8 +84,8 @@ Das Release fixiert jedes Image über Version **und** Digest. Ein verändertes B
 ```sh
 ./install.sh preflight      # nur lesend; muss "blockers": [] melden
 ./install.sh configure      # Assistent: Domains je App, Verwaltungsdomain, Let's-Encrypt-Kontakt, IP, SMTP, Backup
-./install.sh smtp-password --bundle releases/0.1.1 --trusted-key release-keys/schulplattform-release.pub  # nur bei SMTP mit Anmeldung (verdeckte Eingabe)
-./install.sh apply --bundle releases/0.1.1 --trusted-key release-keys/schulplattform-release.pub
+./install.sh smtp-password --bundle releases/0.2.0 --trusted-key release-keys/schulplattform-release.pub  # nur bei SMTP mit Anmeldung (verdeckte Eingabe)
+./install.sh apply --bundle releases/0.2.0 --trusted-key release-keys/schulplattform-release.pub
 ./install.sh admin-setup    # persönlicher Plattform-Admin mit TOTP
 ./install.sh app-setup APP  # Erstzugang je App, bei Bedarf
 ```
@@ -124,6 +129,8 @@ Runbook: [docs/betrieb/umzug.md](docs/betrieb/umzug.md)
 ## Stand und Grenzen
 
 Release 0.1.0 ist in lokalen Ubuntu-24.04-VMs mit Test-CA und Test-DNS abgenommen. 0.1.1 korrigiert nur die interaktiven Konsolenabfragen (`configure`, `admin-setup`, `app-setup`, `smtp-password`); App-Images sind unverändert: [docs/implementation/nachauftrag-status.md](docs/implementation/nachauftrag-status.md).
+
+0.2.0 (5. November 2026) ergänzt fünf Apps: fundkiste, schuleva, schulkasse, schulanmeldung und sl-journal. Die zehn bisherigen App-Images sind unverändert. Die neuen Apps sind lokal mit Docker Compose und der Plattform-Konfiguration geprüft, aber noch nicht auf dem Server. Aktualisieren: [docs/betrieb/bereitstellung.md](docs/betrieb/bereitstellung.md#aktualisieren-auf-ein-neues-release).
 
 Offen sind:
 - die Abnahme auf dem echten Server (Let's Encrypt, Erreichbarkeit, SMTP-Anbieter, Lastmessungen)

@@ -1,0 +1,13 @@
+{
+  "app": "abgen",
+  "artifacts": [],
+  "images": {
+    "abgen": "ghcr.io/bingenberger/abgen:0.1.0@sha256:dc311a34b044d7cb00bc71ac7db6ad2ca442bf875ec27265706da04b2df814fa",
+    "abgen-pdf": "ghcr.io/bingenberger/abgen-pdf:0.1.0@sha256:d6418abaa3ab29fac5ad5cd9f96814523c38abd72ab62057bd8159db9812827c"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}

@@ -1,0 +1,24 @@
+{
+  "imageId": "sha256:f47591e54cf0e6e8182cc2624bbbc8f38c7070beada1abfc129ab94d3cc1f248",
+  "standalone": true,
+  "migrationExplicit": true,
+  "noDefaultAccount": true,
+  "headlessSetupDenied": true,
+  "nonRootReadOnly": true,
+  "databaseRoleUnprivileged": true,
+  "twoWebWorkersObserved": true,
+  "stationCapabilityAndPwaPublic": true,
+  "csrfAndCrossSchoolDenied": true,
+  "eventRetryIdempotent": true,
+  "pdfGenerated": true,
+  "sharedExportBusy503WhileLive200": true,
+  "parallelLoginFailures": {
+    "accepted": 10,
+    "blocked": 4
+  },
+  "loginLimitAndSessionSurviveRestart": true,
+  "databaseOutageLive200Ready503": true,
+  "noSecretsInContainerEnvOrLogs": true,
+  "browserOffline": "not exercised by this HTTP proof",
+  "stoppedDataRetained": true
+}

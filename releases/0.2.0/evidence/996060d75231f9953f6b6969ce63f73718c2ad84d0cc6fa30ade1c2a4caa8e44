@@ -1,0 +1,21 @@
+{
+  "app": "schulwissen",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/schulwissen-http-restore.json",
+      "sha256": "3f8331ccbbad97a82fd3f28bd4e9a5953b430ec8744419a23b68726010d33eff"
+    },
+    {
+      "path": "docs/implementation/evidence/pilot-postgres-restore.json",
+      "sha256": "ce9901939b92dd1aa25f4199b8471f0bee86e3d34fbc84a398f59f9771142fcc"
+    }
+  ],
+  "item": "restore",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "ce697abe0b64a6b7867f5cc1bf97c038d529ecd3",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "restore evidence from the local pilot work packages.",
+  "testedCommit": "225e4dd144a42c79b7db0855aa850bf54ec7d956"
+}
