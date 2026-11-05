@@ -57,6 +57,8 @@ def create_transfer_key(platform):
 
 
 def decrypt(platform, archive, destination):
+    if not Path(archive).is_file():
+        raise StateError(f"Archive {archive} not found (check the file name)")
     key = SecretStore(platform.layout.secrets).path(TRANSFER_KEY)
     if not key.exists():
         raise StateError("No transfer key on this server; run './install.sh import-key' first")

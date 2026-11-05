@@ -305,6 +305,9 @@ def test_import_decrypt_error_names_the_gpg_reason(tmp_path):
     altserver.gpg_encrypt(plain, archive, other)               # encrypted for a different server
     work = tmp_path / "work"
     work.mkdir(mode=0o700)
+    # Real server: a typo in the file name was reported as a wrong transfer key.
+    with pytest.raises(StateError, match="not found"):
+        importer.decrypt(platform, tmp_path / "tippfehler.tar.gpg", work)
     with pytest.raises(StateError, match="gpg: .+"):
         importer.decrypt(platform, archive, work)
 
