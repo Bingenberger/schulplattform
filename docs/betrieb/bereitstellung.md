@@ -65,6 +65,7 @@ Ein zweiter Aufruf ändert nichts. Ein abgebrochener Aufruf setzt beim letzten n
 ./install.sh admin-setup              # persönlicher Plattform-Admin, Passwort + TOTP
 ./install.sh app-setup schulwissen    # Erstzugang je App, nur bei Bedarf
 ./install.sh reconcile                # nachgezogene DNS-Einträge aktivieren (läuft auch stündlich per Timer)
+./install.sh domain-change APP HOST  # Hostname einer installierten App wechseln (configure allein ändert ihn nicht)
 ./install.sh status
 ```
 

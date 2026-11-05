@@ -331,3 +331,21 @@ def test_upgrade_adds_new_apps_to_an_existing_installation(tmp_path):
     assert secret() == gswb_key                    # existing secrets are kept
     stored = json.loads((after.layout.domains / "current.json").read_text())["domains"]
     assert set(stored) == set(APP_IDS)
+
+
+def test_status_points_out_hostnames_changed_only_in_configure(tmp_path):
+    # Real server: 'configure' set zackboing.gsndk.de, but the platform kept serving quiz.gsndk.de
+    # without saying so; the change needs 'domain-change'.
+    import types
+    from schulplattform.installer import _domain_notes
+    layout, stack, domains = render(tmp_path, sample(**{"apps.zackboing.hostname": "zackboing.schule.example"}))
+    active = dict(domains, zackboing="quiz.schule.example")
+    platform = types.SimpleNamespace(stack=stack, config=stack.config, layout=layout)
+    notes = _domain_notes(platform, active)
+    assert notes == ["Hinweis: zackboing läuft unter quiz.schule.example, platform.toml nennt "
+                     "zackboing.schule.example. Umstellen mit: ./install.sh domain-change zackboing "
+                     "zackboing.schule.example"]
+    assert _domain_notes(platform, domains) == []
+    (layout.domains / "pending.json").write_text(json.dumps({
+        "status": "recovery-required", "old": {"domains": active}, "candidate": {"domains": domains}}))
+    assert "nicht abgeschlossen" in _domain_notes(platform, domains)[0]

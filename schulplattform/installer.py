@@ -398,6 +398,25 @@ def _mark_bootstrap(platform_, dashboardAdmin=None, app=None):
     atomic_json(path, data)
 
 
+def _domain_notes(platform_, domains):
+    """Hostnames changed with 'configure' only take effect through 'domain-change'."""
+    notes = []
+    for app in platform_.stack.apps:
+        wanted = platform_.config['apps'][app]['hostname']
+        if domains.get(app) and domains[app] != wanted:
+            notes.append(f"Hinweis: {app} läuft unter {domains[app]}, platform.toml nennt {wanted}. "
+                         f"Umstellen mit: ./install.sh domain-change {app} {wanted}")
+    pending = platform_.layout.domains / 'pending.json'
+    if pending.exists():
+        data = json.loads(pending.read_text())
+        if data.get('status') not in ('committed', 'rolled-back'):
+            changed = sorted(app for app, host in data['candidate']['domains'].items()
+                             if data['old']['domains'].get(app) != host)
+            notes.append(f"Hinweis: Domainwechsel für {', '.join(changed)} nicht abgeschlossen "
+                         f"(Status {data.get('status')}); der nächste domain-change schließt ihn ab.")
+    return notes
+
+
 def _print_status(platform_, result):
     from .routing import MANAGEMENT
     status = platform_.router().load()
@@ -419,6 +438,7 @@ def _print_status(platform_, result):
         if entry.get('phase') == 'dns-ausstehend':
             wanted = f"A {ip4}" + (f" / AAAA {ip6}" if ip6 else '')
             lines.append(f"  {'':18} -> DNS beim Provider setzen: {host}  {wanted}   ({entry.get('reason', '')})")
+    lines += _domain_notes(platform_, domains)
     bootstrap = platform_.layout.state / 'bootstrap.json'
     if bootstrap.exists():
         data = json.loads(bootstrap.read_text())
