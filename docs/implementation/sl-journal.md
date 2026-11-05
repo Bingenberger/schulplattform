@@ -29,9 +29,9 @@ Server, Release-Image aus GitHub Actions, Android-App gegen die Plattform-Adress
 - Export-Werkzeug: `secret_files` (Schlüsseldateien außerhalb der Daten), `requires_stopped`,
   `env_defaults`, Ausschlüsse je Quellverzeichnis.
 
-## Offene Entscheidung: Netzfreigabe
+## Entscheidung: Netzfreigabe (2026-11-05)
 
-Die mitgelieferte nginx-Vorlage ließ nur einen VPN-Adressbereich zu (Lastenheft: offene Entscheidung).
-Die Plattform veröffentlicht jede App über Caddy im Internet; geschützt ist das Journal dann durch
-HTTPS, Passwort (≥ 14 Zeichen), TOTP und serverseitige Begrenzung von Fehlversuchen. Eine
-Beschränkung auf Adressbereiche bietet die Plattform bisher nicht.
+Das Journal ist auf der Plattform **öffentlich** erreichbar. Die VPN-Beschränkung der mitgelieferten
+nginx-Vorlage stammte aus dem bisherigen Betrieb (LXC-Container auf einem Heimserver hinter einem
+externen Reverse-Proxy) und entfällt. Schutz: HTTPS, Passwort (≥ 14 Zeichen), TOTP und
+serverseitige Begrenzung von Fehlversuchen. Eine Beschränkung auf Adressbereiche ist nicht nötig.
