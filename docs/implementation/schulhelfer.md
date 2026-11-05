@@ -115,3 +115,17 @@ Prune, kein down -v. Ältere Testgenerationen werden nicht als neu freigegeben.
 
 Die Testdienste sind gestoppt; Testdaten und Sicherungsarchive bleiben erhalten.
 Sechs weitere Apps und die übergreifenden Pflichtpakete bleiben offen.
+
+## Release 0.1.1 (5. November 2026): Übernahme der Altdatenbank
+
+Die alte Version legte ihre Tabellen bei jedem Start mit `create_all` an und stempelte Alembic nie.
+Die explizite Migration von 0.1.0 verweigerte darum jede bestehende Datenbank („Unversioned existing
+database“). Commit `a30453e` vergleicht die Struktur einer solchen Datenbank mit dem, was die
+mitgelieferten Migrationen je Revision erzeugen: Tabellen, Spalten mit Typ, Pflichtfeld und
+Primärschlüssel, Fremdschlüssel und eindeutige Spaltengruppen. Bei exakter Übereinstimmung mit
+`b7c2e9a41d38` oder `a5ef5d7feb55` wird diese Revision gestempelt und vorwärts migriert. Sonst bricht
+die Migration ab und nennt die abweichenden Tabellen, ohne etwas zu ändern. Die Abbruchmeldung des
+Migrationsjobs enthält jetzt den Grund.
+
+Tests (Test-Image, read-only, ohne Netz): 64/64, davon neu eine `create_all`-Datenbank des
+Basis-Commits, eine ohne die Spalte `token` und eine mit fremder Spalte, die abgelehnt wird.

@@ -50,7 +50,7 @@
   {
     "app": "schulhelfer",
     "baseCommit": "01fb181a120a215d8ec9935a05ade3abbcba3309",
-    "implementationCommit": "71e10ee8108a0c19902faf4caa4d9427263946b7",
+    "implementationCommit": "a30453e4c6a298d296a0ff6bc9899ad839b4d980",
     "patch": "patches/schulhelfer/changes.patch"
   },
   {

@@ -1,0 +1,46 @@
+{
+  "acceptance": {
+    "amd64Build": "ab8e329d2e456c14a2d13573222e6c1e7b6523929df68816fdee235c44d2f8c9",
+    "domainRollback": "baeffecaed4c9ae8a118ec2e0d4692888776cade911a11bc93512d719f1a5dee",
+    "licenses": "dc7549b2b812e2654547cc67b36345e1562eff622f727aba17dd0d2a62cf5b97",
+    "negativeAccess": "b7ea2d15f8c3a533f7daa1e8ee92e211c26e0c439e6dd3e5cd1e0394bacf79a9",
+    "restore": "9670e5f62bd430f2935b758b3aef1c23c8280de2965022532472a32285e39ebf",
+    "sbom": "4a93a1e5d186c10dcc49c2b5cef7b26a48dc74ae676bbf45c4aef8f6c1a58a04",
+    "standalone": "728f6ec9431a81167e921adf199fc1ba45225c7bd2b99464b829780b58476a2a"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/schulanmeldung/docker-compose.yml"
+  ],
+  "database": {
+    "account": "schulanmeldung",
+    "engine": "sqlite",
+    "name": "schulanmeldung"
+  },
+  "domainEnvironment": [
+    "SL_OFFICE_PUBLIC_BASE_URL"
+  ],
+  "health": {
+    "live": "/health/live",
+    "ready": "/health/ready"
+  },
+  "id": "schulanmeldung",
+  "image": "ghcr.io/bingenberger/schulanmeldung:0.1.1@sha256:846de364d06ee1c56e28cb39d4c636eb6558bafd2b1bd4b56ec73ba81d6ae0e7",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "data",
+      "mount": "/data",
+      "owner": "10001:10001"
+    }
+  ],
+  "port": 8000,
+  "resources": {
+    "cpus": 1.0,
+    "exportSlotsPerProcess": 1,
+    "memoryMiB": 768,
+    "workers": 2
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "28d9652a293e188a3dbecc320cc982c614f1cb48"
+}

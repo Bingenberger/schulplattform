@@ -1,0 +1,17 @@
+{
+  "app": "schulhelfer",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/schulhelfer-platform.json",
+      "sha256": "571aa8f580f7f7588e46ef4df77648218c945b03b9c4c73ad2a535c0c0b6d0ec"
+    }
+  ],
+  "item": "negativeAccess",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "a30453e4c6a298d296a0ff6bc9899ad839b4d980",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "negativeAccess evidence from the local pilot work packages.",
+  "testedCommit": "a30453e4c6a298d296a0ff6bc9899ad839b4d980"
+}

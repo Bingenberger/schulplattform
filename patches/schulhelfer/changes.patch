@@ -1,7 +1,7 @@
 From 9b2237162956d80c32befa05c6ab08a24092444f Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Mon, 2 Nov 2026 21:18:09 +0100
-Subject: [PATCH 1/4] Add isolated standalone runtime, explicit migrations and
+Subject: [PATCH 1/5] Add isolated standalone runtime, explicit migrations and
  private local setup
 
 ---
@@ -1844,7 +1844,7 @@ index 9079df5..3e854bb 100644
 From 721563454b9362f15ddca1e1ae4a810d865161a4 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Mon, 2 Nov 2026 21:23:19 +0100
-Subject: [PATCH 2/4] Add isolated standalone runtime, explicit migrations and
+Subject: [PATCH 2/5] Add isolated standalone runtime, explicit migrations and
  private local setup
 
 ---
@@ -1942,7 +1942,7 @@ index 904655d..a848d6a 100644
 From 7df1e3793736e9556b483d8d1e144691a563bcda Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 08:19:22 +0100
-Subject: [PATCH 3/4] Publish versioned amd64 release images to GHCR on version
+Subject: [PATCH 3/5] Publish versioned amd64 release images to GHCR on version
  tags
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -2020,7 +2020,7 @@ index 0000000..932fa63
 From 71e10ee8108a0c19902faf4caa4d9427263946b7 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 12:12:35 +0100
-Subject: [PATCH 4/4] README: Installation im Rahmen der Schulplattform und
+Subject: [PATCH 4/5] README: Installation im Rahmen der Schulplattform und
  Standalone; veraltete Angaben korrigiert
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -2071,6 +2071,177 @@ index ea6c5a0..28be7eb 100644
  ## Eigenständiger Dockerbetrieb
  
  ```sh
+-- 
+2.43.0
+
+
+From a30453e4c6a298d296a0ff6bc9899ad839b4d980 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Thu, 5 Nov 2026 20:26:24 +0100
+Subject: [PATCH 5/5] Migration: adopt create_all databases of the old version
+ after an exact structure check
+
+The old release built its tables with create_all and never stamped
+Alembic, so the explicit migration refused every existing database.
+A database whose tables, columns, keys and unique sets equal a bundled
+revision exactly is stamped with it and migrated forward; anything else
+is refused with the differing tables. The refusal reason is now printed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ app/migrate.py                  | 70 +++++++++++++++++++++++++++++----
+ contract_tests/test_contract.py | 49 +++++++++++++++++++++++
+ 2 files changed, 112 insertions(+), 7 deletions(-)
+
+diff --git a/app/migrate.py b/app/migrate.py
+index 5918ab3..5fb3476 100644
+--- a/app/migrate.py
++++ b/app/migrate.py
+@@ -9,6 +9,62 @@ from app.database import engine
+ from app.platform import data_lock, database_path, HEAD, SCHEMA
+ 
+ 
++ADOPTABLE = ("b7c2e9a41d38", "a5ef5d7feb55")   # newest first
++
++
++def _structure(connection):
++    """Tables with columns, foreign keys and unique column sets, as SQLite reports them."""
++    result = {}
++    names = [row[0] for row in connection.exec_driver_sql(
++        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' "
++        "AND name <> 'alembic_version'")]
++    for table in sorted(names):
++        quoted = '"' + table.replace('"', '""') + '"'
++        columns = sorted((row[1], (row[2] or "").upper(), bool(row[3]), row[5])
++                         for row in connection.exec_driver_sql(f"PRAGMA table_info({quoted})"))
++        keys = sorted((row[2], row[3], row[4]) for row in connection.exec_driver_sql(f"PRAGMA foreign_key_list({quoted})"))
++        uniques = set()
++        for index in connection.exec_driver_sql(f"PRAGMA index_list({quoted})").fetchall():
++            if index[2] and index[3] != "pk":
++                name = '"' + index[1].replace('"', '""') + '"'
++                uniques.add(tuple(sorted(row[2] for row in connection.exec_driver_sql(f"PRAGMA index_info({name})"))))
++        result[table] = {"columns": columns, "foreignKeys": keys, "unique": sorted(uniques)}
++    return result
++
++
++def _reference(revision):
++    """Structure that the bundled migrations produce at one revision (private in-memory database)."""
++    from sqlalchemy import create_engine
++    engine_ = create_engine("sqlite://")
++    with engine_.connect() as connection:
++        cfg = _config(connection)
++        command.upgrade(cfg, revision)
++        connection.commit()
++        return _structure(connection)
++
++
++def _config(connection):
++    cfg = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
++    cfg.set_main_option("script_location", str(Path(__file__).resolve().parents[1] / "migrations"))
++    cfg.attributes["connection"] = connection
++    return cfg
++
++
++def adopt(connection):
++    """Old installs built their tables with create_all and never stamped Alembic. Stamp only a database
++    whose structure equals a known revision exactly; anything else is refused with the difference."""
++    actual = _structure(connection)
++    for revision in ADOPTABLE:
++        if actual == _reference(revision):
++            command.stamp(_config(connection), revision)
++            return revision
++    expected = _reference(ADOPTABLE[0])
++    tables = sorted(set(actual) ^ set(expected)) or sorted(
++        name for name in actual if actual[name] != expected.get(name))
++    raise RuntimeError("Unversioned existing database differs from every known schema (tables: "
++                       + ", ".join(tables[:8]) + "); reviewed adoption required")
++
++
+ def migrate():
+     path = database_path()
+     with data_lock("migration"):
+@@ -20,11 +76,9 @@ def migrate():
+                     raise RuntimeError("Unsupported database schema")
+                 tables = set(inspect(connection).get_table_names()) - {"sqlite_sequence"}
+                 if tables and "alembic_version" not in tables:
+-                    raise RuntimeError("Unversioned existing database: reviewed adoption required")
+-                cfg = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+-                cfg.set_main_option("script_location", str(Path(__file__).resolve().parents[1] / "migrations"))
+-                cfg.attributes["connection"] = connection
+-                command.upgrade(cfg, HEAD)
++                    adopted = adopt(connection)
++                    print(f"Unversioned database adopted as {adopted} (structure verified).")
++                command.upgrade(_config(connection), HEAD)
+                 if connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall():
+                     raise RuntimeError("Foreign key check failed")
+                 connection.exec_driver_sql("PRAGMA user_version=" + str(SCHEMA))
+@@ -39,5 +93,7 @@ if __name__ == "__main__":
+     try:
+         migrate()
+         print("Migration verified.")
+-    except Exception:
+-        raise SystemExit("Migration refused or failed; inspect the private database and release compatibility.")
++    except Exception as exc:
++        # The message names schema facts only (revisions, table names), never data or secrets.
++        raise SystemExit("Migration refused or failed; inspect the private database and release compatibility: "
++                         + str(exc)[:500])
+diff --git a/contract_tests/test_contract.py b/contract_tests/test_contract.py
+index a848d6a..dd02af5 100644
+--- a/contract_tests/test_contract.py
++++ b/contract_tests/test_contract.py
+@@ -156,3 +156,52 @@ with SessionLocal() as db:
+ """
+     result = call(source, path)
+     assert result.returncode == 0, result.stderr
++
++
++LEGACY = """
++import sqlite3, sys
++from sqlalchemy import create_engine
++from app.database import Base
++from app import models
++engine = create_engine('sqlite:///' + sys.argv[1])
++Base.metadata.create_all(engine)          # exactly what the old init_db() did on every start
++with sqlite3.connect(sys.argv[1]) as db:
++    db.execute("INSERT INTO event(id,name,event_date,status,retention_weeks,created_at) VALUES(1,'Schulfest','2026-06-20','open',8,'2026-05-01')")
++    db.execute("INSERT INTO klasse(id,label,school_year,active) VALUES(1,'1a','2025/26',1)")
++    db.execute("INSERT INTO participant(id,event_id,name,email,klasse_id,token_hash,created_at) VALUES(1,1,'Eltern','e@x.invalid',1,'h','2026-05-02')")
++"""
++
++
++def legacy_database(path, drop_token=False):
++    result = subprocess.run([sys.executable, "-c", LEGACY, str(path)], capture_output=True, text=True, timeout=30,
++                            env=os.environ | {"SECRET_KEY": "synthetic-session-fixture-key-0123456789"})
++    assert result.returncode == 0, result.stderr
++    if drop_token:
++        with sqlite3.connect(path) as db:
++            db.execute("ALTER TABLE participant DROP COLUMN token")
++
++
++@pytest.mark.parametrize("drop_token,revision", [(False, "b7c2e9a41d38"), (True, "a5ef5d7feb55")])
++def test_create_all_database_of_the_old_version_is_adopted(tmp_path, drop_token, revision):
++    # Real old server: app.db built by create_all (no alembic_version); the import was refused.
++    path = tmp_path / "app.db"
++    legacy_database(path, drop_token)
++    result = call("from app.migrate import migrate;migrate();migrate();from app.platform import schema_ready;assert schema_ready()", path)
++    assert result.returncode == 0, result.stderr
++    assert f"adopted as {revision}" in result.stdout
++    with sqlite3.connect(path) as db:
++        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("b7c2e9a41d38",)
++        assert db.execute("SELECT name, email FROM participant").fetchall() == [("Eltern", "e@x.invalid")]
++        assert "token" in [row[1] for row in db.execute("PRAGMA table_info(participant)")]
++
++
++def test_adoption_refuses_a_structure_that_matches_no_known_revision(tmp_path):
++    path = tmp_path / "app.db"
++    legacy_database(path)
++    with sqlite3.connect(path) as db:
++        db.execute("ALTER TABLE booking ADD COLUMN note TEXT")
++    result = call("from app.migrate import migrate;migrate()", path)
++    assert result.returncode != 0 and "booking" in result.stderr
++    with sqlite3.connect(path) as db:
++        assert db.execute("SELECT name FROM sqlite_master WHERE name='alembic_version'").fetchall() == []
++        assert db.execute("SELECT count(*) FROM participant").fetchone() == (1,)
 -- 
 2.43.0
 
