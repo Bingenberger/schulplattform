@@ -679,7 +679,7 @@ def export(app, key_file, out_dir, path=None, project=None):
             if not info["volumes"]:
                 # Never hand out an archive without data: the import would replace the app with nothing.
                 missing = ", ".join(str(root) for root in roots.values()) or "(keins)"
-                raise SystemExit(f"{app}: kein Datenverzeichnis gefunden ({missing}); Pfad mit --path/--app angeben.")
+                raise SystemExit(f"{app}: kein Datenverzeichnis gefunden ({missing}); Pfad beim Export mit --path angeben.")
             envfile = spec.get("envfile")
             values = env_values(base / envfile) if envfile else {}
             for variable, target in spec.get("secrets", {}).items():

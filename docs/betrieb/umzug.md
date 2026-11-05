@@ -15,7 +15,7 @@ Grundsatz: Auf dem Altserver wird **nichts verändert**. Das Werkzeug liest dort
    python3 schulplattform_altserver.py inventory > inventory.json
    ```
 
-   Die Datei enthält Version, Speicherart, Schemastand, Datenpfade, Größen und die **Namen** der Secrets, keine Werte und keine personenbezogenen Daten. Weichen Pfade ab, geben Sie sie mit `--app NAME=PFAD` an, Compose-Projekte mit `--compose-project NAME=PROJEKT`.
+   Die Datei enthält Version, Speicherart, Schemastand, Datenpfade, Größen und die **Namen** der Secrets, keine Werte und keine personenbezogenen Daten. Weichen Pfade ab, geben Sie sie beim Inventar mit `--app NAME=PFAD` an, Compose-Projekte mit `--compose-project NAME=PROJEKT`; beim **Export** heißen die Optionen `--path PFAD` und `--compose-project PROJEKT`.
 5. Inventar prüfen: Steht bei jeder App ein Commit? Passt der Schemastand? Siehe Tabelle unten.
 
 ## 1. Umzug je App (Wartungsfenster, App für App)
@@ -45,10 +45,10 @@ Grundsatz: Auf dem Altserver wird **nichts verändert**. Das Werkzeug liest dort
 | fundkiste | nativ, SQLite (`/opt/fundkiste`, Unit `fundkiste.service`) | **auf dem echten Server übernommen** (2026-11-05, 70 Zeilen, Team-Schlüssel und QR-Codes erhalten) | Der Team-Schlüssel aus `Environment=FUNDKISTE_TEAM_KEY` der Unit wird zu `data/team_key.txt`; ausgehängte QR-Codes bleiben gültig. Einträge älter als die Aufbewahrungsfrist löscht die App nach dem Import beim ersten Aufruf. |
 | schuleva | nativ, SQLite (`/opt/schulbefragung`, Unit `schulbefragung.service`) | **auf dem echten Server übernommen** (2026-11-05; Hostname muss `SCHOOL_DOMAIN` entsprechen, er steht auf den TAN-Zetteln) | Eigene Fragebögen aus `surveys/` ziehen nach `data/surveys`; die täglichen Cron-Kopien in `data/backups/` bleiben auf dem Altserver. Alle müssen sich einmal neu anmelden. |
 | schulkasse | nativ, SQLite (`/opt/schulkasse/instance`, Unit `schulkasse.service`) | **auf dem echten Server übernommen** (2026-11-05, 3.511 Zeilen, Schema 9, Anmeldung mit 2FA geprüft) | **Der alte `SCHULKASSE_SECRET_KEY` muss mit** (verschlüsselt die 2FA-Geheimnisse); das Werkzeug liest ihn aus `.env`. Belege und `brief.toml` ziehen mit, die app-eigenen Backups nicht. |
-| schulanmeldung | nativ, SQLite (Pfad aus `SL_OFFICE_DATABASE_URL` der `.env`, Unit `sl-office.service`) | nachgebauter Altbestand exportiert (lokal) | Datenbank, Uploads und Unterschrift werden über die Pfade der `.env` gefunden (Vorgabe `/home/emrichschule/SL-Office`, sonst `--app schulanmeldung=PFAD`). Eltern-Zugangslinks bleiben gültig; Personal meldet sich neu an (2FA bleibt). |
+| schulanmeldung | nativ, SQLite (Pfad aus `SL_OFFICE_DATABASE_URL` der `.env`, Unit `sl-office.service`) | nachgebauter Altbestand exportiert (lokal) | Datenbank, Uploads und Unterschrift werden über die Pfade der `.env` gefunden (Vorgabe `/home/emrichschule/SL-Office`, sonst beim Export `--path PFAD`, z. B. `--path /opt/SL-Office`). Eltern-Zugangslinks bleiben gültig; Personal meldet sich neu an (2FA bleibt). |
 | sl-journal | nativ, SQLCipher (`JOURNAL_INSTANCE`, Schlüssel `JOURNAL_KEY_FILE`, Unit `journal.service`) | nachgebauter Altbestand exportiert (lokal) | **Vorher `journal.service` und beide Timer stoppen** (die verschlüsselte Datei wird als Datei kopiert). Der Originalschlüssel kommt als Secret mit; ohne ihn sind die Daten verloren. Passwort und Authenticator bleiben; Sitzungen und Android-Geräte müssen sich neu anmelden. |
 | zackboing | nativ, SQLite (`ZACKBOING_DATA` der Unit, Vorgabe `/var/lib/zackboing`, Unit `zackboing.service`) | **auf dem echten Server übernommen** (2026-11-05, 82 Zeilen; Hostname danach per `domain-change` gewechselt) | Die laufende App hält die Daten im WAL (Datei nur 4 KiB); der Export liest sie über die SQLite-Sicherungsschnittstelle mit. Uploads ziehen mit. Fehlende Spalten werden ergänzt; ohne Rollen-Spalte wird das älteste Konto Admin. |
-| gswb, grundschultafel | nativ | nicht getestet | Zuordnung der Pfade im Werkzeug hinterlegt. grundschultafel: eigene Medien ausdrücklich importieren. |
+| gswb, grundschultafel | nativ | nicht getestet | Zuordnung der Pfade im Werkzeug hinterlegt. gswb liegt auf dem Altserver ggf. unter `/var/www/grundschul-woerterbuch` (`--path`). grundschultafel: eigene Medien ausdrücklich importieren. |
 
 ## 3. Wer muss sich neu anmelden?
 
