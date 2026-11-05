@@ -240,6 +240,7 @@ def test_resumed_apply_refreshes_overrides_before_starting_apps(tmp_path):
     platform.current_domains = lambda: domains
     started = []
     stack.healthy = lambda app: app != "kompetenz-manager"
+    stack.outdated = lambda app: False
     stack.migrate = lambda app: None
     stack.start = lambda app: started.append((app, "timeout: 30s" in stale.read_text()))
     platform.step_apps(None)
@@ -349,3 +350,29 @@ def test_status_points_out_hostnames_changed_only_in_configure(tmp_path):
     (layout.domains / "pending.json").write_text(json.dumps({
         "status": "recovery-required", "old": {"domains": active}, "candidate": {"domains": domains}}))
     assert "nicht abgeschlossen" in _domain_notes(platform, domains)[0]
+
+
+def test_apply_moves_a_healthy_app_to_its_new_release_image(tmp_path):
+    # Real server (0.2.0 -> 0.2.1): losverkauf stayed on 0.1.0 because step_apps only restarted
+    # unhealthy apps; the fixed image never ran.
+    from schulplattform.production import Platform
+    layout, stack, domains = render(tmp_path, sample())
+    current = FakeRelease().image("losverkauf")
+    old = "ghcr.io/bingenberger/losverkauf:0.1.0@sha256:" + "b" * 64
+    def container(app, service):
+        image = old if app == "losverkauf" else FakeRelease().image(APPS[app].images[service])
+        return {"Config": {"Image": image}, "Image": "sha256:" + "c" * 64}
+    stack.container = container
+    stack.command = lambda argv, **kw: "[]"
+    assert stack.outdated("losverkauf") and not stack.outdated("gswb")
+    assert current.endswith("a" * 64)
+    platform = Platform.__new__(Platform)
+    platform.stack = stack
+    platform.current_domains = lambda: domains
+    stack.healthy = lambda app: True
+    calls = []
+    stack.migrate = lambda app: calls.append(("migrate", app))
+    stack.start = lambda app: calls.append(("start", app))
+    platform.step_apps(None)
+    assert calls == [("migrate", "losverkauf"), ("start", "losverkauf")]
+    assert platform.probe_apps(None) is False          # still the old container in this fake

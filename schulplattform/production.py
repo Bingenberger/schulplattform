@@ -168,12 +168,14 @@ class Platform:
         # bring overrides up to date before (re)starting unhealthy apps.
         self.stack.render_apps(self.current_domains())
         for app in self.stack.apps:
-            if not self.stack.healthy(app):
+            # Real server (0.2.0 -> 0.2.1): a healthy app kept running its old image because only
+            # unhealthy apps were (re)started. A new release image needs migrate + start as well.
+            if self.stack.outdated(app) or not self.stack.healthy(app):
                 self.stack.migrate(app)
                 self.stack.start(app)
 
     def probe_apps(self, _identity):
-        return all(self.stack.healthy(app) for app in self.stack.apps)
+        return all(self.stack.healthy(app) and not self.stack.outdated(app) for app in self.stack.apps)
 
     def step_routes(self, _identity):
         self.router().reconcile(wait_seconds=int(os.environ.get("SP_CERT_WAIT", "150")))

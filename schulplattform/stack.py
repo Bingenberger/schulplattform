@@ -462,6 +462,25 @@ class Stack:
                 "health": state.get("Health", {}).get("Status", "running" if state.get("Running") else "stopped"),
                 "image": container["Config"].get("Image")}
 
+    def outdated(self, app_id):
+        """True when a service container does not run the image pinned by the current release."""
+        for service, name in APPS[app_id].images.items():
+            container = self.container(app_id, service)
+            if not container:
+                return True
+            digest = self.release.image(name).rpartition("@")[2]
+            if digest in container.get("Config", {}).get("Image", ""):
+                continue
+            output = self.command([self.docker, "image", "inspect", "--format", "{{json .RepoDigests}}",
+                                   container.get("Image", "")], check=False)
+            try:
+                if any(entry.endswith("@" + digest) for entry in json.loads(output or "[]") or []):
+                    continue
+            except ValueError:
+                pass
+            return True
+        return False
+
     def healthy(self, app_id):
         services = APPS[app_id].services + APPS[app_id].database_services
         return all(self.service_state(app_id, service)["health"] == "healthy" for service in services)
