@@ -47,6 +47,11 @@ for root, dirs, files in os.walk(src):
     for name in files:
         if name.endswith((".db", ".sqlite", ".sqlite3")):
             path = os.path.join(root, name)
+            with open(path, "rb") as probe:
+                # Encrypted databases (SQLCipher, sl-journal) are no readable SQLite: the file snapshot
+                # of the paused app takes them as they are.
+                if probe.read(16) != b"SQLite format 3\x00":
+                    continue
             rel = os.path.relpath(path, src)
             out = os.path.join(dst, rel)
             os.makedirs(os.path.dirname(out), exist_ok=True)
@@ -192,9 +197,11 @@ class BackupService:
                     self.stack.command([self.stack.docker, "run", "--rm", "--network", "none", "--read-only",
                                         "--user", APP_UID, "--cap-drop", "ALL", "--security-opt",
                                         "no-new-privileges:true", "-v", f"{name}:/src:ro", "-v", f"{snap}:/out",
-                                        HELPER, "tar", "-C", "/src", "--exclude=*.db-wal", "--exclude=*.db-shm",
-                                        "--exclude=*.sqlite3-wal", "--exclude=*.sqlite3-shm",
-                                        *[f"--exclude=./{c['file']}" for c in checks],
+                                        HELPER, "tar", "-C", "/src",
+                                        # Only the files copied through the SQLite API above (and their
+                                        # journals) are left out; every other file stays in the snapshot.
+                                        *[f"--exclude=./{c['file']}{suffix}" for c in checks
+                                          for suffix in ("", "-wal", "-shm", "-journal")],
                                         "-cf", "/out/files.tar", "."])
                 finally:
                     if running:

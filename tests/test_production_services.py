@@ -142,3 +142,24 @@ def test_staging_certificate_does_not_count_after_switching_to_production(tmp_pa
     make_cert(tmp_path, "quiz.schule.example", issuer_dir=issuer_key("production"))
     assert not certs.find(tmp_path, "quiz.schule.example", issuer_key("production"))["staging"]
     assert issuer_key("custom") is None
+
+
+def test_backup_sqlite_copy_leaves_encrypted_databases_to_the_file_snapshot(tmp_path):
+    # Real server: sl-journal's journal.db is SQLCipher; the SQLite copy failed on it, so no
+    # sl-journal backup was ever written and the import refused at its pre-import backup.
+    import json
+    import sqlite3
+    import subprocess
+    import sys
+    from schulplattform.backups import SQLITE_SCRIPT
+    src, out = tmp_path / "src", tmp_path / "out"
+    (src / "instance").mkdir(parents=True)
+    out.mkdir()
+    (src / "instance/journal.db").write_bytes(b"\x8f\x13" + bytes(range(200)) * 20)   # encrypted
+    plain = sqlite3.connect(src / "app.db")
+    plain.executescript("CREATE TABLE t(x); INSERT INTO t VALUES(1);")
+    plain.close()
+    result = subprocess.run([sys.executable, "-c", SQLITE_SCRIPT, str(src), str(out)],
+                            capture_output=True, text=True, check=True)
+    assert [c["file"] for c in json.loads(result.stdout)] == ["app.db"]
+    assert not (out / "instance/journal.db").exists()
