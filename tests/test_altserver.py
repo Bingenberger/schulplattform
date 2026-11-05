@@ -339,3 +339,37 @@ def test_import_reports_a_truncated_archive(tmp_path):
     work.mkdir(mode=0o700)
     with pytest.raises(StateError, match="incomplete|transfer key"):
         importer.decrypt(platform, archive, work)
+
+
+def test_losverkauf_export_skips_backup_copies_and_carries_tokens(tmp_path, monkeypatch):
+    # Real old server: data/backups held four older copies with personal data ('deploy.sh backup').
+    import shutil
+    import sqlite3
+    import tarfile
+    import pytest
+    if not shutil.which("gpg"):
+        pytest.skip("gpg not installed")
+    base = tmp_path / "opt/losverkauf"
+    (base / "data/backups").mkdir(parents=True)
+    (base / "static").mkdir()
+    sqlite3.connect(base / "data/losverkauf.db").executescript(
+        "CREATE TABLE personen(id INTEGER); INSERT INTO personen VALUES(1),(2);")
+    shutil.copy(base / "data/losverkauf.db", base / "data/backups/losverkauf-20260924-063156.db")
+    (base / "static/bezirke.geojson").write_text("{}")
+    (base / "losverkauf.env").write_text("ELTERN_TOKEN=" + "e" * 40 + "\nSECRET_KEY=" + "s" * 40 + "\n")
+    monkeypatch.setattr(altserver, "unit_for", lambda base, preferred=None: preferred)
+    key = tmp_path / "transfer.key"
+    key.write_text("k" * 48)
+    summary = altserver.export("losverkauf", key, tmp_path / "out", path=str(base))
+    plain = tmp_path / "plain.tar"
+    subprocess.run(["gpg", "--batch", "--quiet", "--passphrase-file", str(key), "-o", str(plain), "-d",
+                    summary["archive"]], check=True, env={"GNUPGHOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
+    with tarfile.open(plain) as outer:
+        outer.extractall(tmp_path / "x", filter="data")
+    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+        names = inner.getnames()
+    assert not any("backups" in name for name in names)
+    assert "./maps/bezirke.geojson" in names
+    assert sorted(p.name for p in (tmp_path / "x/sqlite/data").rglob("*.db")) == ["losverkauf.db"]
+    assert (tmp_path / "x/secrets/losverkauf/parent-token").read_text() == "e" * 40
+    assert summary["sqliteFiles"] == 1

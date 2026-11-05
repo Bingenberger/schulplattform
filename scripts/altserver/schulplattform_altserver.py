@@ -48,6 +48,7 @@ APPS = {
     "losverkauf": {"kind": "native", "default": "/opt/losverkauf", "volumes": {"data": "data"},
                    "unit": "losverkauf.service", "envfile": "losverkauf.env",
                    "secrets": {"ELTERN_TOKEN": "losverkauf/parent-token", "SECRET_KEY": "losverkauf/session-key"},
+                   "exclude": {"data": ("backups",)},          # 'deploy.sh backup' copies (old personal data)
                    # The old version reads the district map from the app directory; the new one from the data volume.
                    "extra": {"static/bezirke.geojson": ("data", "maps/bezirke.geojson")}},
     "grundschultafel": {"kind": "native", "default": "/opt/grundschultafel", "volumes": {"data": "data"}},
