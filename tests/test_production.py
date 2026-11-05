@@ -376,3 +376,22 @@ def test_apply_moves_a_healthy_app_to_its_new_release_image(tmp_path):
     platform.step_apps(None)
     assert calls == [("migrate", "losverkauf"), ("start", "losverkauf")]
     assert platform.probe_apps(None) is False          # still the old container in this fake
+
+
+def test_confirmed_import_counts_as_first_access(tmp_path, monkeypatch, capsys):
+    # Real server: status listed imported apps under "Erstzugang … offen" although their old
+    # accounts had come along.
+    import types
+    from schulplattform import installer, importer, production
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "bootstrap.json").write_text(json.dumps({"appSetup": {"zackboing": False, "gswb": False}}))
+    fake = types.SimpleNamespace(layout=types.SimpleNamespace(state=state))
+    monkeypatch.setattr(installer, "verify_bundle", lambda bundle, key: None)
+    monkeypatch.setattr(production, "Platform", lambda *a, **kw: fake)
+    monkeypatch.setattr(importer, "run_import", lambda platform, app, archive, confirm=False: {"mode": "x"})
+    common = ["--bundle", str(tmp_path), "--trusted-key", str(tmp_path / "k")]
+    installer._main(["import", "gswb", "a.tar.gpg", "--dry-run", *common])
+    assert json.loads((state / "bootstrap.json").read_text())["appSetup"]["gswb"] is False
+    installer._main(["import", "zackboing", "a.tar.gpg", "--confirm-replace", *common])
+    assert json.loads((state / "bootstrap.json").read_text())["appSetup"] == {"zackboing": True, "gswb": False}

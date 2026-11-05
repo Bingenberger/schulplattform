@@ -309,8 +309,11 @@ def _main(argv=None):
         from .importer import run_import
         if len(target) != 2 or args.dry_run == args.confirm_replace:
             parser.error('import APP ARCHIVE (--dry-run | --confirm-replace)')
-        print(json.dumps(run_import(platform_, target[0], Path(target[1]), confirm=args.confirm_replace),
-                         indent=2, ensure_ascii=False))
+        summary = run_import(platform_, target[0], Path(target[1]), confirm=args.confirm_replace)
+        if args.confirm_replace:
+            # The old accounts came along; no separate first access is needed any more.
+            _mark_bootstrap(platform_, app=target[0])
+        print(json.dumps(summary, indent=2, ensure_ascii=False))
     elif args.action == 'restore-probe':
         from .backups import BackupService
         if len(target) != 1:
