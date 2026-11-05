@@ -265,15 +265,15 @@ def unit_environment(unit):
     return values
 
 
-def compose_container(project, service):
+def compose_container(project, service, stopped=False):
     if not shutil.which("docker"):
         raise SystemExit("docker is not installed on this host")
-    argv = ["docker", "ps", "-q", "--filter", f"label=com.docker.compose.service={service}"]
+    argv = ["docker", "ps", *(["-a"] if stopped else []), "-q", "--filter", f"label=com.docker.compose.service={service}"]
     if project:
         argv += ["--filter", f"label=com.docker.compose.project={project}"]
     ids = run(argv).stdout.split()
     if len(ids) != 1:
-        raise SystemExit(f"Expected one running container for service '{service}'"
+        raise SystemExit(f"Expected one {'' if stopped else 'running '}container for service '{service}'"
                          f"{' in project ' + project if project else ''}; found {len(ids)}. Use --compose-project.")
     return ids[0]
 
@@ -743,15 +743,22 @@ def export(app, key_file, out_dir, path=None, project=None):
             if result.returncode:
                 raise SystemExit("pg_dump failed")
             for volume, (svc, mount) in spec["volumes"].items():
-                app_container = compose_container(project, svc)
+                # The app is stopped during the export (no writers); docker cp also reads stopped containers.
+                app_container = compose_container(project, svc, stopped=True)
                 snap = work / "volumes" / volume
                 snap.mkdir(parents=True)
                 (work / "sqlite" / volume).mkdir(parents=True)
-                with open(snap / "files.tar", "wb") as out:
-                    result = subprocess.run(["docker", "exec", app_container, "tar", "-C", mount, "-cf", "-", "."],
-                                            stdout=out, stderr=subprocess.PIPE, timeout=7200)
+                copied = work / "copy" / volume
+                copied.mkdir(parents=True)
+                result = subprocess.run(["docker", "cp", f"{app_container}:{mount.rstrip('/')}/.", str(copied)],
+                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=7200)
                 if result.returncode:
                     raise SystemExit(f"Copying {mount} failed")
+                with tarfile.open(snap / "files.tar", "w") as tar:
+                    for item in sorted(copied.rglob("*")):
+                        if not item.is_symlink():
+                            tar.add(item, arcname="./" + str(item.relative_to(copied)), recursive=False)
+                shutil.rmtree(work / "copy")
                 info["volumes"].append(volume)
         (work / "backup.json").write_text(json.dumps(info, indent=2))
         plain = out_dir / f".{app}-{stamp}.tar"
