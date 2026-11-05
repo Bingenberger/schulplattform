@@ -40,6 +40,8 @@ ADOPTION = {
                  "der Team-Schlüssel kommt mit, ausgehängte QR-Codes bleiben gültig.",
     "schuleva": "Bekannte Anhebungen (Rolle lehrer, anon_names, share_grants) laufen idempotent; "
                 "eigene Fragebögen ziehen nach data/surveys um; Konten und Freigabelinks bleiben.",
+    "schulkasse": "Nummerierte Migrationen laufen weiter; der alte SCHULKASSE_SECRET_KEY muss mitkommen, "
+                  "sonst sind die Zwei-Faktor-Geheimnisse nicht mehr lesbar; Belege und brief.toml ziehen mit.",
 }
 
 

@@ -70,5 +70,11 @@
     "baseCommit": "71c4917ad71880eec7f2cdb415453284e3b70ee5",
     "implementationCommit": "a5c4608a8ccf0517fe0e7a719b093e0acff98375",
     "patch": "patches/schuleva/changes.patch"
+  },
+  {
+    "app": "schulkasse",
+    "baseCommit": "d99cfca9eb26acb606234ff664ffa2b38ff3352c",
+    "implementationCommit": "653efd10b89f2b3532c3199c96820d49528dc9d5",
+    "patch": "patches/schulkasse/changes.patch"
   }
 ]

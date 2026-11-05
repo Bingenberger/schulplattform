@@ -1,0 +1,581 @@
+diff --git a/.dockerignore b/.dockerignore
+new file mode 100644
+index 0000000..719940a
+--- /dev/null
++++ b/.dockerignore
+@@ -0,0 +1,7 @@
++.git
++.venv
++.env
++instance
++__pycache__
++*.pyc
++*.sqlite3
+diff --git a/Dockerfile b/Dockerfile
+new file mode 100644
+index 0000000..7ceca15
+--- /dev/null
++++ b/Dockerfile
+@@ -0,0 +1,30 @@
++FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c AS runtime
++ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1 HOME=/tmp XDG_CACHE_HOME=/tmp/cache \
++    SCHULKASSE_DB=/data/schulkasse.sqlite3 SCHULKASSE_UPLOAD_DIR=/data/belege SCHULKASSE_BACKUP_DIR=/data/backups \
++    SCHULKASSE_BRIEF_CONFIG=/data/brief.toml SCHULKASSE_AUTO_MIGRATE=0 SCHULKASSE_HINTER_PROXY=0
++WORKDIR /app
++# WeasyPrint: Pango/HarfBuzz; Schriften der PDF-Vorlagen (DejaVu Sans, Liberation Sans)
++RUN apt-get update && apt-get install -y --no-install-recommends \
++      libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libharfbuzz-subset0 fonts-dejavu-core fonts-liberation \
++    && rm -rf /var/lib/apt/lists/*
++COPY requirements.lock ./
++RUN pip install --no-cache-dir --require-hashes -r requirements.lock
++COPY schulkasse ./schulkasse
++COPY gunicorn.conf.py brief.example.toml ./
++RUN groupadd --gid 10001 schulkasse && useradd --uid 10001 --gid 10001 --no-create-home schulkasse \
++    && mkdir -p /data/belege && chown -R 10001:10001 /data && chmod 700 /data /data/belege
++USER 10001:10001
++EXPOSE 8000
++CMD ["gunicorn", "--config", "gunicorn.conf.py"]
++
++FROM runtime AS tests
++# Die vorhandenen Tests prüfen den nativen Ablauf (Migration beim Start); test_platform.py schaltet sie ab.
++ENV SCHULKASSE_AUTO_MIGRATE=1
++USER 0
++COPY requirements-test.lock pyproject.toml ./
++RUN pip install --no-cache-dir --require-hashes -r requirements-test.lock
++COPY tests ./tests
++USER 10001:10001
++CMD ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider"]
++
++FROM runtime AS final
+diff --git a/PLATFORM.md b/PLATFORM.md
+new file mode 100644
+index 0000000..fd227f4
+--- /dev/null
++++ b/PLATFORM.md
+@@ -0,0 +1,45 @@
++# Schulkasse: Containervertrag
++
++Python 3.12.12/amd64, Flask 3.1.3, WeasyPrint 70.0, Gunicorn 26.2.0 aus Hash-Lockfiles
++(`requirements.lock`); Basisimage mit Digest. Läuft schreibgeschützt als UID/GID 10001
++ohne Capabilities; beschreibbar sind `/data` und `/tmp`.
++
++## Eigenständiger Start
++
++```sh
++python3 -c "import secrets; print(secrets.token_hex(32))" > .secret-key && chmod 600 .secret-key
++export SCHULKASSE_SECRET_FILE="$PWD/.secret-key"
++docker compose build
++docker compose run --rm app python -m schulkasse migrate
++docker compose run --rm app python -m schulkasse create-admin    # persönliches Konto; 2FA beim ersten Login
++docker compose up -d --no-build
++```
++
++## Der Schlüssel
++
++`SCHULKASSE_SECRET_KEY` (oder `SCHULKASSE_SECRET_KEY_FILE`) signiert nicht nur Sitzungen,
++er **verschlüsselt auch die Zwei-Faktor-Geheimnisse**. Er muss über Neustarts, Updates
++und einen Umzug hinweg gleich bleiben; ein neuer Schlüssel macht alle Authenticator-
++Einträge unbrauchbar (Ausweg: `schulkasse reset-2fa BENUTZER` je Konto).
++
++## Schema und Migration
++
++Im Container (`SCHULKASSE_AUTO_MIGRATE=0`) wird beim Start nichts migriert; nativ bleibt
++der bisherige Ablauf (Migration beim Start) erhalten. `schulkasse migrate` sperrt, wendet
++die nummerierten SQL-Migrationen an, prüft die Integrität und legt Dateien mit umask 077
++an. Eine Datenbank mit unbekannten (neueren) Migrationen wird ohne Änderung abgewiesen.
++
++- `/health/live`: Prozess antwortet.
++- `/health/ready`: alle mitgelieferten Migrationen angewendet, keine unbekannten; sonst 503.
++
++## Proxy und Cookies
++
++`SCHULKASSE_PROXY_IPS` nennt die Adressen des Reverse-Proxys; nur von dort werden
++`X-Forwarded-For`/`-Proto` übernommen (Login-Sperre je Client). Ohne diese Angabe gilt
++nativ weiter `SCHULKASSE_HINTER_PROXY`. `SCHULKASSE_COOKIE_SECURE=1` hinter HTTPS.
++
++## Daten
++
++`/data/schulkasse.sqlite3` (WAL), `/data/belege/`, optional `/data/brief.toml` samt Logo.
++Die app-eigene Sicherung (`schulkasse backup`) wird im Container nicht gebraucht; die
++Plattform sichert das Datenvolume.
+diff --git a/README.md b/README.md
+index cb56ac7..6f57952 100644
+--- a/README.md
++++ b/README.md
+@@ -38,6 +38,10 @@ tests/             pytest, inkl. aller 14 Abnahmekriterien
+ 
+ ## Installation von diesem Rechner aus (ssh + rsync)
+ 
++> **Schulplattform:** In der Schulplattform läuft die Schulkasse als Container; Domain, Zertifikat,
++> Migration und Sicherung übernimmt die Plattform, das erste Konto legt
++> `./install.sh app-setup schulkasse` an. Siehe [PLATFORM.md](PLATFORM.md).
++
+ `deploy/remote.sh` installiert die Schulkasse vom eigenen Rechner aus auf einem Server: Es führt die Tests
+ lokal aus, überträgt die Projektkopie per **rsync** nach `~/schulkasse-quelle` auf dem Server und startet dort per
+ **ssh** `deploy/install.sh` mit sudo. Die App läuft danach als systemd-Dienst auf `127.0.0.1:5015`; das auf dem
+diff --git a/docker-compose.yml b/docker-compose.yml
+new file mode 100644
+index 0000000..43da949
+--- /dev/null
++++ b/docker-compose.yml
+@@ -0,0 +1,34 @@
++services:
++  app:
++    build: {context: ., target: final}
++    image: schulkasse:0.1.0-dev
++    user: "10001:10001"
++    init: true
++    stop_grace_period: 40s
++    read_only: true
++    cap_drop: [ALL]
++    security_opt: [no-new-privileges:true]
++    tmpfs: ["/tmp:size=128m,mode=1777"]
++    mem_limit: 512m
++    cpus: 1.0
++    pids_limit: 128
++    environment:
++      SCHULKASSE_SECRET_KEY_FILE: /run/secrets/secret-key
++      SCHULKASSE_COOKIE_SECURE: ${SCHULKASSE_COOKIE_SECURE:-0}
++      SCHULKASSE_PROXY_IPS: ${SCHULKASSE_PROXY_IPS:-}
++      SCHULKASSE_MAX_UPLOAD_MB: ${SCHULKASSE_MAX_UPLOAD_MB:-20}
++      SCHULKASSE_ANONYMISIERUNG_FRIST_TAGE: ${SCHULKASSE_ANONYMISIERUNG_FRIST_TAGE:-730}
++    volumes:
++      - data:/data
++      - ${SCHULKASSE_SECRET_FILE:?Datei mit dem dauerhaften Schlüssel (mind. 32 Zeichen) angeben}:/run/secrets/secret-key:ro
++    ports: ["127.0.0.1:${SCHULKASSE_PORT:-5015}:8000"]
++    healthcheck:
++      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"]
++      interval: 5s
++      timeout: 3s
++      retries: 6
++    logging:
++      driver: json-file
++      options: {max-size: 10m, max-file: "3"}
++volumes:
++  data:
+diff --git a/gunicorn.conf.py b/gunicorn.conf.py
+new file mode 100644
+index 0000000..f3c9941
+--- /dev/null
++++ b/gunicorn.conf.py
+@@ -0,0 +1,12 @@
++# Container-Betrieb (Schulplattform). Nativ startet deploy/schulkasse.service Gunicorn direkt.
++bind = "0.0.0.0:8000"
++workers = 2
++threads = 2
++timeout = 120             # PDF-Erzeugung (Kassenbuch, Briefe) kann dauern
++graceful_timeout = 30
++accesslog = None          # keine Zugriffsprotokolle mit Pfaden und IPs
++errorlog = "-"
++worker_tmp_dir = "/tmp"
++umask = 0o077
++forwarded_allow_ips = ""  # die App wertet X-Forwarded-* nur von SCHULKASSE_PROXY_IPS aus
++wsgi_app = "schulkasse:create_app()"
+diff --git a/requirements-test.lock b/requirements-test.lock
+new file mode 100644
+index 0000000..3bbf473
+--- /dev/null
++++ b/requirements-test.lock
+@@ -0,0 +1,36 @@
++# Resolved under Python 3.12.12, linux/amd64; wheel hashes.
++argon2-cffi==25.1.0 --hash=sha256:fdc8b074db390fccb6eb4a3604ae7231f219aa669a2652e0f20e16ba513d5741
++argon2-cffi-bindings==26.1.0 --hash=sha256:27f1821903e2ceadcb88ec2b45ef190897b7682449c772f4d9b53e42c520cf29
++blinker==1.9.0 --hash=sha256:ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc
++brotli==1.2.0 --hash=sha256:072e7624b1fc4d601036ab3f4f27942ef772887e876beff0301d261210bca97f
++cffi==2.1.1 --hash=sha256:c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf
++click==8.5.0 --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
++cryptography==46.0.5 --hash=sha256:4c3341037c136030cb46e4b1e17b7418ea4cbd9dd207e4a6f3b2b24e0d4ac731
++cssselect2==0.10.1 --hash=sha256:25cc4494d55985d6a6da359be48da6ce98c28dcbafa2314c383ace3fc32ec868
++Flask==3.1.3 --hash=sha256:f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c
++fonttools==4.64.0 --hash=sha256:66a83f93579fb3493e458c4449d1d566a7b2a1c7b19915cd0fa3c9b8b5a8540b
++gunicorn==26.2.0 --hash=sha256:bd249d0b3f7972f7432f0a6b6ff3b3ee2d129f70cd1ff6c09a9dd9e29a2b88e3
++iniconfig==2.3.0 --hash=sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12
++itsdangerous==2.2.0 --hash=sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef
++Jinja2==3.1.6 --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
++MarkupSafe==3.0.3 --hash=sha256:d6dd0be5b5b189d31db7cda48b91d7e0a9795f31430b7f271219ab30f1d3ac9d
++packaging==26.3 --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
++pillow==12.3.0 --hash=sha256:78cb2c6865a35ab8ff8b75fd122f6033b92a62c82801110e48ddd6c936a45d91
++pluggy==1.6.0 --hash=sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
++pycparser==3.0 --hash=sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992
++pydyf==0.12.1 --hash=sha256:ea25b4e1fe7911195cb57067560daaa266639184e8335365cc3ee5214e7eaadc
++Pygments==2.21.0 --hash=sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
++pyotp==2.9.0 --hash=sha256:81c2e5865b8ac55e825b0358e496e1d9387c811e85bb40e71a3b29b288963612
++pypdf==6.18.0 --hash=sha256:05b762b77bcb9dcb4a7c91fcf5dded585b25bee7269ab3d3001d7c55fa1b324b
++pyphen==0.18.1 --hash=sha256:0aa9051e15928cecadd4c632cea0258ba57215b2a197a39baa46abcdb0f47e84
++pytest==9.1.1 --hash=sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c
++python-dotenv==1.2.3 --hash=sha256:904552145e8bfed22162c09dab1c2b9b54fefa7b23ba780f4f26ca0316b0f0d9
++segno==1.6.6 --hash=sha256:28c7d081ed0cf935e0411293a465efd4d500704072cdb039778a2ab8736190c7
++tinycss2==1.5.1 --hash=sha256:3415ba0f5839c062696996998176c4a3751d18b7edaaeeb658c9ce21ec150661
++tinyhtml5==2.1.0 --hash=sha256:6e11cfff38515834268daf89d5f85bbde0b6dd02e8d9e212d1385c2289b89f0a
++tzdata==2026.3 --hash=sha256:dc096730c87af6cab1b171c9d532be840741ff5d459015e7f6947bd7d7e54931
++weasyprint==70.0 --hash=sha256:5043e55e38d2a2af2b2b871e869697b1f65dad5f8b4a3677961d04ceacf9c5fe
++webencodings==0.6.1 --hash=sha256:7fab6269c8bf237c657876b52058ccb182e861518d1c695c1a9aaa8c1c105d5b
++Werkzeug==3.1.8 --hash=sha256:63a77fb8892bf28ebc3178683445222aa500e48ebad5ec77b0ad80f8726b1f50
++zopfli==0.4.3 --hash=sha256:769875152d0625c46707bcca57d4b2233fe653482067acd55fbf6ec525cb9bdc
++zxing-cpp==3.1.1 --hash=sha256:9cf67341949946307d086b302cefd453fb47bc6d6ddc7d088839e9481982757b
+diff --git a/requirements.lock b/requirements.lock
+new file mode 100644
+index 0000000..ed0657f
+--- /dev/null
++++ b/requirements.lock
+@@ -0,0 +1,30 @@
++# Resolved under Python 3.12.12, linux/amd64; wheel hashes.
++argon2-cffi==25.1.0 --hash=sha256:fdc8b074db390fccb6eb4a3604ae7231f219aa669a2652e0f20e16ba513d5741
++argon2-cffi-bindings==26.1.0 --hash=sha256:27f1821903e2ceadcb88ec2b45ef190897b7682449c772f4d9b53e42c520cf29
++blinker==1.9.0 --hash=sha256:ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc
++brotli==1.2.0 --hash=sha256:072e7624b1fc4d601036ab3f4f27942ef772887e876beff0301d261210bca97f
++cffi==2.1.1 --hash=sha256:c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf
++click==8.5.0 --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
++cryptography==46.0.5 --hash=sha256:4c3341037c136030cb46e4b1e17b7418ea4cbd9dd207e4a6f3b2b24e0d4ac731
++cssselect2==0.10.1 --hash=sha256:25cc4494d55985d6a6da359be48da6ce98c28dcbafa2314c383ace3fc32ec868
++Flask==3.1.3 --hash=sha256:f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c
++fonttools==4.64.0 --hash=sha256:66a83f93579fb3493e458c4449d1d566a7b2a1c7b19915cd0fa3c9b8b5a8540b
++gunicorn==26.2.0 --hash=sha256:bd249d0b3f7972f7432f0a6b6ff3b3ee2d129f70cd1ff6c09a9dd9e29a2b88e3
++itsdangerous==2.2.0 --hash=sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef
++Jinja2==3.1.6 --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
++MarkupSafe==3.0.3 --hash=sha256:d6dd0be5b5b189d31db7cda48b91d7e0a9795f31430b7f271219ab30f1d3ac9d
++packaging==26.3 --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
++pillow==12.3.0 --hash=sha256:78cb2c6865a35ab8ff8b75fd122f6033b92a62c82801110e48ddd6c936a45d91
++pycparser==3.0 --hash=sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992
++pydyf==0.12.1 --hash=sha256:ea25b4e1fe7911195cb57067560daaa266639184e8335365cc3ee5214e7eaadc
++pyotp==2.9.0 --hash=sha256:81c2e5865b8ac55e825b0358e496e1d9387c811e85bb40e71a3b29b288963612
++pyphen==0.18.1 --hash=sha256:0aa9051e15928cecadd4c632cea0258ba57215b2a197a39baa46abcdb0f47e84
++python-dotenv==1.2.3 --hash=sha256:904552145e8bfed22162c09dab1c2b9b54fefa7b23ba780f4f26ca0316b0f0d9
++segno==1.6.6 --hash=sha256:28c7d081ed0cf935e0411293a465efd4d500704072cdb039778a2ab8736190c7
++tinycss2==1.5.1 --hash=sha256:3415ba0f5839c062696996998176c4a3751d18b7edaaeeb658c9ce21ec150661
++tinyhtml5==2.1.0 --hash=sha256:6e11cfff38515834268daf89d5f85bbde0b6dd02e8d9e212d1385c2289b89f0a
++tzdata==2026.3 --hash=sha256:dc096730c87af6cab1b171c9d532be840741ff5d459015e7f6947bd7d7e54931
++weasyprint==70.0 --hash=sha256:5043e55e38d2a2af2b2b871e869697b1f65dad5f8b4a3677961d04ceacf9c5fe
++webencodings==0.6.1 --hash=sha256:7fab6269c8bf237c657876b52058ccb182e861518d1c695c1a9aaa8c1c105d5b
++Werkzeug==3.1.8 --hash=sha256:63a77fb8892bf28ebc3178683445222aa500e48ebad5ec77b0ad80f8726b1f50
++zopfli==0.4.3 --hash=sha256:769875152d0625c46707bcca57d4b2233fe653482067acd55fbf6ec525cb9bdc
+diff --git a/schulkasse/__init__.py b/schulkasse/__init__.py
+index 0024ef3..7c93fe9 100644
+--- a/schulkasse/__init__.py
++++ b/schulkasse/__init__.py
+@@ -1,6 +1,7 @@
+ """Schulkasse - contribution and cash book management for GGS Niederkassel."""
+ import logging
+ import secrets
++import sqlite3
+ from datetime import datetime, timezone
+ from zoneinfo import ZoneInfo
+ 
+@@ -9,7 +10,7 @@ from markupsafe import Markup
+ 
+ from . import auth
+ from .config import load_config
+-from .db import Database, close_db, get_db, migrate
++from .db import Database, close_db, get_db, migrate, schema_status
+ from .geld import format_cent
+ from .textnorm import iban_formatiert
+ 
+@@ -42,6 +43,20 @@ def _euro(cent):
+     return Markup(format_cent(cent).replace(" €", "&nbsp;€")) if cent is not None else ""
+ 
+ 
++class TrustedProxyFix:
++    """X-Forwarded-For/-Proto only from the configured proxy addresses; other peers stay unchanged."""
++
++    def __init__(self, wsgi_app, proxies):
++        from werkzeug.middleware.proxy_fix import ProxyFix
++        self.plain = wsgi_app
++        self.fixed = ProxyFix(wsgi_app, x_for=1, x_proto=1)
++        self.proxies = proxies
++
++    def __call__(self, environ, start_response):
++        target = self.fixed if environ.get("REMOTE_ADDR") in self.proxies else self.plain
++        return target(environ, start_response)
++
++
+ def create_app(overrides=None):
+     app = Flask(__name__, instance_relative_config=False)
+     app.config.update(load_config(overrides))
+@@ -51,27 +66,50 @@ def create_app(overrides=None):
+         app.config["SECRET_KEY"] = secrets.token_hex(32)
+     if not app.config.get("TESTING") and len(app.config["SECRET_KEY"]) < 32:
+         raise RuntimeError("SCHULKASSE_SECRET_KEY muss mindestens 32 Zeichen lang sein.")
+-    if app.config.get("HINTER_PROXY") and not app.config.get("TESTING"):
++    if app.config.get("PROXY_IPS"):
++        app.wsgi_app = TrustedProxyFix(app.wsgi_app, app.config["PROXY_IPS"])
++    elif app.config.get("HINTER_PROXY") and not app.config.get("TESTING"):
+         from werkzeug.middleware.proxy_fix import ProxyFix
+         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+     app.config["SESSION_COOKIE_HTTPONLY"] = True
+     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+     app.session_interface = auth.DbSessionInterface()
+ 
+-    db = Database(app.config["DATABASE"])
+-    try:
+-        migrate(db)
+-    finally:
+-        db.close()
++    if app.config.get("AUTO_MIGRATE", True):
++        db = Database(app.config["DATABASE"])
++        try:
++            migrate(db)
++        finally:
++            db.close()
+ 
+     app.teardown_appcontext(close_db)
+     app.jinja_env.filters.update(euro=_euro, datum=_datum, zeit=_zeit, iban=iban_formatiert)
+     # Globals (not context processors) so that imported macros can use them too.
+     app.jinja_env.globals.update(ROLLEN=auth.ROLLEN, format_cent=format_cent, csrf_token=auth.csrf_token)
+ 
++    @app.get("/health/live")
++    def health_live():
++        return {"status": "ok"}
++
++    @app.get("/health/ready")
++    def health_ready():
++        try:
++            db = Database(app.config["DATABASE"], create=False)
++        except (OSError, sqlite3.Error):
++            return {"status": "not-ready"}, 503
++        try:
++            ready = schema_status(db)[0]
++        except sqlite3.Error:
++            ready = False
++        finally:
++            db.close()
++        return ({"status": "ready"}, 200) if ready else ({"status": "not-ready"}, 503)
++
+     @app.before_request
+     def lade_benutzer():
+         g.user = None
++        if request.endpoint in ("health_live", "health_ready"):
++            return None
+         uid = session.get("user_id")
+         if uid:
+             user = get_db().one("SELECT * FROM benutzer WHERE id=?", (uid,))
+diff --git a/schulkasse/auth.py b/schulkasse/auth.py
+index 20602ef..741ff15 100644
+--- a/schulkasse/auth.py
++++ b/schulkasse/auth.py
+@@ -81,6 +81,8 @@ class DbSessionInterface(SessionInterface):
+         name = app.config.get("SESSION_COOKIE_NAME", "session")
+         domain = self.get_cookie_domain(app)
+         path = self.get_cookie_path(app)
++        if not session and session.new:
++            return  # nothing stored, nothing to delete: do not even open (or create) the database
+         db = self._db(app)
+         try:
+             if not session:
+diff --git a/schulkasse/cli.py b/schulkasse/cli.py
+index 528188f..706737a 100644
+--- a/schulkasse/cli.py
++++ b/schulkasse/cli.py
+@@ -49,8 +49,26 @@ def reset_2fa(benutzername):
+ @click.command("migrate")
+ @with_appcontext
+ def migrate_cmd():
+-    """Ausstehende Datenbank-Migrationen anwenden."""
+-    applied = migrate(get_db())
++    """Ausstehende Datenbank-Migrationen anwenden (gesperrt; Dateien nur für den Dienstbenutzer)."""
++    import fcntl
++    import os
++    from flask import current_app
++    from .db import schema_status
++    os.umask(0o077)
++    datenbank = Path(current_app.config["DATABASE"])
++    datenbank.parent.mkdir(parents=True, exist_ok=True)
++    Path(current_app.config["UPLOAD_DIR"]).mkdir(parents=True, exist_ok=True)
++    with open(str(datenbank) + ".migrate.lock", "a") as sperre:
++        fcntl.flock(sperre, fcntl.LOCK_EX)
++        try:
++            applied = migrate(get_db())
++        except RuntimeError as exc:
++            raise click.ClickException(str(exc))
++        ok, fehlend, unbekannt = schema_status(get_db())
++        if not ok:
++            raise click.ClickException(f"Schema unvollständig (fehlend {fehlend}, unbekannt {unbekannt}).")
++        if get_db().scalar("PRAGMA integrity_check") != "ok":
++            raise click.ClickException("Integritätsprüfung fehlgeschlagen.")
+     click.echo("Migrationen angewendet: " + (", ".join(applied) if applied else "keine (aktuell)"))
+ 
+ 
+diff --git a/schulkasse/config.py b/schulkasse/config.py
+index 02c0462..68fe67e 100644
+--- a/schulkasse/config.py
++++ b/schulkasse/config.py
+@@ -29,12 +29,28 @@ def _bool(value, default=False):
+     return value.strip().lower() in ("1", "true", "ja", "yes", "on")
+ 
+ 
++def _secret(env, name):
++    """Value from NAME or NAME_FILE (container secrets); never both."""
++    direct, path = env.get(name, "").strip(), env.get(name + "_FILE", "").strip()
++    if direct and path:
++        raise RuntimeError(f"{name} und {name}_FILE nicht gleichzeitig setzen.")
++    return Path(path).read_text(encoding="utf-8").strip() if path else direct
++
++
++def _ips(value):
++    import ipaddress
++    items = [v.strip() for v in (value or "").split(",") if v.strip()]
++    for item in items:
++        ipaddress.ip_address(item)  # explicit addresses only, no networks or '*'
++    return frozenset(items)
++
++
+ def load_config(overrides=None):
+     load_dotenv(BASE_DIR / ".env")
+     env = os.environ
+     cfg = {
+         "DATABASE": env.get("SCHULKASSE_DB", str(BASE_DIR / "instance" / "schulkasse.sqlite3")),
+-        "SECRET_KEY": env.get("SCHULKASSE_SECRET_KEY", ""),
++        "SECRET_KEY": _secret(env, "SCHULKASSE_SECRET_KEY"),
+         "UPLOAD_DIR": env.get("SCHULKASSE_UPLOAD_DIR", str(BASE_DIR / "instance" / "belege")),
+         "BACKUP_DIR": env.get("SCHULKASSE_BACKUP_DIR", str(BASE_DIR / "instance" / "backups")),
+         "MAX_CONTENT_LENGTH": int(env.get("SCHULKASSE_MAX_UPLOAD_MB", "20")) * 1024 * 1024,
+@@ -44,6 +60,10 @@ def load_config(overrides=None):
+         "SESSION_COOKIE_SECURE": _bool(env.get("SCHULKASSE_COOKIE_SECURE"), True),
+         # Behind nginx: take client IP/scheme from X-Forwarded-* (needed for the IP lockout).
+         "HINTER_PROXY": _bool(env.get("SCHULKASSE_HINTER_PROXY"), True),
++        # Container: only these peers may set X-Forwarded-* (takes precedence over HINTER_PROXY).
++        "PROXY_IPS": _ips(env.get("SCHULKASSE_PROXY_IPS")),
++        # Native installs migrate on start as before; the container runs 'schulkasse migrate' explicitly.
++        "AUTO_MIGRATE": _bool(env.get("SCHULKASSE_AUTO_MIGRATE"), True),
+         "SESSION_TIMEOUT_SEKUNDEN": 8 * 3600,
+         "TESTING": False,
+     }
+diff --git a/schulkasse/db.py b/schulkasse/db.py
+index 472f039..bb3c2c9 100644
+--- a/schulkasse/db.py
++++ b/schulkasse/db.py
+@@ -17,7 +17,14 @@ def utcnow():
+ class Database:
+     """Thin wrapper around sqlite3 with nestable transactions."""
+ 
+-    def __init__(self, path):
++    def __init__(self, path, create=True):
++        if not create:
++            # Readiness probe: never create the file or its directory.
++            self.conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, isolation_level=None,
++                                        check_same_thread=False)
++            self.conn.row_factory = sqlite3.Row
++            self._depth = 0
++            return
+         if path != ":memory:":
+             Path(path).parent.mkdir(parents=True, exist_ok=True)
+         self.conn = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
+@@ -78,6 +85,10 @@ def migrate(db):
+         " version TEXT PRIMARY KEY, angewendet_am TIMESTAMP NOT NULL)"
+     )
+     done = {r[0] for r in db.all("SELECT version FROM schema_migration")}
++    unknown = done - {p.stem for p in MIGRATIONS_DIR.glob("*.sql")}
++    if unknown:
++        raise RuntimeError("Datenbank stammt aus einer neueren Version (Migrationen "
++                           + ", ".join(sorted(unknown)) + "); keine Änderung.")
+     applied = []
+     for path in sorted(MIGRATIONS_DIR.glob("*.sql")):
+         version = path.stem
+@@ -100,6 +111,16 @@ def migrate(db):
+     return applied
+ 
+ 
++def schema_status(db):
++    """(ready, missing, unknown): all bundled migrations applied and none from a newer version."""
++    files = {p.stem for p in MIGRATIONS_DIR.glob("*.sql")}
++    if not db.one("SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_migration'"):
++        return False, sorted(files), []
++    done = {r[0] for r in db.all("SELECT version FROM schema_migration")}
++    missing, unknown = sorted(files - done), sorted(done - files)
++    return not missing and not unknown, missing, unknown
++
++
+ def get_db():
+     if "db" not in g:
+         g.db = Database(current_app.config["DATABASE"])
+diff --git a/tests/test_platform.py b/tests/test_platform.py
+new file mode 100644
+index 0000000..be3e7b2
+--- /dev/null
++++ b/tests/test_platform.py
+@@ -0,0 +1,86 @@
++"""Plattformbetrieb: Migration nur explizit, Readiness, Proxy-Vertrauen, Schlüssel als Datei."""
++import sqlite3
++
++import pytest
++
++from schulkasse import create_app
++from schulkasse.config import load_config
++from schulkasse.db import Database, migrate
++
++
++def container_app(tmp_path, **extra):
++    return create_app({
++        "DATABASE": str(tmp_path / "data" / "schulkasse.sqlite3"),
++        "UPLOAD_DIR": str(tmp_path / "data" / "belege"),
++        "BACKUP_DIR": str(tmp_path / "data" / "backups"),
++        "BRIEF_CONFIG": str(tmp_path / "data" / "brief.toml"),
++        "SECRET_KEY": "k" * 40, "AUTO_MIGRATE": False, **extra})
++
++
++def run_migrate(app):
++    return app.test_cli_runner().invoke(args=["migrate"])
++
++
++def test_no_schema_on_start_and_not_ready_until_migrated(tmp_path):
++    app = container_app(tmp_path)
++    client = app.test_client()
++    assert client.get("/health/live").status_code == 200
++    assert client.get("/health/ready").status_code == 503
++    assert not (tmp_path / "data" / "schulkasse.sqlite3").exists()
++    result = run_migrate(app)
++    assert result.exit_code == 0, result.output
++    assert client.get("/health/ready").status_code == 200
++    assert oct((tmp_path / "data" / "schulkasse.sqlite3").stat().st_mode & 0o777) == "0o600"
++    assert "keine (aktuell)" in run_migrate(app).output
++
++
++def test_newer_database_is_refused(tmp_path):
++    app = container_app(tmp_path)
++    run_migrate(app)
++    db = Database(app.config["DATABASE"])
++    db.execute("INSERT INTO schema_migration VALUES ('0099_zukunft', '2030-01-01 00:00:00')")
++    with pytest.raises(RuntimeError):
++        migrate(db)
++    db.close()
++    assert app.test_client().get("/health/ready").status_code == 503
++    assert run_migrate(app).exit_code != 0
++
++
++def test_forwarded_headers_only_from_configured_proxy(tmp_path):
++    app = container_app(tmp_path, PROXY_IPS=frozenset({"10.231.13.2"}))
++    seen = {}
++
++    @app.get("/_ip")
++    def _ip():
++        from flask import request
++        seen["ip"], seen["scheme"] = request.remote_addr, request.scheme
++        return "ok"
++
++    client = app.test_client()
++    client.get("/_ip", headers={"X-Forwarded-For": "203.0.113.7", "X-Forwarded-Proto": "https"},
++               environ_base={"REMOTE_ADDR": "10.231.13.2"})
++    assert seen == {"ip": "203.0.113.7", "scheme": "https"}
++    client.get("/_ip", headers={"X-Forwarded-For": "203.0.113.7"}, environ_base={"REMOTE_ADDR": "10.9.9.9"})
++    assert seen["ip"] == "10.9.9.9"
++
++
++def test_secret_key_from_file_and_exclusive(tmp_path, monkeypatch):
++    key = tmp_path / "key"
++    key.write_text("s" * 40 + "\n")
++    monkeypatch.delenv("SCHULKASSE_SECRET_KEY", raising=False)
++    monkeypatch.setenv("SCHULKASSE_SECRET_KEY_FILE", str(key))
++    assert load_config()["SECRET_KEY"] == "s" * 40
++    monkeypatch.setenv("SCHULKASSE_SECRET_KEY", "t" * 40)
++    with pytest.raises(RuntimeError):
++        load_config()
++    monkeypatch.delenv("SCHULKASSE_SECRET_KEY")
++    monkeypatch.setenv("SCHULKASSE_PROXY_IPS", "*")
++    with pytest.raises(ValueError):
++        load_config()
++
++
++def test_legacy_native_install_still_migrates_on_start(tmp_path):
++    app = container_app(tmp_path, AUTO_MIGRATE=True)
++    assert app.test_client().get("/health/ready").status_code == 200
++    con = sqlite3.connect(tmp_path / "data" / "schulkasse.sqlite3")
++    assert con.execute("SELECT count(*) FROM schema_migration").fetchone()[0] >= 9

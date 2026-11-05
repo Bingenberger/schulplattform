@@ -65,6 +65,8 @@ FACTS = {
                       domain=["FUNDKISTE_BASE_URL"], memory=256, cpus=1.0, workers=1, slots=0, live="/health/live"),
     "schuleva": dict(database=("sqlite", "schuleva", "schuleva"), persistence=[("data", "/data")],
                      domain=["BASE_URL"], memory=512, cpus=1.0, workers=1, slots=1, live="/health/live"),
+    "schulkasse": dict(database=("sqlite", "schulkasse", "schulkasse"), persistence=[("data", "/data")],
+                       domain=[], memory=512, cpus=1.0, workers=2, slots=1, live="/health/live"),
 }
 COMPOSE_EXTRA = {"fahrradausbildung": ["docker/init-postgres.sh"], "leseflux": ["docker/init-postgres.sh"],
                  "abgen": ["docker/init-postgres.sh"]}

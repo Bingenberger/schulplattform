@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 REGISTRY = "ghcr.io/bingenberger"
 
 APP_IDS = ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel",
-           "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen", "fundkiste", "schuleva")
+           "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen", "fundkiste", "schuleva", "schulkasse")
 
 # Published image name -> Dockerfile target (None = default/last stage).
 RELEASE_IMAGES = {
@@ -30,6 +30,7 @@ RELEASE_IMAGES = {
     "abgen": (("abgen", "runtime"), ("abgen-pdf", "pdf")),
     "fundkiste": (("fundkiste", "final"),),
     "schuleva": (("schuleva", "final"),),
+    "schulkasse": (("schulkasse", "final"),),
 }
 
 # Platform infrastructure images (pinned upstream digests, already used in the pilot).
@@ -51,7 +52,8 @@ DOMAIN_VARIABLES = {"gswb": (), "schulwissen": ("SW_ALLOWED_HOSTS", "SW_OEFFENTL
                     "losverkauf": ("BASE_URL",), "grundschultafel": ("BASE_URL",),
                     "fahrradausbildung": ("FP_OEFFENTLICHE_URL",), "leseflux": ("CORS_ORIGIN",),
                     "kompetenz-manager": ("APP_BASE_URL",), "abgen": ("WEB_ORIGIN",),
-                    "fundkiste": ("FUNDKISTE_BASE_URL",), "schuleva": ("BASE_URL",)}
+                    "fundkiste": ("FUNDKISTE_BASE_URL",), "schuleva": ("BASE_URL",),
+                    "schulkasse": ()}
 
 
 @dataclass(frozen=True)
@@ -450,6 +452,28 @@ secrets:
       default: {{}}
       proxy:
         aliases: [schuleva]
+""" + _PROXY_NETWORK),
+    App("schulkasse", 13, 8000, "/health/ready", ("app",),
+        images={"app": "schulkasse"},
+        compose_env={"SCHULKASSE_SECRET_FILE": "schulkasse-key"},
+        # The key also encrypts the 2FA secrets: an import must carry the old one (altserver tool does).
+        secrets=(("schulkasse-key", "random:schulkasse-key"),),
+        migrations=(("python", "-m", "schulkasse", "migrate"),),
+        checks=(Check("GET", "/anmelden", 200), Check("GET", "/", 302)),
+        setup=("run", ("python", "-m", "schulkasse", "create-admin", "--benutzername", "{name}",
+                       "--anzeigename", "{display}")),
+        override="""services:
+  app:
+    image: {image_app}
+    restart: unless-stopped
+    ports: !reset []
+    environment:
+      SCHULKASSE_COOKIE_SECURE: "1"
+      SCHULKASSE_PROXY_IPS: {proxy_ip}
+    networks:
+      default: {{}}
+      proxy:
+        aliases: [schulkasse]
 """ + _PROXY_NETWORK),
 ]}
 

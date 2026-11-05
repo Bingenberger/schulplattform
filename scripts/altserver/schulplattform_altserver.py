@@ -64,6 +64,11 @@ APPS = {
                  "unit": "schulbefragung.service", "envfile": ".env",
                  "exclude": {"data": ("backups",)},          # daily cp copies from the old cron job
                  "extra_dirs": {"surveys": ("data", "surveys")}},
+    "schulkasse": {"kind": "native", "default": "/opt/schulkasse", "volumes": {"data": "instance"},
+                   "unit": "schulkasse.service", "envfile": ".env",
+                   # The key encrypts the 2FA secrets: without it nobody can log in after the move.
+                   "secrets": {"SCHULKASSE_SECRET_KEY": "schulkasse-key"},
+                   "exclude": {"data": ("backups",)}},       # the app's own tar.gz backups stay behind
     "schulwissen": {"kind": "compose", "db": ("db", "schulwissen", "schulwissen"), "engine": "postgres16",
                     "volumes": {"medien": ("app", "/medien")}},
     "fahrradausbildung": {"kind": "compose", "db": ("db", "fahrrad", "fahrrad"), "engine": "postgres16",

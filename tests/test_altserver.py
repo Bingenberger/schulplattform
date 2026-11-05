@@ -114,3 +114,38 @@ def test_schuleva_export_moves_surveys_and_skips_cron_copies(tmp_path, monkeypat
         assert not any("backups" in name for name in names) and "./db.sqlite" not in names
     assert (tmp_path / "x/sqlite/data/db.sqlite").exists()
     assert "secrets" not in json.loads((tmp_path / "x/backup.json").read_text())
+
+
+def test_schulkasse_export_carries_the_2fa_key_and_skips_own_backups(tmp_path, monkeypatch):
+    import shutil
+    import sqlite3
+    import tarfile
+    if not shutil.which("gpg"):
+        import pytest
+        pytest.skip("gpg not installed")
+    base = tmp_path / "opt/schulkasse"
+    (base / "instance/belege").mkdir(parents=True)
+    (base / "instance/backups").mkdir()
+    sqlite3.connect(base / "instance/schulkasse.sqlite3").executescript(
+        "CREATE TABLE benutzer(id INTEGER, totp_secret TEXT); INSERT INTO benutzer VALUES(1,'verschluesselt');")
+    (base / "instance/belege/beleg1.pdf").write_bytes(b"%PDF")
+    (base / "instance/brief.toml").write_text('schulname = "GGS"\n')
+    (base / "instance/backups/schulkasse-backup-1.tar.gz").write_bytes(b"x")
+    (base / ".env").write_text("SCHULKASSE_SECRET_KEY='" + "a" * 64 + "'\nSCHULKASSE_PORT=5015\n")
+    monkeypatch.setattr(altserver, "unit_for", lambda base, preferred=None: preferred)
+    key = tmp_path / "transfer.key"
+    key.write_text("k" * 48)
+    summary = altserver.export("schulkasse", key, tmp_path / "out", path=str(base))
+    plain = tmp_path / "plain.tar"
+    subprocess.run(["gpg", "--batch", "--quiet", "--passphrase-file", str(key), "-o", str(plain), "-d",
+                    summary["archive"]], check=True, env={"GNUPGHOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
+    with tarfile.open(plain) as outer:
+        outer.extractall(tmp_path / "x", filter="data")
+    info = json.loads((tmp_path / "x/backup.json").read_text())
+    assert info["secrets"] == ["schulkasse-key"]
+    assert (tmp_path / "x/secrets/schulkasse-key").read_text() == "a" * 64
+    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+        names = inner.getnames()
+    assert {"./belege/beleg1.pdf", "./brief.toml"} <= set(names)
+    assert not any("backups" in n for n in names)
+    assert (tmp_path / "x/sqlite/data/schulkasse.sqlite3").exists()
