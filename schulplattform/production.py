@@ -262,10 +262,13 @@ class Platform:
         router.check_dns()
         router.apply_routes()
 
-    def _domain_verify(self, domains):
+    def _domain_verify(self, domains, changed):
+        # Only the apps being moved: another app still waiting for DNS (real server: tafel on its
+        # old host) must neither fail the change nor its rollback.
         router = Router(self.stack, self.domains(), domains=domains)
         status = router.reconcile(wait_seconds=int(os.environ.get("SP_CERT_WAIT", "150")))
-        for app, hostname in domains.items():
+        for app in sorted(changed):
+            hostname = domains[app]
             if status.get(app, {}).get("hostname") != hostname or status[app].get("phase") != "aktiv":
                 return False
             self.stack.verify_app(app, hostname)

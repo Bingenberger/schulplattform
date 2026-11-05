@@ -16,6 +16,11 @@ class DomainError(RuntimeError):
     pass
 
 
+def _changed(old, new):
+    """Apps whose hostname differs; only these are verified (others may legitimately lack DNS)."""
+    return {app for app in set(old) | set(new) if old.get(app) != new.get(app)}
+
+
 class Domains:
     def __init__(self, directory, initial, management_domain, preflight, activate, verify, operation_lock=None):
         self.directory = Path(directory)
@@ -56,7 +61,8 @@ class Domains:
             return
         try:
             self.activate(pending["old"]["domains"])
-            if self.verify(pending["old"]["domains"]) is not True:
+            changed = _changed(pending["old"]["domains"], pending["candidate"]["domains"])
+            if self.verify(pending["old"]["domains"], changed) is not True:
                 raise DomainError("Rollback verification failed")
         except BaseException:
             pending["status"] = "recovery-required"
@@ -103,7 +109,7 @@ class Domains:
             atomic_json(self.pending, pending)
             try:
                 self.activate(candidate["domains"])
-                if self.verify(candidate["domains"]) is not True:
+                if self.verify(candidate["domains"], _changed(old["domains"], candidate["domains"])) is not True:
                     raise DomainError("Domain verification failed")
             except BaseException:
                 self._recover()
