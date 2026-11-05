@@ -646,6 +646,7 @@ def export(app, key_file, out_dir, path=None, project=None):
                 sqlite_dir.mkdir(parents=True, exist_ok=True)
                 with tarfile.open(snap / "files.tar", "w") as tar:
                     for kind, path, target, skip in items:
+                        files = 1
                         if kind == "sqlite":
                             if not path.is_file():
                                 raise SystemExit(f"Database {path} not found; set it with --path or check the .env")
@@ -663,17 +664,25 @@ def export(app, key_file, out_dir, path=None, project=None):
                                                    "alembic": facts.get("alembic")})
                             info["counts"][f"{volume}/{target}"] = facts.get("tables", {})
                         elif kind == "dir" and path.is_dir():
+                            files = 0
                             for item in sorted(path.rglob("*")):
                                 relative = str(item.relative_to(path))
                                 if item.is_symlink() or any(relative == s or relative.startswith(s + "/") for s in skip):
                                     continue
                                 arcname = f"./{target}/{relative}" if target else f"./{relative}"
                                 tar.add(item, arcname=arcname, recursive=False)
+                                files += item.is_file()
                         elif kind == "file" and path.is_file():
                             tar.add(path, arcname=f"./{target}", recursive=False)
+                        elif kind == "dir":
+                            # Real old server: the uploads (PDFs) were not where the .env/default said;
+                            # skipping silently produced an archive without them.
+                            raise SystemExit(f"{app}: Verzeichnis {path} nicht gefunden ({target or 'Daten'}); "
+                                             "Pfad in der .env prüfen oder mit --path das App-Verzeichnis angeben.")
                         else:
                             continue
-                        info.setdefault("relocated", []).append({"from": str(path), "to": f"{volume}:{target}"})
+                        info.setdefault("relocated", []).append({"from": str(path), "to": f"{volume}:{target}",
+                                                                 "files": files})
                 if volume not in info["volumes"]:
                     info["volumes"].append(volume)
             if not info["volumes"]:
@@ -727,6 +736,8 @@ def export(app, key_file, out_dir, path=None, project=None):
         summary = {"app": app, "archive": str(archive), "sha256": digest, "volumes": info["volumes"],
                    "sqliteFiles": len(info["sqlite"]), "engine": info["engine"],
                    "tables": sum(len(v) for v in info["counts"].values())}
+        if info.get("relocated"):
+            summary["relocated"] = info["relocated"]
         print(json.dumps(summary, indent=2))
         return summary
     finally:

@@ -189,6 +189,13 @@ def test_schulanmeldung_export_follows_env_paths_and_takes_the_signature(tmp_pat
         names = set(inner.getnames())
     assert {"./uploads/gutachten/a.pdf", "./briefkopf/unterschrift.png"} <= names
     assert "secrets" not in info   # the session key is not needed: TOTP and parent links do not depend on it
+    uploads = [r for r in summary["relocated"] if r["to"] == "data:uploads"]
+    assert uploads[0]["files"] == 1                    # visible in the export output
+    # Real old server: the export was tiny because the uploads were elsewhere; it must not skip them.
+    (base / ".env").write_text((base / ".env").read_text() + f"SL_OFFICE_UPLOAD_FOLDER={tmp_path}/fehlt\n")
+    import pytest
+    with pytest.raises(SystemExit, match="fehlt.*nicht gefunden"):
+        altserver.export("schulanmeldung", key, tmp_path / "out2", path=str(base))
 
 
 def test_sl_journal_export_needs_stopped_service_and_carries_the_database_key(tmp_path, monkeypatch):
