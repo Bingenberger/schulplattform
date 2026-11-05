@@ -502,6 +502,14 @@ def inventory(overrides, projects):
                     entry["commit"] = git_commit(entry["workingDir"])
                     entry["secretNames"] = env_names(Path(entry["workingDir"]) / ".env")
                 entry["postgres"] = postgres_facts(container, user, database)
+                if not entry["postgres"].get("serverVersion") and not projects.get(app):
+                    # Real old server: schulwissen was "found" in fahrradausbildung's db container; the
+                    # database (and role) do not exist there, so psql answered nothing.
+                    entry = {"kind": "compose", "present": False,
+                             "note": f"Service '{service}' found in project {entry['composeProject']}, but no "
+                                     f"database '{database}' for role '{user}'; belongs to another app?"}
+                    report["apps"][app] = entry
+                    continue
                 entry["data"] = {}
                 for volume, (svc, mount) in spec["volumes"].items():
                     app_container = compose_container(entry["composeProject"], svc)

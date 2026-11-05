@@ -451,3 +451,27 @@ def test_grundschultafel_export_moves_public_assets_into_the_data_volume(tmp_pat
         names = set(inner.getnames())
     assert {"./users.json", f"./{uid}/nb1.json", "./assets/gallery/Mixed/bild.png"} <= names
     assert not any("timer" in name for name in names)
+
+
+def test_compose_app_is_not_reported_from_another_apps_database_container(monkeypatch):
+    # Real old server "whiteboard": only fahrradausbildung runs there, yet schulwissen was reported
+    # present because its db service name matched fahrradausbildung's container.
+    labels = json.dumps({"com.docker.compose.project": "fahrradausbildung",
+                         "com.docker.compose.project.working_dir": "/opt/fahrradausbildung"})
+    def fake(argv, **kwargs):
+        if argv[:2] == ["docker", "inspect"]:
+            return subprocess.CompletedProcess(argv, 0, labels, "")
+        if argv[:2] == ["docker", "exec"] and "-d" in argv and argv[argv.index("-d") + 1] != "fahrrad":
+            return subprocess.CompletedProcess(argv, 2, "", "FATAL: role does not exist")
+        if argv[:2] == ["docker", "exec"] and argv[-1] == "SHOW server_version":
+            return subprocess.CompletedProcess(argv, 0, "16.15\n", "")
+        return subprocess.CompletedProcess(argv, 0, "", "")
+    monkeypatch.setattr(altserver, "run", fake)
+    monkeypatch.setattr(altserver, "compose_container", lambda project, service: "c1")
+    monkeypatch.setattr(altserver, "git_commit", lambda path: None)
+    monkeypatch.setattr(altserver, "env_names", lambda path: [])
+    monkeypatch.setattr(altserver, "running_services", lambda: [])
+    monkeypatch.setattr(altserver, "compose_projects", lambda: [], raising=False)
+    report = altserver.inventory({}, {})["apps"]
+    assert report["schulwissen"]["present"] is False and "another app" in report["schulwissen"]["note"]
+    assert report["fahrradausbildung"]["present"] is True
