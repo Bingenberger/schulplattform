@@ -25,7 +25,9 @@ class SecretStore:
             raise ValueError("Invalid secret reference")
         return self.directory / name
 
-    def get_or_create(self, name):
+    def get_or_create(self, name, generate=None):
+        """Existing value, or a new one (default: 64 URL-safe characters; ``generate`` for formats
+        an app requires, e.g. a Fernet key). An existing value is never replaced."""
         path = self.path(name)
         with exclusive(self.directory / ".store.lock"):
             if not path.exists() and not path.is_symlink():
@@ -33,7 +35,7 @@ class SecretStore:
                 fd = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
                 try:
                     with os.fdopen(fd, "w") as stream:
-                        stream.write(secrets.token_urlsafe(48))
+                        stream.write(generate() if generate else secrets.token_urlsafe(48))
                         stream.flush()
                         os.fsync(stream.fileno())
                     os.link(temporary, path)  # never replace an existing credential

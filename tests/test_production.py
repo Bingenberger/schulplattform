@@ -276,3 +276,14 @@ def test_kompetenz_fonts_directory_is_mounted_read_only_for_pdf_export(tmp_path)
     fonts = layout.runtime / "kompetenz-manager/fonts"
     assert fonts.is_dir()
     assert f"{fonts}:/usr/local/share/fonts:ro" in override["services"]["app"]["volumes"]
+
+
+def test_fernet_secret_is_a_valid_key_and_stays_stable(tmp_path):
+    from cryptography.fernet import Fernet
+    layout, stack, _ = render(tmp_path, sample())
+    projection = layout.runtime / "sl-journal/master-key"
+    key = projection.read_text().strip()
+    Fernet(key.encode())                                    # raises if the format is wrong
+    stack.materialize_secrets()
+    assert projection.read_text().strip() == key            # never regenerated
+    assert (layout.secrets / "journal-master-key").read_text() == key

@@ -82,5 +82,11 @@
     "baseCommit": "b6b6c3d98573a0131a401f04eafab48b61f9b42e",
     "implementationCommit": "5dcc86a0d5323abbb3e62389ca2638f3deb973f4",
     "patch": "patches/schulanmeldung/changes.patch"
+  },
+  {
+    "app": "sl-journal",
+    "baseCommit": "9dd44a584c7b9a35e28c6a362f97c8c9babb4d98",
+    "implementationCommit": "424bd10cdf1dceaa21b03d5ce3979c2b6283c634",
+    "patch": "patches/sl-journal/changes.patch"
   }
 ]

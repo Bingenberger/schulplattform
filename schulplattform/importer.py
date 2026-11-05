@@ -44,6 +44,8 @@ ADOPTION = {
                   "sonst sind die Zwei-Faktor-Geheimnisse nicht mehr lesbar; Belege und brief.toml ziehen mit.",
     "schulanmeldung": "Alembic-Migrationen laufen vorwärts (Altbestand muss gestempelt sein); "
                       "Uploads und Unterschrift ziehen mit; Eltern-Zugangslinks bleiben gültig.",
+    "sl-journal": "Verschlüsselte Datenbank wird unverändert übernommen; der Original-Datenbankschlüssel "
+                  "kommt als Secret mit. Passwort und Authenticator bleiben, Sitzungen und App-Geräte nicht.",
 }
 
 

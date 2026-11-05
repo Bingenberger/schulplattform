@@ -1,0 +1,697 @@
+diff --git a/.dockerignore b/.dockerignore
+new file mode 100644
+index 0000000..cdd67c3
+--- /dev/null
++++ b/.dockerignore
+@@ -0,0 +1,11 @@
++.git
++.venv
++instance
++node_modules
++android
++docs
++frontend
++__pycache__
++*.pyc
++*.key
++*.db
+diff --git a/Dockerfile b/Dockerfile
+new file mode 100644
+index 0000000..5f8a89f
+--- /dev/null
++++ b/Dockerfile
+@@ -0,0 +1,31 @@
++FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c AS runtime
++ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1 HOME=/tmp \
++    JOURNAL_INSTANCE=/data JOURNAL_AUTO_MIGRATE=0 TZ=Europe/Berlin
++WORKDIR /app
++# PDF-Text/-Vorschau (Poppler), Texterkennung in Anhängen (Tesseract, Deutsch),
++# Office-Vorschau (LibreOffice ohne Oberfläche)
++RUN apt-get update && apt-get install -y --no-install-recommends \
++      poppler-utils tesseract-ocr tesseract-ocr-deu \
++      libreoffice-writer-nogui libreoffice-calc-nogui libreoffice-impress-nogui fonts-dejavu-core fonts-liberation \
++    && rm -rf /var/lib/apt/lists/*
++COPY requirements.lock ./
++RUN pip install --no-cache-dir --require-hashes -r requirements.lock
++COPY manage.py wsgi.py ./
++COPY journal ./journal
++RUN groupadd --gid 10001 journal && useradd --uid 10001 --gid 10001 --no-create-home journal \
++    && mkdir -p /data && chown 10001:10001 /data && chmod 700 /data
++USER 10001:10001
++EXPOSE 8000
++CMD ["python", "-m", "journal.serve"]
++
++FROM runtime AS tests
++ENV JOURNAL_AUTO_MIGRATE=1
++USER 0
++COPY requirements-test.lock ./
++RUN pip install --no-cache-dir --require-hashes -r requirements-test.lock
++COPY tests ./tests
++COPY scripts ./scripts
++USER 10001:10001
++CMD ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider"]
++
++FROM runtime AS final
+diff --git a/PLATFORM.md b/PLATFORM.md
+new file mode 100644
+index 0000000..05adc71
+--- /dev/null
++++ b/PLATFORM.md
+@@ -0,0 +1,46 @@
++# Schulleitungsjournal: Containervertrag
++
++Python 3.12.12/amd64, Flask 3.1.3, SQLCipher (sqlcipher3-binary 0.6.0), Waitress 3.0.2 aus
++Hash-Lockfile (`requirements.lock`); Poppler, Tesseract (deu) und LibreOffice ohne Oberfläche für
++Vorschau und Volltext. Basisimage mit Digest. Läuft schreibgeschützt als UID/GID 10001 ohne
++Capabilities; beschreibbar sind `/data` (Instanz) und `/tmp`.
++
++## Dienste
++
++| Dienst | Aufgabe |
++| --- | --- |
++| `app` | Waitress, 4 Threads (`python -m journal.serve`) |
++| `worker` | `python -m journal.worker`: Abgleich alle 5 Minuten, Wartung täglich 03:15 (ersetzt `journal-sync.timer`/`journal-maintenance.timer`); Herzschlag in `/tmp` |
++
++## Eigenständiger Start
++
++```sh
++python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" > master.key
++chmod 600 master.key && export JOURNAL_MASTER_KEY_FILE="$PWD/master.key"
++docker compose build
++docker compose run --rm app python manage.py migrate
++docker compose run --rm app python manage.py init      # Einrichtungscode; Einrichtung über /setup
++docker compose up -d --no-build
++```
++
++## Schlüssel
++
++`JOURNAL_KEY_FILE` (im Container `/run/secrets/master-key`) ist der SQLCipher-/Fernet-Schlüssel.
++Im Container (`JOURNAL_AUTO_MIGRATE=0`) wird er **nie** selbst erzeugt; fehlt er, startet die App nicht.
++Ohne den Originalschlüssel sind Datenbank und Anhänge nicht lesbar. `backup.key` (für die
++app-eigenen Sicherungen) liegt in `/data`; die app-eigene Sicherung läuft im Container nur mit
++`JOURNAL_APP_BACKUP=1`, weil die Plattform das Datenvolume selbst sichert.
++
++## Schema
++
++Nativ hebt die App ihr Schema weiter beim Start an. Im Container ist `manage.py migrate` der
++ausdrückliche, gesperrte Schritt (anschließend `cipher_integrity_check` und `integrity_check`);
++er vermerkt die Schemakennung dieses Codes. `/health/ready` meldet erst bereit, wenn die Datenbank
++sich mit dem Schlüssel öffnen lässt und diese Kennung trägt; `/health/live` prüft nur den Prozess.
++
++## Proxy und HTTPS
++
++`JOURNAL_PROXY_IPS` nennt die Adressen des Reverse-Proxys; nur von dort zählen
++`X-Forwarded-For/-Proto/-Host` (hat Vorrang vor `JOURNAL_TRUST_PROXY`). Ohne HTTPS laut Proxy
++antwortet die App weiterhin mit 400. `JOURNAL_PUBLIC_URL` ist die Adresse, die `init` für die
++Einrichtung nennt.
+diff --git a/README.md b/README.md
+index bbeeb0b..d698288 100644
+--- a/README.md
++++ b/README.md
+@@ -332,6 +332,12 @@ Nur lokal mit Betriebssystemzugriff:
+ 
+ Dies ersetzt die Anmeldung über einen neuen Einrichtungscode; Inhalte bleiben erhalten. Ein verlorener Datenbankschlüssel kann dadurch nicht wiederhergestellt werden.
+ 
++## Betrieb in der Schulplattform
++
++In der Schulplattform laufen Webdienst und Hintergrunddienst als Container; Domain, Zertifikat,
++Schlüsselverwaltung, Migration und Sicherung übernimmt die Plattform. Den Einrichtungscode zeigt
++`./install.sh app-setup sl-journal`. Siehe [PLATFORM.md](PLATFORM.md).
++
+ ## Serverbetrieb: Ubuntu, nginx, systemd
+ 
+ Vorlagen liegen in `deploy/`; sie werden nicht automatisch auf dem System installiert. Betrieb und Netzfreigabe entsprechend der im Lastenheft offenen Entscheidung mit der zuständigen Stelle festlegen.
+diff --git a/docker-compose.yml b/docker-compose.yml
+new file mode 100644
+index 0000000..7ae8ce7
+--- /dev/null
++++ b/docker-compose.yml
+@@ -0,0 +1,62 @@
++x-runtime: &runtime
++  JOURNAL_KEY_FILE: /run/secrets/master-key
++  JOURNAL_PROXY_IPS: ${JOURNAL_PROXY_IPS:-}
++  JOURNAL_PUBLIC_URL: ${JOURNAL_PUBLIC_URL:-https://localhost}
++  JOURNAL_APP_BACKUP: ${JOURNAL_APP_BACKUP:-0}
++x-logging: &logging
++  driver: json-file
++  options: {max-size: 10m, max-file: "3"}
++services:
++  app:
++    build: {context: ., target: final}
++    image: sl-journal:0.1.0-dev
++    user: "10001:10001"
++    init: true
++    stop_grace_period: 40s
++    read_only: true
++    cap_drop: [ALL]
++    security_opt: [no-new-privileges:true]
++    tmpfs: ["/tmp:size=512m,mode=1777"]
++    mem_limit: 1536m
++    cpus: 2.0
++    pids_limit: 256
++    environment: *runtime
++    volumes:
++      - data:/data
++      - ${JOURNAL_MASTER_KEY_FILE:?Datei mit dem Fernet-Datenbankschlüssel angeben}:/run/secrets/master-key:ro
++    ports: ["127.0.0.1:${JOURNAL_PORT:-8088}:8000"]
++    healthcheck:
++      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"]
++      interval: 15s
++      timeout: 8s
++      retries: 6
++      start_period: 30s
++    logging: *logging
++  worker:
++    image: sl-journal:0.1.0-dev
++    command: [python, -m, journal.worker]
++    user: "10001:10001"
++    init: true
++    stop_grace_period: 30s
++    read_only: true
++    cap_drop: [ALL]
++    security_opt: [no-new-privileges:true]
++    tmpfs: ["/tmp:size=512m,mode=1777"]
++    mem_limit: 1024m
++    cpus: 1.0
++    pids_limit: 128
++    environment: *runtime
++    volumes:
++      - data:/data
++      - ${JOURNAL_MASTER_KEY_FILE:?Datei mit dem Fernet-Datenbankschlüssel angeben}:/run/secrets/master-key:ro
++    depends_on:
++      app: {condition: service_healthy}
++    healthcheck:
++      test: [CMD, python, -c, "import os,time,sys; sys.exit(0 if time.time()-os.path.getmtime('/tmp/journal-worker.alive') < 300 else 1)"]
++      interval: 60s
++      timeout: 5s
++      retries: 3
++      start_period: 60s
++    logging: *logging
++volumes:
++  data:
+diff --git a/journal/app.py b/journal/app.py
+index 8799791..2717e44 100644
+--- a/journal/app.py
++++ b/journal/app.py
+@@ -21,6 +21,7 @@ from werkzeug.exceptions import HTTPException
+ from werkzeug.security import check_password_hash, generate_password_hash
+ from werkzeug.middleware.proxy_fix import ProxyFix
+ 
++from . import platform
+ from .auth import login_failed, rate_limit, valid_code, verify
+ from .db import atomic_write, cipher, close_db, get_db, init_db, one, rows, set_setting, setting
+ from .domain import clean_tags, UNPROCESSED_MAIL, MONTHS, PERIODS, TYPES, entries, entry_details, now, process_due, save_attachment, save_entry, save_task, school_year, trigger_process, valid_date
+@@ -43,6 +44,9 @@ def create_app(test_config=None):
+         (instance/folder).mkdir(exist_ok=True, mode=0o700)
+     key_path = Path(os.environ.get('JOURNAL_KEY_FILE', str(instance/'master.key')))
+     if not key_path.exists():
++        if os.environ.get('JOURNAL_KEY_FILE') and os.environ.get('JOURNAL_AUTO_MIGRATE') == '0':
++            # Container: der Schlüssel kommt von der Plattform und wird nie still neu erzeugt.
++            raise RuntimeError('JOURNAL_KEY_FILE fehlt: Datenbankschlüssel nicht bereitgestellt.')
+         if (instance/'journal.db').exists():
+             raise RuntimeError('Der Schlüssel zur vorhandenen Datenbank fehlt. Originalschlüssel wiederherstellen.')
+         key_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+@@ -58,14 +62,18 @@ def create_app(test_config=None):
+         REQUIRE_HTTPS=True)
+     if test_config:
+         app.config.update(test_config)
+-    if os.environ.get('JOURNAL_TRUST_PROXY') == '1':
++    proxy_ips = platform.proxy_ips()
++    if proxy_ips:
++        app.wsgi_app = platform.TrustedProxyFix(app.wsgi_app, proxy_ips)
++    elif os.environ.get('JOURNAL_TRUST_PROXY') == '1':
+         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+     app.teardown_appcontext(close_db)
+-    with app.app_context():
+-        init_db()
+-        from . import attachment_search
+-        attachment_search.init()
+-        get_db().commit()
++    # Nativ wie bisher: Schema beim Start anheben. Im Container (JOURNAL_AUTO_MIGRATE=0)
++    # ist ``manage.py migrate`` der ausdrückliche Schritt; der Start verändert nichts.
++    auto_migrate = (test_config or {}).get('AUTO_MIGRATE', os.environ.get('JOURNAL_AUTO_MIGRATE', '1') != '0')
++    if auto_migrate:
++        platform.migrate_schema(app)
++    from . import attachment_search
+     import threading
+     app.extensions['attachment_search_lock'] = threading.Lock()
+ 
+@@ -73,9 +81,7 @@ def create_app(test_config=None):
+     app.register_blueprint(handwriting_bp)
+     from . import mobile_api
+     app.register_blueprint(mobile_api.bp)
+-    with app.app_context():
+-        mobile_api.init()
+-        get_db().commit()
++    platform.register(app)
+ 
+     @app.template_filter('md')
+     def render_markdown(text):
+@@ -131,6 +137,8 @@ def create_app(test_config=None):
+     @app.before_request
+     def protect():
+         g.style_nonce = secrets.token_urlsafe(24)
++        if request.endpoint in ('health_live', 'health_ready'):
++            return  # interne Docker-Prüfung über HTTP, ohne Sitzung und ohne Datenbankzugriff
+         if app.config['REQUIRE_HTTPS'] and not request.is_secure:
+             return 'HTTPS ist erforderlich. Bitte die HTTPS-Adresse verwenden.', 400
+         if request.blueprint == 'mobile_api':
+diff --git a/journal/platform.py b/journal/platform.py
+new file mode 100644
+index 0000000..4f1ebc9
+--- /dev/null
++++ b/journal/platform.py
+@@ -0,0 +1,87 @@
++"""Betrieb in der Schulplattform: expliziter Schemaschritt, Readiness, Proxy-Vertrauen."""
++from __future__ import annotations
++
++import hashlib
++import ipaddress
++import os
++from pathlib import Path
++
++from flask import jsonify
++from werkzeug.middleware.proxy_fix import ProxyFix
++
++
++def proxy_ips() -> frozenset:
++    items = [v.strip() for v in os.environ.get('JOURNAL_PROXY_IPS', '').split(',') if v.strip()]
++    for item in items:
++        ipaddress.ip_address(item)  # nur explizite Adressen, keine Netze und kein '*'
++    return frozenset(items)
++
++
++class TrustedProxyFix:
++    """X-Forwarded-For/-Proto/-Host nur von den konfigurierten Proxy-Adressen."""
++
++    def __init__(self, wsgi_app, proxies):
++        self.plain = wsgi_app
++        self.fixed = ProxyFix(wsgi_app, x_for=1, x_proto=1, x_host=1)
++        self.proxies = proxies
++
++    def __call__(self, environ, start_response):
++        target = self.fixed if environ.get('REMOTE_ADDR') in self.proxies else self.plain
++        return target(environ, start_response)
++
++
++def schema_digest() -> str:
++    """Kennung des Schemas dieses Codes: ändert sich mit jeder Schemadefinition."""
++    from . import attachment_search, db, mobile_api
++    digest = hashlib.sha256()
++    for module in (db, attachment_search, mobile_api):
++        digest.update(Path(module.__file__).read_bytes())
++    return digest.hexdigest()
++
++
++def migrate_schema(app) -> None:
++    """Alle Schemaschritte (wie bisher beim Start) und danach den Stand vermerken."""
++    from . import attachment_search, mobile_api
++    from .db import get_db, init_db, set_setting
++    with app.app_context():
++        init_db()
++        attachment_search.init()
++        mobile_api.init()
++        set_setting('platform_schema', schema_digest())
++        get_db().commit()
++
++
++def schema_ready(app) -> bool:
++    """Datenbank lässt sich mit dem Schlüssel öffnen und trägt den Schemastand dieses Codes."""
++    path = Path(app.instance_path) / 'journal.db'
++    if not path.is_file():
++        return False
++    from .db import connect
++    try:
++        db = connect(path, app.config['DATA_KEY'])
++        try:
++            row = db.execute("SELECT value FROM settings WHERE key='platform_schema'").fetchone()
++        finally:
++            db.close()
++    except Exception:
++        return False
++    if row is None:
++        return False
++    value = row[0]
++    try:
++        import json
++        value = json.loads(value)
++    except (TypeError, ValueError):
++        pass
++    return value == schema_digest()
++
++
++def register(app) -> None:
++    @app.get('/health/live')
++    def health_live():
++        return jsonify(status='ok')
++
++    @app.get('/health/ready')
++    def health_ready():
++        ready = schema_ready(app)
++        return jsonify(status='ready' if ready else 'not-ready'), (200 if ready else 503)
+diff --git a/journal/serve.py b/journal/serve.py
+new file mode 100644
+index 0000000..8ae884d
+--- /dev/null
++++ b/journal/serve.py
+@@ -0,0 +1,13 @@
++"""Waitress für den Container. Forwarded-Header wertet die App selbst aus (JOURNAL_PROXY_IPS)."""
++from waitress import serve
++
++from journal.app import create_app
++
++
++def main():
++    serve(create_app(), listen='0.0.0.0:8000', threads=4, ident=None,
++          clear_untrusted_proxy_headers=False, channel_timeout=120)
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/journal/worker.py b/journal/worker.py
+new file mode 100644
+index 0000000..8df60ee
+--- /dev/null
++++ b/journal/worker.py
+@@ -0,0 +1,80 @@
++"""Hintergrunddienst im Container (ersetzt journal-sync.timer und journal-maintenance.timer).
++
++- alle fünf Minuten: Archivpostfach und Kalender abgleichen (``manage.py sync``)
++- täglich um 03:15 Ortszeit: Serienaufgaben, Löschfristen, Anhangsindex, Kalender des
++  Schuljahres; die app-eigene Sicherung nur mit JOURNAL_APP_BACKUP=1 (die Plattform
++  sichert das Datenvolume selbst)
++Fehler eines Laufs beenden den Dienst nicht. Ein Herzschlag in /tmp dient dem Healthcheck.
++"""
++import os
++import signal
++import threading
++import time
++from datetime import datetime, timedelta
++from pathlib import Path
++from zoneinfo import ZoneInfo
++
++SYNC_SECONDS = int(os.environ.get('JOURNAL_SYNC_SECONDS', '300'))
++MAINTENANCE_AT = os.environ.get('JOURNAL_MAINTENANCE_AT', '03:15')
++ZONE = ZoneInfo(os.environ.get('JOURNAL_TIMEZONE', 'Europe/Berlin'))
++HEARTBEAT = Path(os.environ.get('JOURNAL_WORKER_HEARTBEAT', '/tmp/journal-worker.alive'))
++stop = threading.Event()
++
++
++def next_maintenance(now):
++    hour, minute = (int(x) for x in MAINTENANCE_AT.split(':'))
++    due = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
++    return due if due > now else due + timedelta(days=1)
++
++
++def sync(app):
++    from journal.integrations import sync_all
++    with app.app_context():
++        print(sync_all(), flush=True)
++
++
++def maintenance(app):
++    from journal.attachment_search import process_pending
++    from journal.integrations import sync_school_year
++    from journal.maintenance import backup, purge
++    from journal.recurrence import generate
++    with app.app_context():
++        generate()
++        print(f'{len(purge(apply=True))} Einträge nach Löschfrist entfernt.', flush=True)
++        process_pending()
++        if os.environ.get('JOURNAL_APP_BACKUP') == '1':
++            print(backup(), flush=True)
++        try:
++            print(sync_school_year() + ' (Schuljahr)', flush=True)
++        except Exception as fehler:
++            print(f'Kalender des Schuljahres nicht geladen: {type(fehler).__name__}', flush=True)
++
++
++def guarded(name, job, app):
++    try:
++        job(app)
++    except Exception as fehler:  # nächster Lauf zur nächsten Zeit
++        print(f'{name} fehlgeschlagen: {type(fehler).__name__}: {fehler}', flush=True)
++
++
++def main():
++    from journal.app import create_app
++    os.umask(0o077)
++    app = create_app()
++    signal.signal(signal.SIGTERM, lambda *_: stop.set())
++    signal.signal(signal.SIGINT, lambda *_: stop.set())
++    due_maintenance = next_maintenance(datetime.now(ZONE))
++    next_sync = time.monotonic() + 60
++    while not stop.is_set():
++        HEARTBEAT.touch()
++        if time.monotonic() >= next_sync:
++            guarded('Abgleich', sync, app)
++            next_sync = time.monotonic() + SYNC_SECONDS
++        if datetime.now(ZONE) >= due_maintenance:
++            guarded('Wartung', maintenance, app)
++            due_maintenance = next_maintenance(datetime.now(ZONE))
++        stop.wait(30)
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/manage.py b/manage.py
+index 8c82182..144176b 100644
+--- a/manage.py
++++ b/manage.py
+@@ -14,6 +14,7 @@ def main():
+     parser=argparse.ArgumentParser(description='Schulleitungsjournal verwalten')
+     sub=parser.add_subparsers(dest='command',required=True)
+     sub.add_parser('init',help='Einrichtungscode und Backupschlüssel anlegen')
++    sub.add_parser('migrate',help='Schema ausdrücklich anheben (Container; nativ geschieht das beim Start)')
+     run=sub.add_parser('run',help='Lokal mit HTTPS starten')
+     run.add_argument('--port',type=int,default=8443)
+     run.add_argument('--host',default='127.0.0.1',help='Bind-Adresse; für LAN-Tests die lokale LAN-IP angeben')
+@@ -44,6 +45,25 @@ def main():
+     if args.command=='restore':
+         from journal.maintenance import restore
+         print(restore(args.backup,args.key,args.destination)); return
++    if args.command=='migrate':
++        # Gesperrt, damit nie zwei Schemaschritte gleichzeitig laufen; danach Integritätsprüfung.
++        import fcntl
++        from journal.app import create_app
++        from journal import platform
++        app=create_app({'AUTO_MIGRATE':False})
++        with open(Path(app.instance_path)/'.migrate.lock','a') as sperre:
++            fcntl.flock(sperre,fcntl.LOCK_EX)
++            platform.migrate_schema(app)
++            from journal.db import connect
++            db=connect(Path(app.instance_path)/'journal.db',app.config['DATA_KEY'])
++            try:
++                fehler=[r[0] for r in db.execute('PRAGMA cipher_integrity_check')]+\
++                       [r[0] for r in db.execute('PRAGMA integrity_check') if r[0]!='ok']
++            finally:
++                db.close()
++            if fehler: raise SystemExit('Integritätsprüfung fehlgeschlagen: '+'; '.join(map(str,fehler[:5])))
++        print('Schema aktuell.')
++        return
+     from journal.app import create_app
+     from journal.db import atomic_write, get_db, one, set_setting
+     from cryptography.fernet import Fernet
+@@ -62,8 +82,11 @@ def main():
+             set_setting('setup_token',generate_password_hash(code));set_setting('setup_totp',pyotp.random_base32());get_db().commit()
+             if not (instance/'backup.key').exists(): atomic_write(instance/'backup.key',Fernet.generate_key())
+             print('Einrichtungscode (einmalig verwenden): '+code)
+-            print('Start: .venv/bin/python manage.py run')
+-            print('Adresse: https://localhost:8443/setup')
++            if os.environ.get('JOURNAL_PUBLIC_URL'):
++                print('Adresse: '+os.environ['JOURNAL_PUBLIC_URL'].rstrip('/')+'/setup')
++            else:
++                print('Start: .venv/bin/python manage.py run')
++                print('Adresse: https://localhost:8443/setup')
+             print('Backupschlüssel separat und sicher verwahren: '+str(instance/'backup.key'))
+         elif args.command=='run':
+             if bool(args.cert)!=bool(args.key): raise ValueError('--cert und --key müssen zusammen angegeben werden.')
+diff --git a/requirements-test.lock b/requirements-test.lock
+new file mode 100644
+index 0000000..1bb58fe
+--- /dev/null
++++ b/requirements-test.lock
+@@ -0,0 +1,44 @@
++# Resolved under Python 3.12.12, linux/amd64; wheel hashes.
++bleach==6.4.0 --hash=sha256:4b6b6a54fff2e69a3dde9d21cc6301220bee3c3cb792187d11403fd795031081
++blinker==1.9.0 --hash=sha256:ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc
++caldav==3.7.0 --hash=sha256:41d052f535e3f3e733b84cc455b2f62145aa70097eb7e345697fbe451b5e3db7
++calendaring-config==0.5.0 --hash=sha256:c5e1f6ffaf428a59b0e1373d951eb8e7fd9f49924912e65548cc2803e73a8646
++cffi==2.1.1 --hash=sha256:c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf
++charset-normalizer==3.5.2 --hash=sha256:3d31298449090ab8d47b7b1b2a555ff73cac7ed438a08b7ac160980c7ebed649
++click==8.5.0 --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
++cryptography==50.0.2 --hash=sha256:9dab55f57c74c3cad24c323bacbbd04be4705ba6eb0d92e920b1fc4837ed5079
++dnspython==2.9.2 --hash=sha256:af15f7d385a6ae2fb35a796fde2138004c8c42c7389090e2addc83e3b3340fd8
++Flask==3.1.3 --hash=sha256:f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c
++h11==0.16.0 --hash=sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86
++icalendar==7.3.0 --hash=sha256:8355acfe17be81b368f0b1e3740817cea9b56ea889931f8f1a87c62f2d28db0b
++icalendar-searcher==1.3.0 --hash=sha256:3492a5d3c30705bd5386b05760bb8ec63b855aa6766ff230431b13b4c39f34b6
++iniconfig==2.3.1 --hash=sha256:9121e2c1fdb355232495be3194c8dfe87ccc2d5dee45947b78e68f499790d7a7
++itsdangerous==2.2.0 --hash=sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef
++jh2==5.0.15 --hash=sha256:ea4ac921ddd2d519646df9b94f96e2cd55529f92f6d7ff4c65508ca2f65399ef
++Jinja2==3.1.6 --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
++lxml==6.1.3 --hash=sha256:909f4e927bb051f7740d6367285fc60cdcfdaf0258c2dba4ff5ba7eadadc250c
++Markdown==3.11.2 --hash=sha256:f80390747a2a0ff2ba54da074ce4f862f72a6685f608cd2637b646a6d83993f5
++MarkupSafe==3.0.4 --hash=sha256:8e124f974786f831d6043728e38296969d3579db8896fe004682f5758e613581
++niquests==3.21.2 --hash=sha256:73e52614a712ee2f4d410bdd29789ca6a4ed031f8961410156e395d42b091208
++packaging==26.3 --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
++pillow==13.0.0 --hash=sha256:42d63be3af4f9b951b199b0a9d23365d37ab14687e6d77b74940432c8515c4ca
++pluggy==1.7.0 --hash=sha256:7dd7b0d8832ba3cb632c306926ded123429211b83641b35dc5c41ad2d34f9bec
++pycparser==3.12 --hash=sha256:a076f3f489b39b43ed13563a1dafe42447445bec2e294154ec5c57fcdda4c85e
++Pygments==2.21.0 --hash=sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
++PyOTP==2.10.0 --hash=sha256:1df2f6a1bcc3bb0716172a5215ddc2f8c7c7fd26a13df9927d52e1746934836c
++pytest==9.2.0 --hash=sha256:07acdcf88ec174f907dc01af70bf52d49b014bbab03faeeade31c96b18c2e588
++python-dateutil==2.9.0.post0 --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
++PyYAML==6.0.3 --hash=sha256:ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc
++qh3==2.1.0 --hash=sha256:1808e123760e78482948b8e6bf5547a8a91637573b89caf165ffe948850d2ba5
++qrcode==8.2 --hash=sha256:16e64e0716c14960108e85d853062c9e8bba5ca8252c0b4d0231b9df4060ff4f
++recurring-ical-events==3.8.2 --hash=sha256:9ad605e27b4fbeb70ee1c66205ade32550be15a57cedc579606522f1c67aef6d
++six==1.17.0 --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
++sqlcipher3-binary==0.6.0 --hash=sha256:c8a7076a18b4f6fc9b580b0f24aa526d6a47605b1e3e6491ee3e9f2977940d8e
++typing_extensions==4.16.0 --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
++tzdata==2026.6 --hash=sha256:0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec
++urllib3-future==2.25.905 --hash=sha256:c8e3629be86cf3c074769a23beb2b99993cc3454d2049bd3c0643952f6bfbafb
++waitress==3.0.2 --hash=sha256:c56d67fd6e87c2ee598b76abdd4e96cfad1f24cacdea5078d382b1f9d7b5ed2e
++wassima==2.1.5 --hash=sha256:53d9a56cf55fc969f8cdd1993f8dc69f857d1c32229fb9084dc2b267044b6dde
++webencodings==0.6.1 --hash=sha256:7fab6269c8bf237c657876b52058ccb182e861518d1c695c1a9aaa8c1c105d5b
++Werkzeug==3.1.9 --hash=sha256:6392e50c78460ba618e5b21f08a71f59c99ce99cdc6cf6e3dd7e6ccca8754fab
++x-wr-timezone==2.0.1 --hash=sha256:e74a53b9f4f7def8138455c240e65e47c224778bce3c024fcd6da2cbe91ca038
+diff --git a/requirements.lock b/requirements.lock
+new file mode 100644
+index 0000000..d37d8ed
+--- /dev/null
++++ b/requirements.lock
+@@ -0,0 +1,39 @@
++# Resolved under Python 3.12.12, linux/amd64; wheel hashes.
++bleach==6.4.0 --hash=sha256:4b6b6a54fff2e69a3dde9d21cc6301220bee3c3cb792187d11403fd795031081
++blinker==1.9.0 --hash=sha256:ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc
++caldav==3.7.0 --hash=sha256:41d052f535e3f3e733b84cc455b2f62145aa70097eb7e345697fbe451b5e3db7
++calendaring-config==0.5.0 --hash=sha256:c5e1f6ffaf428a59b0e1373d951eb8e7fd9f49924912e65548cc2803e73a8646
++cffi==2.1.1 --hash=sha256:c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf
++charset-normalizer==3.5.2 --hash=sha256:3d31298449090ab8d47b7b1b2a555ff73cac7ed438a08b7ac160980c7ebed649
++click==8.5.0 --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
++cryptography==50.0.2 --hash=sha256:9dab55f57c74c3cad24c323bacbbd04be4705ba6eb0d92e920b1fc4837ed5079
++dnspython==2.9.2 --hash=sha256:af15f7d385a6ae2fb35a796fde2138004c8c42c7389090e2addc83e3b3340fd8
++Flask==3.1.3 --hash=sha256:f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c
++h11==0.16.0 --hash=sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86
++icalendar==7.3.0 --hash=sha256:8355acfe17be81b368f0b1e3740817cea9b56ea889931f8f1a87c62f2d28db0b
++icalendar-searcher==1.3.0 --hash=sha256:3492a5d3c30705bd5386b05760bb8ec63b855aa6766ff230431b13b4c39f34b6
++itsdangerous==2.2.0 --hash=sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef
++jh2==5.0.15 --hash=sha256:ea4ac921ddd2d519646df9b94f96e2cd55529f92f6d7ff4c65508ca2f65399ef
++Jinja2==3.1.6 --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
++lxml==6.1.3 --hash=sha256:909f4e927bb051f7740d6367285fc60cdcfdaf0258c2dba4ff5ba7eadadc250c
++Markdown==3.11.2 --hash=sha256:f80390747a2a0ff2ba54da074ce4f862f72a6685f608cd2637b646a6d83993f5
++MarkupSafe==3.0.4 --hash=sha256:8e124f974786f831d6043728e38296969d3579db8896fe004682f5758e613581
++niquests==3.21.2 --hash=sha256:73e52614a712ee2f4d410bdd29789ca6a4ed031f8961410156e395d42b091208
++pillow==13.0.0 --hash=sha256:42d63be3af4f9b951b199b0a9d23365d37ab14687e6d77b74940432c8515c4ca
++pycparser==3.12 --hash=sha256:a076f3f489b39b43ed13563a1dafe42447445bec2e294154ec5c57fcdda4c85e
++PyOTP==2.10.0 --hash=sha256:1df2f6a1bcc3bb0716172a5215ddc2f8c7c7fd26a13df9927d52e1746934836c
++python-dateutil==2.9.0.post0 --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
++PyYAML==6.0.3 --hash=sha256:ba1cc08a7ccde2d2ec775841541641e4548226580ab850948cbfda66a1befcdc
++qh3==2.1.0 --hash=sha256:1808e123760e78482948b8e6bf5547a8a91637573b89caf165ffe948850d2ba5
++qrcode==8.2 --hash=sha256:16e64e0716c14960108e85d853062c9e8bba5ca8252c0b4d0231b9df4060ff4f
++recurring-ical-events==3.8.2 --hash=sha256:9ad605e27b4fbeb70ee1c66205ade32550be15a57cedc579606522f1c67aef6d
++six==1.17.0 --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
++sqlcipher3-binary==0.6.0 --hash=sha256:c8a7076a18b4f6fc9b580b0f24aa526d6a47605b1e3e6491ee3e9f2977940d8e
++typing_extensions==4.16.0 --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
++tzdata==2026.6 --hash=sha256:0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec
++urllib3-future==2.25.905 --hash=sha256:c8e3629be86cf3c074769a23beb2b99993cc3454d2049bd3c0643952f6bfbafb
++waitress==3.0.2 --hash=sha256:c56d67fd6e87c2ee598b76abdd4e96cfad1f24cacdea5078d382b1f9d7b5ed2e
++wassima==2.1.5 --hash=sha256:53d9a56cf55fc969f8cdd1993f8dc69f857d1c32229fb9084dc2b267044b6dde
++webencodings==0.6.1 --hash=sha256:7fab6269c8bf237c657876b52058ccb182e861518d1c695c1a9aaa8c1c105d5b
++Werkzeug==3.1.9 --hash=sha256:6392e50c78460ba618e5b21f08a71f59c99ce99cdc6cf6e3dd7e6ccca8754fab
++x-wr-timezone==2.0.1 --hash=sha256:e74a53b9f4f7def8138455c240e65e47c224778bce3c024fcd6da2cbe91ca038
+diff --git a/tests/test_platform.py b/tests/test_platform.py
+new file mode 100644
+index 0000000..34f1493
+--- /dev/null
++++ b/tests/test_platform.py
+@@ -0,0 +1,88 @@
++"""Plattformbetrieb: Schema nur ausdrücklich, Readiness, Proxy-Vertrauen, Schlüssel aus Datei."""
++import subprocess
++import sys
++from pathlib import Path
++
++import pytest
++from cryptography.fernet import Fernet
++
++ROOT = Path(__file__).resolve().parents[1]
++
++
++@pytest.fixture
++def container_env(tmp_path, monkeypatch):
++    key = tmp_path / 'secrets' / 'master-key'
++    key.parent.mkdir()
++    key.write_bytes(Fernet.generate_key())
++    monkeypatch.setenv('JOURNAL_INSTANCE', str(tmp_path / 'data'))
++    monkeypatch.setenv('JOURNAL_KEY_FILE', str(key))
++    monkeypatch.setenv('JOURNAL_AUTO_MIGRATE', '0')
++    monkeypatch.delenv('JOURNAL_TRUST_PROXY', raising=False)
++    monkeypatch.delenv('JOURNAL_PROXY_IPS', raising=False)
++    return tmp_path
++
++
++def manage(*args):
++    return subprocess.run([sys.executable, 'manage.py', *args], cwd=ROOT, capture_output=True, text=True)
++
++
++def test_start_changes_nothing_and_ready_only_after_migrate(container_env):
++    from journal.app import create_app
++    app = create_app()
++    client = app.test_client()
++    assert client.get('/health/live').status_code == 200
++    assert client.get('/health/ready').status_code == 503
++    assert not (container_env / 'data' / 'journal.db').exists()
++    result = manage('migrate')
++    assert result.returncode == 0, result.stderr
++    assert 'Schema aktuell' in result.stdout
++    assert client.get('/health/ready').status_code == 200
++    assert manage('migrate').returncode == 0
++
++
++def test_wrong_key_is_not_ready(container_env, monkeypatch):
++    assert manage('migrate').returncode == 0
++    other = container_env / 'other-key'
++    other.write_bytes(Fernet.generate_key())
++    monkeypatch.setenv('JOURNAL_KEY_FILE', str(other))
++    from journal.app import create_app
++    assert create_app().test_client().get('/health/ready').status_code == 503
++
++
++def test_missing_platform_key_is_never_generated(container_env, monkeypatch):
++    monkeypatch.setenv('JOURNAL_KEY_FILE', str(container_env / 'fehlt'))
++    from journal.app import create_app
++    with pytest.raises(RuntimeError):
++        create_app()
++    assert not (container_env / 'fehlt').exists()
++
++
++def test_forwarded_headers_only_from_configured_proxy(container_env, monkeypatch):
++    monkeypatch.setenv('JOURNAL_PROXY_IPS', '10.231.15.2')
++    assert manage('migrate').returncode == 0
++    from journal.app import create_app
++    client = create_app().test_client()
++    headers = {'X-Forwarded-Proto': 'https', 'X-Forwarded-Host': 'journal.schule.example', 'X-Forwarded-For': '203.0.113.5'}
++    trusted = client.get('/login', headers=headers, environ_base={'REMOTE_ADDR': '10.231.15.2'})
++    assert trusted.status_code != 400            # gilt als HTTPS
++    other = client.get('/login', headers=headers, environ_base={'REMOTE_ADDR': '10.9.9.9'})
++    assert other.status_code == 400 and 'HTTPS' in other.get_data(as_text=True)
++    monkeypatch.setenv('JOURNAL_PROXY_IPS', '*')
++    with pytest.raises(ValueError):
++        create_app()
++
++
++def test_init_prints_platform_address(container_env, monkeypatch):
++    monkeypatch.setenv('JOURNAL_PUBLIC_URL', 'https://journal.schule.example')
++    assert manage('migrate').returncode == 0
++    result = manage('init')
++    assert 'Einrichtungscode' in result.stdout and 'https://journal.schule.example/setup' in result.stdout
++
++
++def test_worker_schedule():
++    from datetime import datetime
++    from zoneinfo import ZoneInfo
++    from journal import worker
++    berlin = ZoneInfo('Europe/Berlin')
++    assert worker.next_maintenance(datetime(2026, 11, 5, 2, 0, tzinfo=berlin)).hour == 3
++    assert worker.next_maintenance(datetime(2026, 11, 5, 4, 0, tzinfo=berlin)).day == 6

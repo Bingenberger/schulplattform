@@ -38,6 +38,12 @@ DASHBOARD_UID = 10001
 MANAGEMENT_INDEX = 0
 
 
+def fernet_key():
+    """32 random bytes, URL-safe base64 (the format cryptography.fernet expects)."""
+    import base64
+    return base64.urlsafe_b64encode(os.urandom(32)).decode()
+
+
 class Layout:
     def __init__(self, root):
         self.root = Path(root)
@@ -167,11 +173,13 @@ class Stack:
             for relative, kind in APPS[app_id].secrets:
                 if kind.startswith("random:"):
                     values[relative] = store.get_or_create(kind.split(":", 1)[1])
+                elif kind.startswith("fernet:"):
+                    values[relative] = store.get_or_create(kind.split(":", 1)[1], generate=fernet_key)
         for app_id in self.apps:
             for relative, kind in APPS[app_id].secrets:
                 path = self.layout.runtime / relative
                 path.parent.mkdir(parents=True, exist_ok=True, mode=0o711)
-                if kind.startswith("random:"):
+                if kind.startswith(("random:", "fernet:")):
                     value = values[relative]
                 elif kind == "empty":
                     value = None  # created empty once; later filled only by explicit local setup
@@ -575,7 +583,8 @@ class Stack:
 DISPLAY = {"gswb": "Wörterbuch", "schulwissen": "Schulwissen", "zackboing": "Zackboing", "schulhelfer": "Schulhelfer",
            "losverkauf": "Losverkauf", "grundschultafel": "Grundschultafel",
            "fahrradausbildung": "Fahrradausbildung", "leseflux": "Leseflux",
-           "kompetenz-manager": "Kompetenz-Manager", "abgen": "Arbeitsblätter", "fundkiste": "Fundkiste", "schuleva": "Schulbefragung", "schulkasse": "Schulkasse", "schulanmeldung": "Schulanmeldung"}
+           "kompetenz-manager": "Kompetenz-Manager", "abgen": "Arbeitsblätter", "fundkiste": "Fundkiste", "schuleva": "Schulbefragung", "schulkasse": "Schulkasse", "schulanmeldung": "Schulanmeldung",
+           "sl-journal": "Schulleitungsjournal"}
 DESCRIPTION = {"gswb": "Öffentliche Wörterbuchsuche", "schulwissen": "Schulinterne Inhalte",
                "zackboing": "Quiz und Spiele", "schulhelfer": "Helferlisten", "losverkauf": "Losverkauf",
                "grundschultafel": "Persönliche Lehrertafel", "fahrradausbildung": "Radfahrausbildung und Posten",
@@ -583,7 +592,8 @@ DESCRIPTION = {"gswb": "Öffentliche Wörterbuchsuche", "schulwissen": "Schulint
                "abgen": "Arbeitsblätter gemeinsam erstellen", "fundkiste": "Fundsachen der Schule",
                "schuleva": "Anonyme Eltern- und Schülerbefragung",
                "schulkasse": "Beiträge und Kassenbuch",
-               "schulanmeldung": "Einschulung und Elternportal"}
+               "schulanmeldung": "Einschulung und Elternportal",
+               "sl-journal": "Journal der Schulleitung (verschlüsselt)"}
 
 
 def catalogue_helper():

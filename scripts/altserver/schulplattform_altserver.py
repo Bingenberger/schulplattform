@@ -78,6 +78,14 @@ APPS = {
                            ("dir", "SL_OFFICE_UPLOAD_FOLDER", "uploads", "uploads"),
                            ("file", "SL_OFFICE_SCHOOL_SIGNATURE", "assets/briefkopf/unterschrift.png",
                             "briefkopf/unterschrift.png"))}},
+    "sl-journal": {"kind": "native", "default": "/opt/schulleitungsjournal", "volumes": {"data": None},
+                   "unit": "journal.service", "requires_stopped": True,
+                   "env_defaults": {"JOURNAL_INSTANCE": "instance"},
+                   # The whole instance folder (encrypted database, attachments, cache, backup.key)
+                   # becomes the data volume; the app's own backups stay; the database key travels
+                   # separately as a secret. The SQLCipher file is copied as a file (service stopped).
+                   "env_sources": {"data": (("dir", "JOURNAL_INSTANCE", "instance", "", ("master.key", "backups")),)},
+                   "secret_files": (("JOURNAL_KEY_FILE", "{JOURNAL_INSTANCE}/master.key", "sl-journal/master-key"),)},
     "schulwissen": {"kind": "compose", "db": ("db", "schulwissen", "schulwissen"), "engine": "postgres16",
                     "volumes": {"medien": ("app", "/medien")}},
     "fahrradausbildung": {"kind": "compose", "db": ("db", "fahrrad", "fahrrad"), "engine": "postgres16",
@@ -172,11 +180,10 @@ def env_sources(app, base):
     spec = APPS[app]
     if not spec.get("env_sources"):
         return {}
-    values = env_values(base / spec["envfile"]) if spec.get("envfile") else {}
-    values.update(unit_values(unit_for(base, spec.get("unit"))))
+    values = configured_values(app, base)
     resolved = {}
     for volume, entries in spec["env_sources"].items():
-        for kind, variable, default, target in entries:
+        for kind, variable, default, target, *rest in entries:
             raw = values.get(variable, "")
             if kind == "sqlite":
                 if raw and not raw.startswith("sqlite:///"):
@@ -186,8 +193,30 @@ def env_sources(app, base):
                     (base / "instance" / relative if relative else base / default)
             else:
                 path = Path(raw) if raw and raw.startswith("/") else base / (raw or default)
-            resolved.setdefault(volume, []).append((kind, path, target))
+            resolved.setdefault(volume, []).append((kind, path, target, tuple(rest[0]) if rest else ()))
     return resolved
+
+
+def configured_values(app, base):
+    """The old install's configuration: its env file, the unit's EnvironmentFile/Environment, then
+    the app's own defaults for variables that are unset."""
+    spec = APPS[app]
+    values = env_values(base / spec["envfile"]) if spec.get("envfile") else {}
+    values.update(unit_values(unit_for(base, spec.get("unit"))))
+    for variable, default in spec.get("env_defaults", {}).items():
+        values.setdefault(variable, default)
+    return values
+
+
+def secret_files(app, base):
+    """[(path, secret target)] for secrets kept in files, e.g. a database key outside the data."""
+    spec = APPS[app]
+    values = configured_values(app, base)
+    found = []
+    for variable, default, target in spec.get("secret_files", ()):
+        raw = values.get(variable) or default.format(**values)
+        found.append((Path(raw) if raw.startswith("/") else base / raw, target))
+    return found
 
 
 def excluded(spec, volume, relative):
@@ -444,7 +473,7 @@ def inventory(overrides, projects):
                                       and not excluded(spec, volume, str(p.relative_to(root)))] if root.is_dir() else []
                     entry["data"][volume] = item
                 for volume, items in env_sources(app, base).items():
-                    for kind, path, target in items:
+                    for kind, path, target, _skip in items:
                         item = {"path": str(path), "exists": path.exists(), "target": f"{volume}:{target}",
                                 "bytes": path.stat().st_size if path.is_file() else (size(path) if path.is_dir() else 0)}
                         if kind == "sqlite" and path.is_file():
@@ -502,6 +531,20 @@ def export(app, key_file, out_dir, path=None, project=None):
                 "sourceHost": os.uname().nodename, "counts": {}}
         if spec["kind"] == "native":
             base, roots = resolve_native(app, path)
+            if spec.get("requires_stopped"):
+                unit = unit_for(base, spec.get("unit")) or spec.get("unit")
+                if run(["systemctl", "is-active", unit]).stdout.strip() == "active":
+                    raise SystemExit(f"{unit} läuft noch. Für eine stimmige Kopie der verschlüsselten Datenbank "
+                                     "zuerst den Dienst und seine Timer stoppen (Schreibstopp).")
+            for source, target in secret_files(app, base):
+                if not source.is_file():
+                    raise SystemExit(f"Schlüsseldatei {source} nicht gefunden; ohne sie sind die Daten nicht lesbar.")
+                destination = work / "secrets" / target
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                old = os.umask(0o077)
+                destination.write_text(source.read_text().strip())
+                os.umask(old)
+                info.setdefault("secrets", []).append(target)
             info.update(engine="sqlite" if app != "grundschultafel" else "files", sourcePath=str(base),
                         sourceCommit=git_commit(base))
             converted = None
@@ -601,7 +644,7 @@ def export(app, key_file, out_dir, path=None, project=None):
                 snap.mkdir(parents=True, exist_ok=True)
                 sqlite_dir.mkdir(parents=True, exist_ok=True)
                 with tarfile.open(snap / "files.tar", "w") as tar:
-                    for kind, path, target in items:
+                    for kind, path, target, skip in items:
                         if kind == "sqlite":
                             if not path.is_file():
                                 raise SystemExit(f"Database {path} not found; set it with --path or check the .env")
@@ -620,8 +663,11 @@ def export(app, key_file, out_dir, path=None, project=None):
                             info["counts"][f"{volume}/{target}"] = facts.get("tables", {})
                         elif kind == "dir" and path.is_dir():
                             for item in sorted(path.rglob("*")):
-                                if not item.is_symlink():
-                                    tar.add(item, arcname=f"./{target}/{item.relative_to(path)}", recursive=False)
+                                relative = str(item.relative_to(path))
+                                if item.is_symlink() or any(relative == s or relative.startswith(s + "/") for s in skip):
+                                    continue
+                                arcname = f"./{target}/{relative}" if target else f"./{relative}"
+                                tar.add(item, arcname=arcname, recursive=False)
                         elif kind == "file" and path.is_file():
                             tar.add(path, arcname=f"./{target}", recursive=False)
                         else:

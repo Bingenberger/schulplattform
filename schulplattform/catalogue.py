@@ -15,7 +15,7 @@ REGISTRY = "ghcr.io/bingenberger"
 
 APP_IDS = ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel",
            "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen", "fundkiste", "schuleva", "schulkasse",
-           "schulanmeldung")
+           "schulanmeldung", "sl-journal")
 
 # Published image name -> Dockerfile target (None = default/last stage).
 RELEASE_IMAGES = {
@@ -33,6 +33,7 @@ RELEASE_IMAGES = {
     "schuleva": (("schuleva", "final"),),
     "schulkasse": (("schulkasse", "final"),),
     "schulanmeldung": (("schulanmeldung", "final"),),
+    "sl-journal": (("sl-journal", "final"),),
 }
 
 # Platform infrastructure images (pinned upstream digests, already used in the pilot).
@@ -55,7 +56,8 @@ DOMAIN_VARIABLES = {"gswb": (), "schulwissen": ("SW_ALLOWED_HOSTS", "SW_OEFFENTL
                     "fahrradausbildung": ("FP_OEFFENTLICHE_URL",), "leseflux": ("CORS_ORIGIN",),
                     "kompetenz-manager": ("APP_BASE_URL",), "abgen": ("WEB_ORIGIN",),
                     "fundkiste": ("FUNDKISTE_BASE_URL",), "schuleva": ("BASE_URL",),
-                    "schulkasse": (), "schulanmeldung": ("SL_OFFICE_PUBLIC_BASE_URL",)}
+                    "schulkasse": (), "schulanmeldung": ("SL_OFFICE_PUBLIC_BASE_URL",),
+                    "sl-journal": ("JOURNAL_PUBLIC_URL",)}
 
 
 @dataclass(frozen=True)
@@ -511,6 +513,33 @@ secrets:
       SL_OFFICE_MAIL_USE_TLS: "0"
       SL_OFFICE_MAIL_FROM: {mail_from}
     networks: [default, proxy]
+""" + _PROXY_NETWORK),
+    App("sl-journal", 15, 8000, "/health/ready", ("app", "worker"),
+        images={"app": "sl-journal", "worker": "sl-journal"},
+        compose_env={"JOURNAL_MASTER_KEY_FILE": "sl-journal/master-key"},
+        # SQLCipher database key (Fernet format); an import replaces it with the original key.
+        secrets=(("sl-journal/master-key", "fernet:journal-master-key"),),
+        migrations=(("python", "manage.py", "migrate"),),
+        # Before the one-time setup every page redirects to /setup; these hold before and after it.
+        checks=(Check("GET", "/api/v1/me", 401), Check("GET", "/", 302)),
+        setup=("run", ("python", "manage.py", "init")),
+        override="""services:
+  app:
+    image: {image_app}
+    restart: unless-stopped
+    ports: !reset []
+    environment:
+      JOURNAL_PROXY_IPS: {proxy_ip}
+      JOURNAL_PUBLIC_URL: {origin}
+    networks:
+      default: {{}}
+      proxy:
+        aliases: [sl-journal]
+  worker:
+    image: {image_worker}
+    restart: unless-stopped
+    environment:
+      JOURNAL_PUBLIC_URL: {origin}
 """ + _PROXY_NETWORK),
 ]}
 

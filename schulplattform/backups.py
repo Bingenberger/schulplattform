@@ -474,7 +474,7 @@ def restore_directory(service, app_id, work, legacy=False):
         os.replace(temporary, target)
         # Keep the secret store authoritative: the projection is re-derived from it on every render.
         kind = dict(APPS[app_id].secrets).get(relative, "")
-        if kind.startswith("random:"):
+        if kind.startswith(("random:", "fernet:")):
             from .secrets import SecretStore
             SecretStore(service.layout.secrets).replace(kind.split(":", 1)[1], value)
         carried.append(relative)

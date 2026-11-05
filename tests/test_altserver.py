@@ -189,3 +189,48 @@ def test_schulanmeldung_export_follows_env_paths_and_takes_the_signature(tmp_pat
         names = set(inner.getnames())
     assert {"./uploads/gutachten/a.pdf", "./briefkopf/unterschrift.png"} <= names
     assert "secrets" not in info   # the session key is not needed: TOTP and parent links do not depend on it
+
+
+def test_sl_journal_export_needs_stopped_service_and_carries_the_database_key(tmp_path, monkeypatch):
+    import shutil
+    import tarfile
+    import pytest
+    if not shutil.which("gpg"):
+        pytest.skip("gpg not installed")
+    base = tmp_path / "opt/schulleitungsjournal"
+    base.mkdir(parents=True)
+    instance = tmp_path / "var/lib/schulleitungsjournal"
+    (instance / "attachments").mkdir(parents=True)
+    (instance / "backups").mkdir()
+    (instance / "journal.db").write_bytes(b"SQLCipher-verschluesselt")
+    (instance / "attachments/a1").write_bytes(b"fernet-token")
+    (instance / "backup.key").write_text("b" * 44)
+    (instance / "backups/journal-1.backup").write_bytes(b"x")
+    keyfile = tmp_path / "etc/schulleitungsjournal/master.key"
+    keyfile.parent.mkdir(parents=True)
+    keyfile.write_text("m" * 43 + "=\n")
+    monkeypatch.setattr(altserver, "unit_for", lambda base, preferred=None: preferred)
+    monkeypatch.setattr(altserver, "unit_values", lambda unit: {"JOURNAL_INSTANCE": str(instance),
+                                                                "JOURNAL_KEY_FILE": str(keyfile)})
+    active = {"state": "active"}
+    real_run = altserver.run
+    monkeypatch.setattr(altserver, "run", lambda argv, **kw: subprocess.CompletedProcess(argv, 0, active["state"], "")
+                        if argv[:2] == ["systemctl", "is-active"] else real_run(argv, **kw))
+    key = tmp_path / "transfer.key"
+    key.write_text("k" * 48)
+    with pytest.raises(SystemExit, match="läuft noch"):
+        altserver.export("sl-journal", key, tmp_path / "out", path=str(base))
+    active["state"] = "inactive"
+    summary = altserver.export("sl-journal", key, tmp_path / "out", path=str(base))
+    plain = tmp_path / "plain.tar"
+    subprocess.run(["gpg", "--batch", "--quiet", "--passphrase-file", str(key), "-o", str(plain), "-d",
+                    summary["archive"]], check=True, env={"GNUPGHOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
+    with tarfile.open(plain) as outer:
+        outer.extractall(tmp_path / "x", filter="data")
+    info = json.loads((tmp_path / "x/backup.json").read_text())
+    assert info["secrets"] == ["sl-journal/master-key"]
+    assert (tmp_path / "x/secrets/sl-journal/master-key").read_text() == "m" * 43 + "="
+    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+        names = set(inner.getnames())
+    assert {"./journal.db", "./attachments/a1", "./backup.key"} <= names
+    assert not any(n.startswith("./backups") or n.endswith("master.key") for n in names)
