@@ -279,3 +279,60 @@ def test_zackboing_export_takes_wal_contents_and_uploads(tmp_path, monkeypatch):
     assert not {"./zackboing.db", "./zackboing.db-wal", "./zackboing.db-shm"} & set(names)
     copy = sqlite3.connect(tmp_path / "x/sqlite/data/zackboing.db")
     assert copy.execute("SELECT count(*) FROM quizzes").fetchone()[0] == 33
+
+
+def test_import_decrypt_error_names_the_gpg_reason(tmp_path):
+    # Real server: a zackboing archive failed with only "wrong key or modified file"; gpg's own
+    # message tells a wrong key from a truncated copy.
+    import shutil
+    import types
+    import pytest
+    if not shutil.which("gpg"):
+        pytest.skip("gpg not installed")
+    from schulplattform import importer
+    from schulplattform.state import StateError
+    secrets = tmp_path / "secrets"
+    secrets.mkdir(mode=0o700)
+    key = secrets / importer.TRANSFER_KEY
+    key.write_text("k" * 48)
+    key.chmod(0o600)
+    platform = types.SimpleNamespace(layout=types.SimpleNamespace(secrets=secrets))
+    plain = tmp_path / "plain.tar"
+    plain.write_bytes(b"x" * 4096)
+    archive = tmp_path / "a.tar.gpg"
+    other = tmp_path / "other.key"
+    other.write_text("o" * 48)
+    altserver.gpg_encrypt(plain, archive, other)               # encrypted for a different server
+    work = tmp_path / "work"
+    work.mkdir(mode=0o700)
+    with pytest.raises(StateError, match="gpg: .+"):
+        importer.decrypt(platform, archive, work)
+
+
+def test_import_reports_a_truncated_archive(tmp_path):
+    import shutil
+    import types
+    import pytest
+    if not shutil.which("gpg"):
+        pytest.skip("gpg not installed")
+    from schulplattform import importer
+    from schulplattform.state import StateError
+    secrets = tmp_path / "secrets"
+    secrets.mkdir(mode=0o700)
+    key = secrets / importer.TRANSFER_KEY
+    key.write_text("k" * 48)
+    platform = types.SimpleNamespace(layout=types.SimpleNamespace(secrets=secrets))
+    source = tmp_path / "src"
+    source.mkdir()
+    (source / "f").write_bytes(__import__("os").urandom(100000))   # incompressible
+    plain = tmp_path / "plain.tar"
+    import tarfile
+    with tarfile.open(plain, "w") as tar:
+        tar.add(source / "f", arcname="f")
+    archive = tmp_path / "a.tar.gpg"
+    altserver.gpg_encrypt(plain, archive, key)
+    archive.write_bytes(archive.read_bytes()[:2000])           # interrupted scp
+    work = tmp_path / "work"
+    work.mkdir(mode=0o700)
+    with pytest.raises(StateError, match="incomplete|transfer key"):
+        importer.decrypt(platform, archive, work)

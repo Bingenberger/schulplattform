@@ -66,12 +66,19 @@ def decrypt(platform, archive, destination):
                                  "--passphrase-file", str(key), "--decrypt", str(archive)],
                                 stdout=out, stderr=subprocess.PIPE, timeout=7200)
     if result.returncode:
-        raise StateError("Archive could not be decrypted (wrong transfer key or modified file)")
+        # gpg's own message (no key material) tells a wrong key from a truncated or foreign file.
+        detail = " ".join(result.stderr.decode(errors="replace").split())[-300:]
+        raise StateError("Archive could not be decrypted (wrong transfer key or modified file)"
+                         + (f"; gpg: {detail}" if detail else ""))
     unpacked = Path(destination) / "unpacked"
     unpacked.mkdir(mode=0o700)
     import tarfile
-    with tarfile.open(plain, "r:") as tar:
-        tar.extractall(unpacked, filter="data")
+    try:
+        with tarfile.open(plain, "r:") as tar:
+            tar.extractall(unpacked, filter="data")
+    except (tarfile.TarError, EOFError) as exc:
+        # gpg exits 0 on a truncated file and emits what it got; the tar then breaks off.
+        raise StateError(f"Archive is incomplete (interrupted copy?); compare its sha256 with the export: {exc}")
     plain.unlink()
     return unpacked
 
