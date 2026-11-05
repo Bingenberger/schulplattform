@@ -141,7 +141,8 @@ def app_manifest(builder, app_id, index_entry):
     cwd = ROOT / ".work/apps" / app_id
     tag = "v" + builder.version
     commit = run("git", "rev-parse", f"{tag}^{{commit}}", cwd=cwd).strip()
-    remote = run("git", "ls-remote", f"https://github.com/Bingenberger/{app_id}.git", f"refs/tags/{tag}^{{}}",
+    # SSH over port 443: also works for private repositories (schulanmeldung).
+    remote = run("git", "ls-remote", f"ssh://git@ssh.github.com:443/Bingenberger/{app_id}.git", f"refs/tags/{tag}^{{}}",
                  cwd=cwd).split()
     if not remote or remote[0] != commit:
         raise SystemExit(f"{app_id}: tag {tag} on GitHub does not match local {commit[:7]}")
