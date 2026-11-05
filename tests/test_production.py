@@ -267,3 +267,11 @@ def test_proxy_reloads_when_render_already_wrote_the_new_caddyfile(tmp_path):
     stack.write_caddyfile(domains, stack.routed(domains))
     router.apply_routes()
     assert reloads[4:] == ["validate", "restart"]
+
+
+def test_kompetenz_fonts_directory_is_mounted_read_only_for_pdf_export(tmp_path):
+    layout, _, _ = render(tmp_path, sample())
+    override = yaml.load((layout.generated / "kompetenz-manager.yml").read_text(), Loader=_TagLoader)
+    fonts = layout.runtime / "kompetenz-manager/fonts"
+    assert fonts.is_dir()
+    assert f"{fonts}:/usr/local/share/fonts:ro" in override["services"]["app"]["volumes"]

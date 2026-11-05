@@ -80,6 +80,8 @@ class App:
     # or ("host-hash", (hash-file[, name-file]), env-name-for-username) for Werkzeug hash projections.
     setup: tuple = ()
     drain: str = ""               # "" | "quiz" | "worksheet"
+    # Operator-provided host directories (runtime-relative), created empty and mounted read-only.
+    host_dirs: tuple = ()
 
 
 POSTGRES_INIT = """#!/bin/sh
@@ -331,11 +333,15 @@ secrets:
         mail=True,
         checks=(Check("GET", "/login", 200), Check("GET", "/admin", 302), Check("GET", "/setup", 403)),
         setup=("run", ("python", "km_setup.py", "{name}")),
+        # Fonts referenced by ODT templates for the PDF export (LibreOffice/fontconfig search path).
+        host_dirs=("kompetenz-manager/fonts",),
         override="""services:
   app:
     image: {image_app}
     restart: unless-stopped
     ports: !reset []
+    volumes:
+      - {runtime}/kompetenz-manager/fonts:/usr/local/share/fonts:ro
     environment:
       DATABASE_URL: sqlite:////app/instance/schule.db
       SESSION_COOKIE_SECURE: "1"

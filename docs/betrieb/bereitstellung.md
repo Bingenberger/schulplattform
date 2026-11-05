@@ -83,3 +83,15 @@ Den Backup-Schlüssel `/var/lib/schulplattform/secrets/backup-key` **außerhalb 
 - Erreichbarkeit von Port 80/443 aus dem Internet (die VM prüfte nur von innen)
 - Zustellung über den echten SMTP-Anbieter
 - Messungen nach Abschnitt 12 des Hauptauftrags (Leerlauf, zehn aktive Personen, Hintergrundlast)
+
+## Schriftarten für den PDF-Export (kompetenz-manager)
+
+Der PDF-Export von kompetenz-manager rendert die ODT-Vorlagen mit LibreOffice im Container. Mitgeliefert sind nur Liberation und DejaVu; fehlt eine in den Vorlagen verwendete Schrift, ersetzt LibreOffice sie **ohne Fehlermeldung**.
+
+Eigene Schriften (`.ttf`/`.otf`) gehören auf dem Host nach:
+
+```sh
+/var/lib/schulplattform/runtime/kompetenz-manager/fonts/
+```
+
+Das Verzeichnis wird schreibgeschützt nach `/usr/local/share/fonts` in den App-Container eingebunden. Neue Dateien gelten ab dem nächsten Export, ein Neustart ist nicht nötig. Die Dateien müssen für alle lesbar sein (`chmod 644`). Sie sind nicht Teil der App-Sicherung; bewahren Sie die Originale auf, und achten Sie auf die Lizenz der Schrift.

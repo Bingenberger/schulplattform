@@ -235,6 +235,9 @@ class Stack:
             context = self.context(app_id, domains[app_id])
             override = APPS[app_id].override.format(**context)
             self._write(self.layout.generated / f"{app_id}.yml", override, 0o600)
+            for relative in APPS[app_id].host_dirs:
+                directory = self.layout.runtime / relative
+                directory.mkdir(parents=True, exist_ok=True, mode=0o755)
             for relative, template in APPS[app_id].extra_files.items():
                 self._write(self.layout.runtime / relative, template.format(**context), 0o444)
 
