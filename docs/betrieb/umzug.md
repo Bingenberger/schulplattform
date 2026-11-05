@@ -42,6 +42,7 @@ Grundsatz: Auf dem Altserver wird **nichts verändert**. Das Werkzeug liest dort
 | schulhelfer | nativ, SQLite (`create_all`) | **verweigert** (unversionierte Datenbank) | Ein Adoptionspfad im App-Code fehlt. Die App blieb auf dem gesicherten Stand. |
 | schulwissen, leseflux, abgen | Docker Compose, PostgreSQL | nicht getestet | Export- und Importweg identisch zu fahrradausbildung. abgen: Drizzle-Historie muss passen. |
 | kompetenz-manager | nativ, SQLite **oder PostgreSQL** (`DATABASE_URL` im `EnvironmentFile` des Dienstes) | PostgreSQL → SQLite **übernommen** (Test mit echtem PostgreSQL 16 und Stand `dd5f14c`), Schema 0001 bestätigt | Der Export wandelt mit der Python-Umgebung der App aus einem lesenden Snapshot um und bricht ab, wenn Tabellen oder Spalten vom Datenmodell abweichen. Dienst und Arbeitsverzeichnis werden selbst erkannt, abweichende Pfade mit `--path`/`--app`. |
+| fundkiste | nativ, SQLite (`/opt/fundkiste`, Unit `fundkiste.service`) | Kopie eines echten Altbestands **übernommen** (lokal) | Der Team-Schlüssel aus `Environment=FUNDKISTE_TEAM_KEY` der Unit wird zu `data/team_key.txt`; ausgehängte QR-Codes bleiben gültig. Einträge älter als die Aufbewahrungsfrist löscht die App nach dem Import beim ersten Aufruf. |
 | gswb, zackboing, grundschultafel | nativ | nicht getestet | Zuordnung der Pfade im Werkzeug hinterlegt. grundschultafel: eigene Medien ausdrücklich importieren. |
 
 ## 3. Wer muss sich neu anmelden?

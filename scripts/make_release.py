@@ -61,6 +61,8 @@ FACTS = {
     "abgen": dict(database=("postgres18", "abgen", "abgen"),
                   persistence=[("assets", "/app/data/assets"), ("postgres", "/var/lib/postgresql", "70:70")],
                   domain=["WEB_ORIGIN"], memory=1024, cpus=1.0, workers=1, slots=1, live="/api/health/live"),
+    "fundkiste": dict(database=("sqlite", "fundkiste", "fundkiste"), persistence=[("data", "/data")],
+                      domain=["FUNDKISTE_BASE_URL"], memory=256, cpus=1.0, workers=1, slots=0, live="/health/live"),
 }
 COMPOSE_EXTRA = {"fahrradausbildung": ["docker/init-postgres.sh"], "leseflux": ["docker/init-postgres.sh"],
                  "abgen": ["docker/init-postgres.sh"]}

@@ -55,6 +55,11 @@ APPS = {
                           "volumes": {"instance": "instance", "templates": "odt_templates"},
                           # Old installs may run on PostgreSQL (DATABASE_URL); the platform uses SQLite.
                           "database_url": True, "sqlite_target": ("instance", "schule.db")},
+    "fundkiste": {"kind": "native", "default": "/opt/fundkiste", "volumes": {"data": "data"},
+                  "unit": "fundkiste.service",
+                  # The team key usually sits in the unit's Environment=; it moves into the data volume so
+                  # printed QR codes keep working. data/team_key.txt (if present) travels with the files.
+                  "unit_files": {"FUNDKISTE_TEAM_KEY": ("data", "team_key.txt")}},
     "schulwissen": {"kind": "compose", "db": ("db", "schulwissen", "schulwissen"), "engine": "postgres16",
                     "volumes": {"medien": ("app", "/medien")}},
     "fahrradausbildung": {"kind": "compose", "db": ("db", "fahrrad", "fahrrad"), "engine": "postgres16",
@@ -491,15 +496,31 @@ def export(app, key_file, out_dir, path=None, project=None):
                 with tarfile.open(snap / "files.tar", "w") as tar:
                     extras = {target: base / source for source, (vol, target) in spec.get("extra", {}).items()
                               if vol == volume and (base / source).is_file()}
+                    unit_files = {}
+                    if spec.get("unit_files"):
+                        values = unit_values(unit_for(base, spec.get("unit")))
+                        for variable, (vol, target) in spec["unit_files"].items():
+                            if vol == volume and values.get(variable):
+                                generated = work / "unit-files" / volume / target
+                                generated.parent.mkdir(parents=True, exist_ok=True)
+                                old = os.umask(0o077)
+                                generated.write_text(values[variable])
+                                os.umask(old)
+                                unit_files[target] = generated
+                                info.setdefault("fromUnit", []).append(f"{variable} -> {volume}:{target}")
                     for item in sorted(root.rglob("*")):
                         relative = str(item.relative_to(root))
-                        if relative in skipped or relative in extras or item.is_symlink():
+                        if (relative in skipped or relative in extras or relative in unit_files
+                                or item.is_symlink()):
                             continue
                         tar.add(item, arcname="./" + relative, recursive=False)
                     for target, source in sorted(extras.items()):
                         tar.add(source, arcname="./" + target, recursive=False)
                         info.setdefault("relocated", []).append({"from": str(source.relative_to(base)),
                                                                  "to": f"{volume}:{target}"})
+                    for target, source in sorted(unit_files.items()):
+                        # The unit's value wins over a file of the same name, as in the old app.
+                        tar.add(source, arcname="./" + target, recursive=False)
                 info["volumes"].append(volume)
             envfile = spec.get("envfile")
             values = env_values(base / envfile) if envfile else {}

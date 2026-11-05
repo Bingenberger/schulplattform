@@ -49,3 +49,34 @@ def test_service_listing_omits_arguments(monkeypatch):
                          "workingDirectory": "/home/kompkomp", "program": "/home/kompkomp/venv/bin/gunicorn",
                          "commit": None}]
     assert altserver.unit_for(Path("/home/kompkomp")) == "kompetenzkompass.service"
+
+
+def test_fundkiste_export_carries_team_key_from_unit(tmp_path, monkeypatch):
+    import shutil
+    import sqlite3
+    import tarfile
+    if not shutil.which("gpg"):
+        import pytest
+        pytest.skip("gpg not installed")
+    base = tmp_path / "opt/fundkiste"
+    (base / "data/photos").mkdir(parents=True)
+    sqlite3.connect(base / "data/fundkiste.db").executescript(
+        "CREATE TABLE items(id TEXT PRIMARY KEY, category TEXT NOT NULL); INSERT INTO items VALUES('a','jacke');")
+    (base / "data/photos/x.jpg").write_bytes(b"jpg")
+    (base / "data/team_key.txt").write_text("veraltet-123")
+    monkeypatch.setattr(altserver, "unit_for", lambda base, preferred=None: "fundkiste.service")
+    monkeypatch.setattr(altserver, "unit_values", lambda unit: {"FUNDKISTE_TEAM_KEY": "AusDerUnit12"})
+    key = tmp_path / "transfer.key"
+    key.write_text("k" * 48)
+    summary = altserver.export("fundkiste", key, tmp_path / "out", path=str(base))
+    plain = tmp_path / "plain.tar"
+    subprocess.run(["gpg", "--batch", "--quiet", "--passphrase-file", str(key), "-o", str(plain), "-d",
+                    summary["archive"]], check=True, env={"GNUPGHOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
+    with tarfile.open(plain) as outer:
+        outer.extractall(tmp_path / "x", filter="data")
+    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+        names = inner.getnames()
+        assert "./photos/x.jpg" in names and names.count("./team_key.txt") == 1
+        assert inner.extractfile("./team_key.txt").read() == b"AusDerUnit12"
+    assert (tmp_path / "x/sqlite/data/fundkiste.db").exists()
+    assert "./fundkiste.db" not in names

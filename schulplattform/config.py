@@ -140,7 +140,7 @@ def write(data, path=DEFAULT_PATH):
 SUGGESTED_PREFIX = {"gswb": "woerterbuch", "schulwissen": "wissen", "zackboing": "quiz",
                     "schulhelfer": "helfer", "losverkauf": "lose", "grundschultafel": "tafel",
                     "fahrradausbildung": "rad", "leseflux": "lesen", "kompetenz-manager": "kompetenz",
-                    "abgen": "blaetter"}
+                    "abgen": "blaetter", "fundkiste": "fundkiste"}
 
 
 def wizard(path=DEFAULT_PATH, existing=None, tty_path="/dev/tty"):

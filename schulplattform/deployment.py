@@ -12,9 +12,11 @@ import sqlite3
 import struct
 import time
 
+from .catalogue import APP_IDS
+
 
 ACTIONS = {"status", "start", "stop"}
-APPS = {"gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen"}
+APPS = set(APP_IDS)
 PLATFORM = "_platform"
 HOSTNAME = re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$")
 EMAIL = re.compile(r"^[^@\s<>\"']{1,64}@[a-z0-9.-]{1,253}$")

@@ -14,6 +14,7 @@ import uuid
 from cryptography.fernet import Fernet
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from .catalogue import APP_IDS
 from .secrets import SecretStore
 
 
@@ -65,8 +66,7 @@ PRAGMA user_version=1;
 AUDIT_ACTIONS = {"start", "stop", "domain-change", "dns-recheck", "maintenance-on", "maintenance-off",
                  "smtp-update", "smtp-password", "smtp-test", "backup-now", "uninstall", "enable", "purge",
                  "tile-hide", "tile-show"}
-AUDIT_TARGETS = {"gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel",
-                 "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen", "_platform"}
+AUDIT_TARGETS = {*APP_IDS, "_platform"}
 
 
 class AdminStore:
@@ -178,7 +178,7 @@ class AdminStore:
             return {row[0] for row in db.execute("SELECT app_id FROM access_projection WHERE admin_id=?", (identity,))}
 
     def confirm_access(self, identity, app_id):
-        if app_id not in ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel", "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen"):
+        if app_id not in APP_IDS:
             raise ValueError("Unknown app")
         with self.connect() as db:
             db.execute("INSERT OR IGNORE INTO access_projection VALUES(?,?)", (identity, app_id))

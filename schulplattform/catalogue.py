@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 REGISTRY = "ghcr.io/bingenberger"
 
 APP_IDS = ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel",
-           "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen")
+           "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen", "fundkiste")
 
 # Published image name -> Dockerfile target (None = default/last stage).
 RELEASE_IMAGES = {
@@ -28,6 +28,7 @@ RELEASE_IMAGES = {
     "leseflux": (("leseflux", "runtime"),),
     "kompetenz-manager": (("kompetenz-manager", "runtime"),),
     "abgen": (("abgen", "runtime"), ("abgen-pdf", "pdf")),
+    "fundkiste": (("fundkiste", "final"),),
 }
 
 # Platform infrastructure images (pinned upstream digests, already used in the pilot).
@@ -48,7 +49,8 @@ DOMAIN_VARIABLES = {"gswb": (), "schulwissen": ("SW_ALLOWED_HOSTS", "SW_OEFFENTL
                     "zackboing": ("ZACKBOING_PUBLIC_URL",), "schulhelfer": ("BASE_URL",),
                     "losverkauf": ("BASE_URL",), "grundschultafel": ("BASE_URL",),
                     "fahrradausbildung": ("FP_OEFFENTLICHE_URL",), "leseflux": ("CORS_ORIGIN",),
-                    "kompetenz-manager": ("APP_BASE_URL",), "abgen": ("WEB_ORIGIN",)}
+                    "kompetenz-manager": ("APP_BASE_URL",), "abgen": ("WEB_ORIGIN",),
+                    "fundkiste": ("FUNDKISTE_BASE_URL",)}
 
 
 @dataclass(frozen=True)
@@ -410,6 +412,23 @@ secrets:
   postgres:
     image: {postgres18}
     restart: unless-stopped
+""" + _PROXY_NETWORK),
+    App("fundkiste", 11, 8000, "/health/ready", ("app",),
+        images={"app": "fundkiste"},
+        migrations=(("python", "fk_migrate.py"),),
+        checks=(Check("GET", "/api/items", 200), Check("GET", "/team/ungueltiger-schluessel", 404)),
+        setup=("run", ("python", "fk_setup.py")),
+        override="""services:
+  app:
+    image: {image_app}
+    restart: unless-stopped
+    ports: !reset []
+    environment:
+      FUNDKISTE_BASE_URL: {origin}
+    networks:
+      default: {{}}
+      proxy:
+        aliases: [fundkiste]
 """ + _PROXY_NETWORK),
 ]}
 
