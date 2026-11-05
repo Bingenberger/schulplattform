@@ -24,6 +24,7 @@ import struct
 import subprocess
 import tarfile
 import tempfile
+import time
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -143,6 +144,17 @@ class BackupService:
             status[app_id] = status.get(app_id, {}) | values
             atomic_json(self.status_path, status)
 
+    def _await_health(self, app_id, seconds=150):
+        """Health checks may fail while an app is paused for the file snapshot; Docker reports it
+        unhealthy until the next check passes (real server: an import right after a backup was refused).
+        Waits until the app answers healthy again, so the next operation sees its real state."""
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            if self.stack.healthy(app_id):
+                return True
+            time.sleep(3)
+        return False
+
     def backup(self, app_id):
         if app_id not in self.stack.apps:
             raise StateError("App is not installed")
@@ -206,6 +218,8 @@ class BackupService:
                 finally:
                     if running:
                         self.stack.compose(app_id, "unpause", *running, check=False)
+                        if healthy:
+                            self._await_health(app_id)
                 info["volumes"].append(volume)
             (work / "backup.json").write_text(json.dumps(info, indent=2))
             archive = target_dir / f"{app_id}-{stamp}.spbk"

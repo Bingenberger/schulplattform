@@ -163,3 +163,18 @@ def test_backup_sqlite_copy_leaves_encrypted_databases_to_the_file_snapshot(tmp_
                             capture_output=True, text=True, check=True)
     assert [c["file"] for c in json.loads(result.stdout)] == ["app.db"]
     assert not (out / "instance/journal.db").exists()
+
+
+def test_backup_waits_until_a_paused_app_is_healthy_again(monkeypatch):
+    # Real server: right after 'backup --app sl-journal' the import refused with "nicht gesund"
+    # because the health check had failed while the app was paused for the file snapshot.
+    from schulplattform import backups
+    answers = iter([False, False, True])
+    service = backups.BackupService.__new__(backups.BackupService)
+    service.stack = type("S", (), {"healthy": lambda self, app: next(answers)})()
+    monkeypatch.setattr(backups.time, "sleep", lambda seconds: None)
+    assert service._await_health("sl-journal") is True
+    service.stack = type("S", (), {"healthy": lambda self, app: False})()
+    clock = iter(range(0, 1000, 50))
+    monkeypatch.setattr(backups.time, "monotonic", lambda: next(clock))
+    assert service._await_health("sl-journal", seconds=150) is False
