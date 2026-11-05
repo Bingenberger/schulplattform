@@ -1,0 +1,17 @@
+{
+  "app": "grundschultafel",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/grundschultafel-standalone.log",
+      "sha256": "810f786a346c06d99c6f8f6540caa1706aaf9ae33c7577821652afe85efb1196"
+    }
+  ],
+  "item": "standalone",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "f628e1267df216202ea61be399ef414004e9d7a7",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "standalone evidence from the local pilot work packages.",
+  "testedCommit": "4307aeeb5c172ee4a6ed8763ead2828281e9b66e"
+}

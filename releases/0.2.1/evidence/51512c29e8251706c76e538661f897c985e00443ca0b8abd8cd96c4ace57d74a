@@ -1,0 +1,12 @@
+{
+  "app": "fundkiste",
+  "artifacts": [],
+  "images": {
+    "fundkiste": "ghcr.io/bingenberger/fundkiste:0.1.0@sha256:5c3898878f87f872921655bd32994c8a5d66fb85040871de2aa8305cdaa89055"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}

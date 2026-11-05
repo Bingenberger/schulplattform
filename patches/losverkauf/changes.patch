@@ -1,7 +1,7 @@
 From 66148e21ab6acb6b7c02aa5a1e4b10645380514f Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Mon, 2 Nov 2026 11:23:36 +0100
-Subject: [PATCH 1/5] Bind administrative login to a personal identity
+Subject: [PATCH 1/6] Bind administrative login to a personal identity
 
 ---
  PLATFORM.md                   | 10 ++++++++++
@@ -100,7 +100,7 @@ index fe8fb9f..0875fbe 100644
 From b0267aa458f9a8455dad63b541c8ad3ebb89f8b1 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Tue, 3 Nov 2026 06:28:26 +0100
-Subject: [PATCH 2/5] Add isolated ticket-sale runtime, explicit migrations and
+Subject: [PATCH 2/6] Add isolated ticket-sale runtime, explicit migrations and
  durable mail dispatcher
 
 ---
@@ -2814,7 +2814,7 @@ index 0000000..96984e5
 From 9b4e7762269bd54d96ba23426a218d9df38d5bb4 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Tue, 3 Nov 2026 06:37:14 +0100
-Subject: [PATCH 3/5] Add isolated ticket-sale runtime, explicit migrations and
+Subject: [PATCH 3/6] Add isolated ticket-sale runtime, explicit migrations and
  durable mail dispatcher
 
 ---
@@ -2872,7 +2872,7 @@ index 96984e5..c756ee8 100644
 From 4627267f3513794bd93327391a7194b900bcacc1 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 08:19:22 +0100
-Subject: [PATCH 4/5] Publish versioned amd64 release images to GHCR on version
+Subject: [PATCH 4/6] Publish versioned amd64 release images to GHCR on version
  tags
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -2950,7 +2950,7 @@ index 0000000..185ce46
 From df97c21f99f51c76a1d689923a56043c8beda663 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 12:13:37 +0100
-Subject: [PATCH 5/5] README: Installation im Rahmen der Schulplattform und
+Subject: [PATCH 5/6] README: Installation im Rahmen der Schulplattform und
  Standalone; veraltete Angaben korrigiert
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -3001,6 +3001,69 @@ index 728310b..4e4e130 100644
  ## Standalone
  
  ```sh
+-- 
+2.43.0
+
+
+From b40e06da5b5f29fe984ab326dc5d546cf7d83d99 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Thu, 5 Nov 2026 14:51:14 +0100
+Subject: [PATCH 6/6] Referrer-Policy same-origin: admin login form was
+ rejected with 403
+
+With no-referrer, browsers send 'Origin: null' on form submissions; the
+origin check rejected every admin form post, starting with the login.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ app.py                |  4 +++-
+ tests/test_runtime.py | 14 +++++++++++++-
+ 2 files changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/app.py b/app.py
+index e5a8a95..e98c438 100644
+--- a/app.py
++++ b/app.py
+@@ -277,7 +277,9 @@ def contract_guard():
+ 
+ @app.after_request
+ def private_responses(response):
+-    response.headers["Referrer-Policy"] = "no-referrer"
++    # same-origin, not no-referrer: with no-referrer browsers send "Origin: null" on form posts,
++    # which the origin check below rejects (real server: admin login answered 403).
++    response.headers["Referrer-Policy"] = "same-origin"
+     response.headers["Cache-Control"] = "private, no-store"
+     response.headers["X-Content-Type-Options"] = "nosniff"
+     return response
+diff --git a/tests/test_runtime.py b/tests/test_runtime.py
+index c756ee8..110e579 100644
+--- a/tests/test_runtime.py
++++ b/tests/test_runtime.py
+@@ -167,7 +167,7 @@ def test_all_browser_assets_local_and_private_headers(installed):
+     assert "https://unpkg.com" not in response.text
+     assert 'name="tile-url" content=""' in response.text
+     assert client.get("/static/vendor/leaflet/leaflet.js").status_code==200
+-    assert response.headers["Referrer-Policy"]=="no-referrer"
++    assert response.headers["Referrer-Policy"]=="same-origin"
+     assert response.headers["Cache-Control"]=="private, no-store"
+ 
+ 
+@@ -202,3 +202,15 @@ def test_tile_template_cannot_escape_same_origin(tile):
+     env.update(SECRET_KEY="synthetic-session-key-fixture-0123456789",ELTERN_TOKEN="synthetic-parent-token-fixture-0123456789",TILE_URL=tile)
+     result=subprocess.run([sys.executable,"-c","import app"],env=env,capture_output=True,timeout=10)
+     assert result.returncode!=0
++
++
++def test_admin_login_form_post_as_a_browser_sends_it(installed):
++    # Real server: with "Referrer-Policy: no-referrer" the browser sent "Origin: null" and the login
++    # form was rejected with 403. Same-origin form posts now carry the real origin.
++    app=installed
++    client=app.app.test_client()
++    nonce=csrf(client)
++    assert client.get("/admin/login").headers["Referrer-Policy"]=="same-origin"
++    form={"csrf_token":nonce,"username":"synthetic.operator","pw":"synthetic-password"}
++    assert client.post("/admin/login",data=form,headers={"Origin":"http://localhost"}).status_code==302
++    assert client.post("/admin/login",data=form,headers={"Origin":"null"}).status_code==403
 -- 
 2.43.0
 

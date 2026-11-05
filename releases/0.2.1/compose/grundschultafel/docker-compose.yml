@@ -1,0 +1,35 @@
+services:
+  app:
+    build: {context: ., target: runtime}
+    image: grundschultafel:0.1.0-dev
+    user: "10001:10001"
+    init: true
+    stop_grace_period: 30s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+    environment:
+      SESSION_SECRET_FILE: /run/secrets/session-key
+      BASE_URL: ${BASE_URL:-http://localhost:3000}
+      TAFEL_DATA_DIR: /data
+      TAFEL_ASSET_DIR: /data/assets
+      GALLERY_ORIGIN: ${GALLERY_ORIGIN:-}
+      TAFEL_YOUTUBE_ENABLED: "0"
+    volumes:
+      - data:/data
+      - ${TAFEL_SECRET_FILE:?private session key file required}:/run/secrets/session-key:ro
+    ports: ["127.0.0.1:${TAFEL_PORT:-3000}:3000"]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+volumes:
+  data:

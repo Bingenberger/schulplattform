@@ -1,0 +1,62 @@
+{
+  "acceptance": {
+    "amd64Build": "8c5aae50cc1f08f22b0778b647897991fbb8b7b475702fd1c5e096e7e9465bbc",
+    "domainRollback": "1ef1760731bbc6883d1b36ccf91d486f72d94970431817a917b03594f2ffc492",
+    "licenses": "9755d1a5a71eb4441560265de78f8039c81e160c29acd1cc2e4d283567988311",
+    "negativeAccess": "bacac4e3d684c8b2cd7e2bc6a102fcbbb51611e426a68cf8ec16948f8eb57e3c",
+    "restore": "b71a5f81a7190b671067b7b3dd0ddb6d18beab9e18acb998e3cfa63ab9b4aadd",
+    "sbom": "082adb4c703e60df1b5e1817106904ad79df2a5fd9dce5ab6b063d3cf3270986",
+    "standalone": "8879f4a6113a7c6b72d5a864208b8c126d314d9d2ada0961464a944993dc750a"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/gswb/docker-compose.yml"
+  ],
+  "database": {
+    "account": "gswb",
+    "engine": "sqlite",
+    "name": "gswb"
+  },
+  "domainEnvironment": [],
+  "health": {
+    "live": "/health/live",
+    "ready": "/health/ready"
+  },
+  "id": "gswb",
+  "image": "ghcr.io/bingenberger/gswb:0.1.0@sha256:08014b8139b610453c830c0ba0237470f38c597582362713637ed1b8f7acf719",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "dictionary",
+      "mount": "/app/data",
+      "owner": "10001:10001"
+    },
+    {
+      "backup": true,
+      "id": "images",
+      "mount": "/app/static/images",
+      "owner": "10001:10001"
+    },
+    {
+      "backup": true,
+      "id": "audio",
+      "mount": "/app/static/audio",
+      "owner": "10001:10001"
+    },
+    {
+      "backup": true,
+      "id": "uploads",
+      "mount": "/app/static/uploads",
+      "owner": "10001:10001"
+    }
+  ],
+  "port": 8000,
+  "resources": {
+    "cpus": 1.0,
+    "exportSlotsPerProcess": 0,
+    "memoryMiB": 512,
+    "workers": 1
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "aa0ea29f8209a4af575dfcac001e512fcbcd789d"
+}

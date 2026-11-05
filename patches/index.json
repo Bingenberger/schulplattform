@@ -56,7 +56,7 @@
   {
     "app": "losverkauf",
     "baseCommit": "2e471ea8abc5fb6acac8acabb292d8e99ede2787",
-    "implementationCommit": "df97c21f99f51c76a1d689923a56043c8beda663",
+    "implementationCommit": "b40e06da5b5f29fe984ab326dc5d546cf7d83d99",
     "patch": "patches/losverkauf/changes.patch"
   },
   {

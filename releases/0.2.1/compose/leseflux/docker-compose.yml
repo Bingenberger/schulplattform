@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
+    restart: "no"
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/db-admin
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-postgres.sh:/docker-entrypoint-initdb.d/01-leseflux.sh:ro
+      - ${LESEFLUX_SECRETS_DIR:?private credential directory required}/db-admin:/run/secrets/db-admin:ro
+      - ${LESEFLUX_SECRETS_DIR}/db-app:/run/secrets/db-app:ro
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -U postgres -d leseflux]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 128
+    logging: &logs
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+  app:
+    build: {context: ., target: runtime}
+    image: leseflux:0.1.0-dev
+    restart: "no"
+    user: "10001:10001"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    mem_limit: 768m
+    cpus: 1
+    pids_limit: 128
+    stop_grace_period: 30s
+    depends_on:
+      postgres: {condition: service_healthy}
+    ports: ["127.0.0.1:${LESEFLUX_PORT:-3001}:3001"]
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      HOST: 0.0.0.0
+      DATABASE_URL_FILE: /run/secrets/database-url
+      JWT_SECRET_FILE: /run/secrets/jwt-key
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-127.0.0.1}
+    volumes:
+      - ${LESEFLUX_SECRETS_DIR}/database-url:/run/secrets/database-url:ro
+      - ${LESEFLUX_SECRETS_DIR}/jwt-key:/run/secrets/jwt-key:ro
+    logging: *logs
+volumes:
+  postgres_data:

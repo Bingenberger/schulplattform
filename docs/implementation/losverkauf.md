@@ -105,3 +105,20 @@ Volumes und Schlüssel blieben erhalten; kein globales Prune und kein down -v.
   ARM64 und Last-/Dauerlauf bleiben offen. Fünf weitere Apps fehlen.
 
 Alle Testdienste sind gestoppt; lokale synthetische Daten und Archive bleiben erhalten.
+
+## Release 0.1.1 (5. November 2026)
+
+Auf dem echten Server lehnte losverkauf 0.1.0 die Admin-Anmeldung mit 403 ab. Die App sendete
+`Referrer-Policy: no-referrer`. Bei dieser Policy schicken Browser beim Absenden eines Formulars
+`Origin: null`, und die Herkunftsprüfung wies jede Admin-Formularsendung ab. Die Tests mit dem
+Flask-Testclient und `curl` setzten nie einen Browser-Origin. Darum blieb der Fehler unbemerkt.
+Ausdrücklich steht das auch oben unter „Browserautomation … nicht ausgeführt“.
+
+Commit `b40e06d` stellt auf `same-origin`. Gleichursprüngliche Formulare tragen damit die echte
+Herkunft, fremde Ziele erhalten keinen Referrer, und der Elterntoken in der URL bleibt geschützt.
+Ein neuer Test sendet das Login-Formular wie ein Browser, einmal mit echtem und einmal mit
+`null`-Origin.
+
+Die übrigen Apps mit Herkunftsprüfung (abgen, leseflux, grundschultafel, zackboing,
+kompetenz-manager) senden ihre Formulare per `fetch` oder setzen keine `no-referrer`-Policy und
+sind darum nicht betroffen.
