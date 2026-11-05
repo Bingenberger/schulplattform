@@ -234,3 +234,48 @@ def test_sl_journal_export_needs_stopped_service_and_carries_the_database_key(tm
         names = set(inner.getnames())
     assert {"./journal.db", "./attachments/a1", "./backup.key"} <= names
     assert not any(n.startswith("./backups") or n.endswith("master.key") for n in names)
+
+
+def test_zackboing_export_takes_wal_contents_and_uploads(tmp_path, monkeypatch):
+    import pytest
+    # Real old server: zackboing.db was 4 KiB while the rows sat in the WAL (the Node process keeps
+    # the database open). The export must carry the WAL contents, not the stale main file.
+    import shutil
+    import sqlite3
+    import tarfile
+    if not shutil.which("gpg"):
+        import pytest
+        pytest.skip("gpg not installed")
+    base = tmp_path / "opt/zackboing"
+    base.mkdir(parents=True)
+    data = tmp_path / "var/lib/zackboing"
+    (data / "uploads").mkdir(parents=True)
+    (data / "uploads/bild.png").write_bytes(b"png")
+    live = sqlite3.connect(data / "zackboing.db")
+    live.execute("PRAGMA journal_mode=WAL")
+    live.execute("PRAGMA wal_autocheckpoint=0")
+    live.executescript("CREATE TABLE users(id INTEGER PRIMARY KEY, email TEXT, name TEXT, pass_hash TEXT);"
+                       "CREATE TABLE quizzes(id INTEGER PRIMARY KEY, user_id INTEGER, title TEXT);")
+    live.executemany("INSERT INTO quizzes(user_id, title) VALUES(1, ?)", [(f"Quiz {i}",) for i in range(33)])
+    live.commit()                                   # stays in the WAL: connection open, no checkpoint
+    assert (data / "zackboing.db-wal").stat().st_size > 0
+    monkeypatch.setattr(altserver, "unit_for", lambda base, preferred=None: "zackboing.service")
+    key = tmp_path / "transfer.key"
+    key.write_text("k" * 48)
+    monkeypatch.setattr(altserver, "unit_environment", lambda unit: {"ZACKBOING_DATA": str(tmp_path / "fehlt")})
+    with pytest.raises(SystemExit, match="kein Datenverzeichnis"):
+        altserver.export("zackboing", key, tmp_path / "out", path=str(base))
+    monkeypatch.setattr(altserver, "unit_environment", lambda unit: {"ZACKBOING_DATA": str(data)})
+    summary = altserver.export("zackboing", key, tmp_path / "out", path=str(base))
+    live.close()
+    plain = tmp_path / "plain.tar"
+    subprocess.run(["gpg", "--batch", "--quiet", "--passphrase-file", str(key), "-o", str(plain), "-d",
+                    summary["archive"]], check=True, env={"GNUPGHOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
+    with tarfile.open(plain) as outer:
+        outer.extractall(tmp_path / "x", filter="data")
+    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+        names = inner.getnames()
+    assert "./uploads/bild.png" in names
+    assert not {"./zackboing.db", "./zackboing.db-wal", "./zackboing.db-shm"} & set(names)
+    copy = sqlite3.connect(tmp_path / "x/sqlite/data/zackboing.db")
+    assert copy.execute("SELECT count(*) FROM quizzes").fetchone()[0] == 33
