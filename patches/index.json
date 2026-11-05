@@ -64,5 +64,11 @@
     "baseCommit": "c93781b3eb22b1724ee96ae9a3b3a25bd7a25c81",
     "implementationCommit": "4d90f2eba946f2d7be2993c754eca1dbaea19674",
     "patch": "patches/fundkiste/changes.patch"
+  },
+  {
+    "app": "schuleva",
+    "baseCommit": "71c4917ad71880eec7f2cdb415453284e3b70ee5",
+    "implementationCommit": "a5c4608a8ccf0517fe0e7a719b093e0acff98375",
+    "patch": "patches/schuleva/changes.patch"
   }
 ]

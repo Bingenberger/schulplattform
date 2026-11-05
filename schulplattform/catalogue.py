@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 REGISTRY = "ghcr.io/bingenberger"
 
 APP_IDS = ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel",
-           "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen", "fundkiste")
+           "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen", "fundkiste", "schuleva")
 
 # Published image name -> Dockerfile target (None = default/last stage).
 RELEASE_IMAGES = {
@@ -29,6 +29,7 @@ RELEASE_IMAGES = {
     "kompetenz-manager": (("kompetenz-manager", "runtime"),),
     "abgen": (("abgen", "runtime"), ("abgen-pdf", "pdf")),
     "fundkiste": (("fundkiste", "final"),),
+    "schuleva": (("schuleva", "final"),),
 }
 
 # Platform infrastructure images (pinned upstream digests, already used in the pilot).
@@ -50,7 +51,7 @@ DOMAIN_VARIABLES = {"gswb": (), "schulwissen": ("SW_ALLOWED_HOSTS", "SW_OEFFENTL
                     "losverkauf": ("BASE_URL",), "grundschultafel": ("BASE_URL",),
                     "fahrradausbildung": ("FP_OEFFENTLICHE_URL",), "leseflux": ("CORS_ORIGIN",),
                     "kompetenz-manager": ("APP_BASE_URL",), "abgen": ("WEB_ORIGIN",),
-                    "fundkiste": ("FUNDKISTE_BASE_URL",)}
+                    "fundkiste": ("FUNDKISTE_BASE_URL",), "schuleva": ("BASE_URL",)}
 
 
 @dataclass(frozen=True)
@@ -429,6 +430,26 @@ secrets:
       default: {{}}
       proxy:
         aliases: [fundkiste]
+""" + _PROXY_NETWORK),
+    App("schuleva", 12, 8000, "/health/ready", ("app",),
+        images={"app": "schuleva"},
+        compose_env={"SCHULEVA_SECRET_FILE": "schuleva-key"},
+        secrets=(("schuleva-key", "random:schuleva-key"),),
+        migrations=(("python", "-m", "app.migrate"),),
+        checks=(Check("GET", "/admin/login", 200), Check("GET", "/admin/users", 303)),
+        setup=("run", ("python", "-m", "app.cli", "create-admin")),
+        override="""services:
+  app:
+    image: {image_app}
+    restart: unless-stopped
+    ports: !reset []
+    environment:
+      BASE_URL: {origin}
+      PROXY_IPS: {proxy_ip}
+    networks:
+      default: {{}}
+      proxy:
+        aliases: [schuleva]
 """ + _PROXY_NETWORK),
 ]}
 

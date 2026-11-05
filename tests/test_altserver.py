@@ -1,3 +1,4 @@
+import json
 import importlib.util
 from pathlib import Path
 import subprocess
@@ -80,3 +81,36 @@ def test_fundkiste_export_carries_team_key_from_unit(tmp_path, monkeypatch):
         assert inner.extractfile("./team_key.txt").read() == b"AusDerUnit12"
     assert (tmp_path / "x/sqlite/data/fundkiste.db").exists()
     assert "./fundkiste.db" not in names
+
+
+def test_schuleva_export_moves_surveys_and_skips_cron_copies(tmp_path, monkeypatch):
+    import shutil
+    import sqlite3
+    import tarfile
+    if not shutil.which("gpg"):
+        import pytest
+        pytest.skip("gpg not installed")
+    base = tmp_path / "opt/schulbefragung"
+    (base / "data/backups").mkdir(parents=True)
+    (base / "surveys").mkdir()
+    sqlite3.connect(base / "data/db.sqlite").executescript("CREATE TABLE responses(id INTEGER); INSERT INTO responses VALUES(1);")
+    shutil.copy(base / "data/db.sqlite", base / "data/backups/db-20260101.sqlite")
+    (base / "surveys/eltern_kl4.json").write_text('{"id": "eltern_kl4", "title": "eigene Fassung"}')
+    (base / ".env").write_text("SECRET_KEY=geheim\n")
+    monkeypatch.setattr(altserver, "unit_for", lambda base, preferred=None: preferred)
+    key = tmp_path / "transfer.key"
+    key.write_text("k" * 48)
+    summary = altserver.export("schuleva", key, tmp_path / "out", path=str(base))
+    assert summary["sqliteFiles"] == 1
+    plain = tmp_path / "plain.tar"
+    subprocess.run(["gpg", "--batch", "--quiet", "--passphrase-file", str(key), "-o", str(plain), "-d",
+                    summary["archive"]], check=True, env={"GNUPGHOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
+    with tarfile.open(plain) as outer:
+        outer.extractall(tmp_path / "x", filter="data")
+        assert not any("backups" in name for name in outer.getnames())
+    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+        names = inner.getnames()
+        assert "./surveys/eltern_kl4.json" in names
+        assert not any("backups" in name for name in names) and "./db.sqlite" not in names
+    assert (tmp_path / "x/sqlite/data/db.sqlite").exists()
+    assert "secrets" not in json.loads((tmp_path / "x/backup.json").read_text())

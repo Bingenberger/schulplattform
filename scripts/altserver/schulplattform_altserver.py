@@ -60,6 +60,10 @@ APPS = {
                   # The team key usually sits in the unit's Environment=; it moves into the data volume so
                   # printed QR codes keep working. data/team_key.txt (if present) travels with the files.
                   "unit_files": {"FUNDKISTE_TEAM_KEY": ("data", "team_key.txt")}},
+    "schuleva": {"kind": "native", "default": "/opt/schulbefragung", "volumes": {"data": "data"},
+                 "unit": "schulbefragung.service", "envfile": ".env",
+                 "exclude": {"data": ("backups",)},          # daily cp copies from the old cron job
+                 "extra_dirs": {"surveys": ("data", "surveys")}},
     "schulwissen": {"kind": "compose", "db": ("db", "schulwissen", "schulwissen"), "engine": "postgres16",
                     "volumes": {"medien": ("app", "/medien")}},
     "fahrradausbildung": {"kind": "compose", "db": ("db", "fahrrad", "fahrrad"), "engine": "postgres16",
@@ -144,6 +148,14 @@ def sqlite_facts(path):
     except sqlite3.Error as exc:
         facts["error"] = type(exc).__name__
     return facts
+
+
+def excluded(spec, volume, relative):
+    """Paths below a volume that must not travel (e.g. the old cron job's database copies)."""
+    for prefix in spec.get("exclude", {}).get(volume, ()):
+        if relative == prefix or relative.startswith(prefix + "/"):
+            return True
+    return False
 
 
 def resolve_native(app, override=None):
@@ -386,7 +398,8 @@ def inventory(overrides, projects):
                 for volume, root in roots.items():
                     item = {"path": str(root), "exists": root.is_dir(), "bytes": size(root) if root.is_dir() else 0}
                     item["sqlite"] = [sqlite_facts(p) for p in sorted(root.rglob("*"))
-                                      if p.suffix in SQLITE_SUFFIXES and p.is_file()] if root.is_dir() else []
+                                      if p.suffix in SQLITE_SUFFIXES and p.is_file()
+                                      and not excluded(spec, volume, str(p.relative_to(root)))] if root.is_dir() else []
                     entry["data"][volume] = item
                 envfile = spec.get("envfile")
                 entry["secretNames"] = env_names(base / envfile) if envfile else []
@@ -476,6 +489,7 @@ def export(app, key_file, out_dir, path=None, project=None):
                                            "userVersion": facts.get("userVersion"), "alembic": None})
                     info["counts"][f"{volume}/{name}"] = facts.get("tables", {})
                 for db in sorted(p for p in root.rglob("*") if p.suffix in SQLITE_SUFFIXES and p.is_file()
+                                 and not excluded(spec, volume, str(p.relative_to(root)))
                                  and not (converted and converted.parent == sqlite_dir)):
                     relative = db.relative_to(root)
                     target = sqlite_dir / relative
@@ -511,9 +525,19 @@ def export(app, key_file, out_dir, path=None, project=None):
                     for item in sorted(root.rglob("*")):
                         relative = str(item.relative_to(root))
                         if (relative in skipped or relative in extras or relative in unit_files
-                                or item.is_symlink()):
+                                or item.is_symlink() or excluded(spec, volume, relative)):
                             continue
                         tar.add(item, arcname="./" + relative, recursive=False)
+                    for source, (vol, target) in spec.get("extra_dirs", {}).items():
+                        # Directories next to the app (e.g. edited questionnaires) move into the volume.
+                        directory = base / source
+                        if vol != volume or not directory.is_dir():
+                            continue
+                        for item in sorted(directory.rglob("*")):
+                            if item.is_symlink():
+                                continue
+                            tar.add(item, arcname=f"./{target}/{item.relative_to(directory)}", recursive=False)
+                        info.setdefault("relocated", []).append({"from": source, "to": f"{volume}:{target}"})
                     for target, source in sorted(extras.items()):
                         tar.add(source, arcname="./" + target, recursive=False)
                         info.setdefault("relocated", []).append({"from": str(source.relative_to(base)),

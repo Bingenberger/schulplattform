@@ -38,6 +38,8 @@ ADOPTION = {
     "gswb": "SQLite user_version wird durch den Migrationsjob gesetzt.",
     "fundkiste": "Tabellen items/requests werden übernommen (claimed_by wird bei Bedarf ergänzt); "
                  "der Team-Schlüssel kommt mit, ausgehängte QR-Codes bleiben gültig.",
+    "schuleva": "Bekannte Anhebungen (Rolle lehrer, anon_names, share_grants) laufen idempotent; "
+                "eigene Fragebögen ziehen nach data/surveys um; Konten und Freigabelinks bleiben.",
 }
 
 
