@@ -14,7 +14,8 @@ from dataclasses import dataclass, field
 REGISTRY = "ghcr.io/bingenberger"
 
 APP_IDS = ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel",
-           "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen", "fundkiste", "schuleva", "schulkasse")
+           "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen", "fundkiste", "schuleva", "schulkasse",
+           "schulanmeldung")
 
 # Published image name -> Dockerfile target (None = default/last stage).
 RELEASE_IMAGES = {
@@ -31,6 +32,7 @@ RELEASE_IMAGES = {
     "fundkiste": (("fundkiste", "final"),),
     "schuleva": (("schuleva", "final"),),
     "schulkasse": (("schulkasse", "final"),),
+    "schulanmeldung": (("schulanmeldung", "final"),),
 }
 
 # Platform infrastructure images (pinned upstream digests, already used in the pilot).
@@ -53,7 +55,7 @@ DOMAIN_VARIABLES = {"gswb": (), "schulwissen": ("SW_ALLOWED_HOSTS", "SW_OEFFENTL
                     "fahrradausbildung": ("FP_OEFFENTLICHE_URL",), "leseflux": ("CORS_ORIGIN",),
                     "kompetenz-manager": ("APP_BASE_URL",), "abgen": ("WEB_ORIGIN",),
                     "fundkiste": ("FUNDKISTE_BASE_URL",), "schuleva": ("BASE_URL",),
-                    "schulkasse": ()}
+                    "schulkasse": (), "schulanmeldung": ("SL_OFFICE_PUBLIC_BASE_URL",)}
 
 
 @dataclass(frozen=True)
@@ -474,6 +476,41 @@ secrets:
       default: {{}}
       proxy:
         aliases: [schulkasse]
+""" + _PROXY_NETWORK),
+    App("schulanmeldung", 14, 8000, "/health/ready", ("app", "worker"),
+        images={"app": "schulanmeldung", "worker": "schulanmeldung"},
+        compose_env={"SL_OFFICE_SECRET_FILE": "schulanmeldung-key"},
+        secrets=(("schulanmeldung-key", "random:schulanmeldung-key"),),
+        migrations=(("flask", "--app", "app", "db", "upgrade"),),
+        mail=True,
+        checks=(Check("GET", "/login", 200), Check("GET", "/", 302)),
+        setup=("run", ("flask", "--app", "app", "create-admin", "--username", "{name}")),
+        override="""services:
+  app:
+    image: {image_app}
+    restart: unless-stopped
+    ports: !reset []
+    environment:
+      SL_OFFICE_PUBLIC_BASE_URL: {origin}
+      SL_OFFICE_PROXY_IPS: {proxy_ip}
+      SL_OFFICE_MAIL_SERVER: {mail_host}
+      SL_OFFICE_MAIL_PORT: "{mail_port}"
+      SL_OFFICE_MAIL_USE_TLS: "0"
+      SL_OFFICE_MAIL_FROM: {mail_from}
+    networks:
+      default: {{}}
+      proxy:
+        aliases: [schulanmeldung]
+  worker:
+    image: {image_worker}
+    restart: unless-stopped
+    environment:
+      SL_OFFICE_PUBLIC_BASE_URL: {origin}
+      SL_OFFICE_MAIL_SERVER: {mail_host}
+      SL_OFFICE_MAIL_PORT: "{mail_port}"
+      SL_OFFICE_MAIL_USE_TLS: "0"
+      SL_OFFICE_MAIL_FROM: {mail_from}
+    networks: [default, proxy]
 """ + _PROXY_NETWORK),
 ]}
 

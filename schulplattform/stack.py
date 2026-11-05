@@ -575,14 +575,15 @@ class Stack:
 DISPLAY = {"gswb": "Wörterbuch", "schulwissen": "Schulwissen", "zackboing": "Zackboing", "schulhelfer": "Schulhelfer",
            "losverkauf": "Losverkauf", "grundschultafel": "Grundschultafel",
            "fahrradausbildung": "Fahrradausbildung", "leseflux": "Leseflux",
-           "kompetenz-manager": "Kompetenz-Manager", "abgen": "Arbeitsblätter", "fundkiste": "Fundkiste", "schuleva": "Schulbefragung", "schulkasse": "Schulkasse"}
+           "kompetenz-manager": "Kompetenz-Manager", "abgen": "Arbeitsblätter", "fundkiste": "Fundkiste", "schuleva": "Schulbefragung", "schulkasse": "Schulkasse", "schulanmeldung": "Schulanmeldung"}
 DESCRIPTION = {"gswb": "Öffentliche Wörterbuchsuche", "schulwissen": "Schulinterne Inhalte",
                "zackboing": "Quiz und Spiele", "schulhelfer": "Helferlisten", "losverkauf": "Losverkauf",
                "grundschultafel": "Persönliche Lehrertafel", "fahrradausbildung": "Radfahrausbildung und Posten",
                "leseflux": "Leseübungen", "kompetenz-manager": "Kompetenzen und Berichte",
                "abgen": "Arbeitsblätter gemeinsam erstellen", "fundkiste": "Fundsachen der Schule",
                "schuleva": "Anonyme Eltern- und Schülerbefragung",
-               "schulkasse": "Beiträge und Kassenbuch"}
+               "schulkasse": "Beiträge und Kassenbuch",
+               "schulanmeldung": "Einschulung und Elternportal"}
 
 
 def catalogue_helper():

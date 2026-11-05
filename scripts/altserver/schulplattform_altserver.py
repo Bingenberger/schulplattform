@@ -69,6 +69,15 @@ APPS = {
                    # The key encrypts the 2FA secrets: without it nobody can log in after the move.
                    "secrets": {"SCHULKASSE_SECRET_KEY": "schulkasse-key"},
                    "exclude": {"data": ("backups",)}},       # the app's own tar.gz backups stay behind
+    "schulanmeldung": {"kind": "native", "default": "/home/emrichschule/SL-Office", "volumes": {"data": None},
+                       "unit": "sl-office.service", "envfile": ".env",
+                       # Paths come from the old .env/unit (defaults as in config.py); the signature image
+                       # is not part of the platform image and moves into the data volume.
+                       "env_sources": {"data": (
+                           ("sqlite", "SL_OFFICE_DATABASE_URL", "instance/database.db", "database.db"),
+                           ("dir", "SL_OFFICE_UPLOAD_FOLDER", "uploads", "uploads"),
+                           ("file", "SL_OFFICE_SCHOOL_SIGNATURE", "assets/briefkopf/unterschrift.png",
+                            "briefkopf/unterschrift.png"))}},
     "schulwissen": {"kind": "compose", "db": ("db", "schulwissen", "schulwissen"), "engine": "postgres16",
                     "volumes": {"medien": ("app", "/medien")}},
     "fahrradausbildung": {"kind": "compose", "db": ("db", "fahrrad", "fahrrad"), "engine": "postgres16",
@@ -155,6 +164,32 @@ def sqlite_facts(path):
     return facts
 
 
+def env_sources(app, base):
+    """Resolve data that old installs place via their configuration: [(kind, path, target), ...] per volume.
+
+    kind: sqlite | dir | file. SQLite URLs follow Flask-SQLAlchemy 3 (relative paths are relative to
+    the app's instance folder)."""
+    spec = APPS[app]
+    if not spec.get("env_sources"):
+        return {}
+    values = env_values(base / spec["envfile"]) if spec.get("envfile") else {}
+    values.update(unit_values(unit_for(base, spec.get("unit"))))
+    resolved = {}
+    for volume, entries in spec["env_sources"].items():
+        for kind, variable, default, target in entries:
+            raw = values.get(variable, "")
+            if kind == "sqlite":
+                if raw and not raw.startswith("sqlite:///"):
+                    raise SystemExit(f"{variable}: only SQLite is supported, found {raw.split(':', 1)[0]}")
+                relative = raw[len("sqlite:///"):] if raw else None
+                path = Path(relative) if relative and relative.startswith("/") else \
+                    (base / "instance" / relative if relative else base / default)
+            else:
+                path = Path(raw) if raw and raw.startswith("/") else base / (raw or default)
+            resolved.setdefault(volume, []).append((kind, path, target))
+    return resolved
+
+
 def excluded(spec, volume, relative):
     """Paths below a volume that must not travel (e.g. the old cron job's database copies)."""
     for prefix in spec.get("exclude", {}).get(volume, ()):
@@ -168,6 +203,8 @@ def resolve_native(app, override=None):
     base = Path(override or spec["default"])
     roots = {}
     for volume, relative in spec["volumes"].items():
+        if relative is None:
+            continue  # assembled from env_sources
         if relative == "@data":
             variable, default = spec["data_env"]
             unit_env = unit_environment(spec.get("unit"))
@@ -406,6 +443,13 @@ def inventory(overrides, projects):
                                       if p.suffix in SQLITE_SUFFIXES and p.is_file()
                                       and not excluded(spec, volume, str(p.relative_to(root)))] if root.is_dir() else []
                     entry["data"][volume] = item
+                for volume, items in env_sources(app, base).items():
+                    for kind, path, target in items:
+                        item = {"path": str(path), "exists": path.exists(), "target": f"{volume}:{target}",
+                                "bytes": path.stat().st_size if path.is_file() else (size(path) if path.is_dir() else 0)}
+                        if kind == "sqlite" and path.is_file():
+                            item["sqlite"] = [sqlite_facts(path)]
+                        entry["data"].setdefault(volume, {"sources": []})["sources"].append(item)
                 envfile = spec.get("envfile")
                 entry["secretNames"] = env_names(base / envfile) if envfile else []
             else:
@@ -551,6 +595,40 @@ def export(app, key_file, out_dir, path=None, project=None):
                         # The unit's value wins over a file of the same name, as in the old app.
                         tar.add(source, arcname="./" + target, recursive=False)
                 info["volumes"].append(volume)
+            for volume, items in env_sources(app, base).items():
+                snap = work / "volumes" / volume
+                sqlite_dir = work / "sqlite" / volume
+                snap.mkdir(parents=True, exist_ok=True)
+                sqlite_dir.mkdir(parents=True, exist_ok=True)
+                with tarfile.open(snap / "files.tar", "w") as tar:
+                    for kind, path, target in items:
+                        if kind == "sqlite":
+                            if not path.is_file():
+                                raise SystemExit(f"Database {path} not found; set it with --path or check the .env")
+                            copy_target = sqlite_dir / target
+                            copy_target.parent.mkdir(parents=True, exist_ok=True)
+                            source = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=30)
+                            copy = sqlite3.connect(copy_target)
+                            source.backup(copy)
+                            integrity = copy.execute("PRAGMA integrity_check").fetchone()[0]
+                            copy.close()
+                            source.close()
+                            facts = sqlite_facts(copy_target)
+                            info["sqlite"].append({"volume": volume, "file": target, "integrity": integrity,
+                                                   "foreignKeyViolations": 0, "userVersion": facts.get("userVersion"),
+                                                   "alembic": facts.get("alembic")})
+                            info["counts"][f"{volume}/{target}"] = facts.get("tables", {})
+                        elif kind == "dir" and path.is_dir():
+                            for item in sorted(path.rglob("*")):
+                                if not item.is_symlink():
+                                    tar.add(item, arcname=f"./{target}/{item.relative_to(path)}", recursive=False)
+                        elif kind == "file" and path.is_file():
+                            tar.add(path, arcname=f"./{target}", recursive=False)
+                        else:
+                            continue
+                        info.setdefault("relocated", []).append({"from": str(path), "to": f"{volume}:{target}"})
+                if volume not in info["volumes"]:
+                    info["volumes"].append(volume)
             envfile = spec.get("envfile")
             values = env_values(base / envfile) if envfile else {}
             for variable, target in spec.get("secrets", {}).items():

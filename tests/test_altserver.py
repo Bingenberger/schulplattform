@@ -149,3 +149,43 @@ def test_schulkasse_export_carries_the_2fa_key_and_skips_own_backups(tmp_path, m
     assert {"./belege/beleg1.pdf", "./brief.toml"} <= set(names)
     assert not any("backups" in n for n in names)
     assert (tmp_path / "x/sqlite/data/schulkasse.sqlite3").exists()
+
+
+def test_schulanmeldung_export_follows_env_paths_and_takes_the_signature(tmp_path, monkeypatch):
+    import shutil
+    import sqlite3
+    import tarfile
+    if not shutil.which("gpg"):
+        import pytest
+        pytest.skip("gpg not installed")
+    base = tmp_path / "home/SL-Office"
+    (base / "uploads/gutachten").mkdir(parents=True)
+    (base / "assets/briefkopf").mkdir(parents=True)
+    store = tmp_path / "srv/sl"
+    store.mkdir(parents=True)
+    sqlite3.connect(store / "prod.db").executescript(
+        "CREATE TABLE alembic_version(version_num TEXT); INSERT INTO alembic_version VALUES('b4c1e82f5a37');"
+        "CREATE TABLE schueler(id INTEGER); INSERT INTO schueler VALUES(1),(2);")
+    (base / "uploads/gutachten/a.pdf").write_bytes(b"%PDF")
+    (base / "assets/briefkopf/unterschrift.png").write_bytes(b"PNG")
+    (base / ".env").write_text(f"SL_OFFICE_ENV=production\nSL_OFFICE_DATABASE_URL=sqlite:///{store}/prod.db\n"
+                               "SL_OFFICE_SECRET_KEY=" + "z" * 40 + "\n")
+    monkeypatch.setattr(altserver, "unit_for", lambda base, preferred=None: preferred)
+    monkeypatch.setattr(altserver, "unit_values", lambda unit: {})
+    report = altserver.inventory({"schulanmeldung": str(base)}, {})["apps"]["schulanmeldung"]
+    sources = {s["target"]: s for s in report["data"]["data"]["sources"]}
+    assert sources["data:database.db"]["sqlite"][0]["tables"]["schueler"] == 2
+    key = tmp_path / "transfer.key"
+    key.write_text("k" * 48)
+    summary = altserver.export("schulanmeldung", key, tmp_path / "out", path=str(base))
+    plain = tmp_path / "plain.tar"
+    subprocess.run(["gpg", "--batch", "--quiet", "--passphrase-file", str(key), "-o", str(plain), "-d",
+                    summary["archive"]], check=True, env={"GNUPGHOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
+    with tarfile.open(plain) as outer:
+        outer.extractall(tmp_path / "x", filter="data")
+    info = json.loads((tmp_path / "x/backup.json").read_text())
+    assert info["counts"]["data/database.db"]["schueler"] == 2 and info["sqlite"][0]["alembic"] == ["b4c1e82f5a37"]
+    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+        names = set(inner.getnames())
+    assert {"./uploads/gutachten/a.pdf", "./briefkopf/unterschrift.png"} <= names
+    assert "secrets" not in info   # the session key is not needed: TOTP and parent links do not depend on it

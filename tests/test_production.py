@@ -147,8 +147,9 @@ def test_infrastructure_publishes_only_proxy_and_isolates_mail(tmp_path):
     published = {name: svc.get("ports") for name, svc in infra["services"].items() if svc.get("ports")}
     assert published == {"proxy": ["80:80", "443:443"]}
     relay = infra["services"]["mailrelay"]
-    assert set(relay["networks"]) == {"edge", "schulwissen-proxy", "schulhelfer-proxy", "losverkauf-proxy",
-                                      "kompetenz-manager-proxy"}
+    assert set(relay["networks"]) == {"edge"} | {f"{a}-proxy" for a in APP_IDS if APPS[a].mail}
+    assert {"schulwissen-proxy", "losverkauf-proxy", "schulanmeldung-proxy"} <= set(relay["networks"])
+    assert "fundkiste-proxy" not in relay["networks"]          # apps without mail stay isolated
     assert "10.231.4.0/24" in relay["environment"]["RELAY_NETWORKS"]
     assert all(infra["networks"][f"{a}-proxy"]["internal"] for a in APP_IDS)
     assert "/var/run/docker.sock" not in json.dumps(infra)

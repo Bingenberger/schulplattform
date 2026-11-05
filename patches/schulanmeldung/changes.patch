@@ -1,0 +1,598 @@
+diff --git a/.dockerignore b/.dockerignore
+new file mode 100644
+index 0000000..13cf7d7
+--- /dev/null
++++ b/.dockerignore
+@@ -0,0 +1,14 @@
++.git
++venv
++.venv
++.env
++instance
++uploads
++backups
++database.db
++*.db
++__pycache__
++*.pyc
++# Unterschrift nicht ins (öffentliche) Image: im Betrieb aus /data/briefkopf/
++assets/briefkopf/unterschrift.png
++deploy
+diff --git a/Dockerfile b/Dockerfile
+new file mode 100644
+index 0000000..da65318
+--- /dev/null
++++ b/Dockerfile
+@@ -0,0 +1,20 @@
++FROM python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c AS runtime
++ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1 HOME=/tmp \
++    SL_OFFICE_ENV=production SL_OFFICE_DATABASE_URL=sqlite:////data/database.db \
++    SL_OFFICE_UPLOAD_FOLDER=/data/uploads SL_OFFICE_BACKUP_FOLDER=/data/backups \
++    SL_OFFICE_SCHOOL_SIGNATURE=/data/briefkopf/unterschrift.png
++WORKDIR /app
++COPY requirements.lock ./
++RUN pip install --no-cache-dir --require-hashes -r requirements.lock
++COPY . ./
++RUN groupadd --gid 10001 sloffice && useradd --uid 10001 --gid 10001 --no-create-home sloffice \
++    && mkdir -p /data/uploads /data/backups /data/briefkopf && chown -R 10001:10001 /data && chmod 700 /data
++USER 10001:10001
++EXPOSE 8000
++CMD ["gunicorn", "--config", "gunicorn.conf.py"]
++
++FROM runtime AS tests
++ENV SL_OFFICE_ENV=testing
++CMD ["python", "-m", "unittest", "discover", "-s", "tests", "-q"]
++
++FROM runtime AS final
+diff --git a/PLATFORM.md b/PLATFORM.md
+new file mode 100644
+index 0000000..e4a60fe
+--- /dev/null
++++ b/PLATFORM.md
+@@ -0,0 +1,45 @@
++# SL-Office (Schulanmeldung): Containervertrag
++
++Python 3.12.12/amd64, Flask 3.1.2, SQLAlchemy 2.0, Alembic 1.19, ReportLab 4.4, Gunicorn 26.2.0
++aus Hash-Lockfile (`requirements.lock`); Basisimage mit Digest. Läuft schreibgeschützt als
++UID/GID 10001 ohne Capabilities; beschreibbar sind `/data` und `/tmp`.
++
++## Dienste
++
++| Dienst | Aufgabe |
++| --- | --- |
++| `app` | Gunicorn (2 Worker × 2 Threads), interne Verwaltung und Elternportal |
++| `worker` | `sl_worker.py`: stündliche Terminerinnerungen (ersetzt `sl-office-reminders.timer`), Herzschlag in `/tmp` |
++
++## Eigenständiger Start
++
++```sh
++openssl rand -hex 32 > .secret-key && chmod 600 .secret-key
++export SL_OFFICE_SECRET_FILE="$PWD/.secret-key"
++docker compose build
++docker compose run --rm app flask --app app db upgrade
++docker compose run --rm app flask --app app create-admin    # persönlicher Zugang, 2FA beim ersten Login
++docker compose up -d --no-build
++```
++
++`create_admin.py` (admin/admin123) bleibt ein reines Entwicklungswerkzeug; im Container gibt es
++keinen Standardzugang.
++
++## Konfiguration im Container
++
++| Variable | Bedeutung |
++| --- | --- |
++| `SL_OFFICE_SECRET_KEY_FILE` | Datei mit dem Schlüssel (oder `SL_OFFICE_SECRET_KEY`), mind. 32 Zeichen; nur Sitzungen/CSRF |
++| `SL_OFFICE_PROXY_IPS` | Adressen des Reverse-Proxys; nur von dort zählen `X-Forwarded-*` (hat Vorrang vor `SL_OFFICE_TRUSTED_PROXIES`) |
++| `SL_OFFICE_PUBLIC_BASE_URL` | öffentliche Adresse für Links in Mails des Erinnerungsdienstes |
++| `SL_OFFICE_MAIL_*` | SMTP; in der Plattform das Relay ohne TLS im internen Netz |
++| `SL_OFFICE_DATABASE_URL`, `…_UPLOAD_FOLDER`, `…_BACKUP_FOLDER` | im Image `/data/database.db`, `/data/uploads`, `/data/backups` |
++| `SL_OFFICE_SCHOOL_SIGNATURE` | `/data/briefkopf/unterschrift.png`; die Unterschrift ist **nicht** im Image |
++
++## Schema
++
++Kein Schemaaufbau beim Start. `flask --app app db upgrade` ist der explizite Schritt.
++`/health/ready` meldet erst bereit, wenn `alembic_version` genau den Heads der mitgelieferten
++Migrationen entspricht (unbekannte, neuere Revisionen → 503); `/health/live` prüft nur den Prozess.
++
++Gunicorn schreibt keine Zugriffsprotokolle: Aktivierungs- und Anmeldelinks tragen Token in der URL.
+diff --git a/README.md b/README.md
+index 971beb1..c08b721 100644
+--- a/README.md
++++ b/README.md
+@@ -82,6 +82,13 @@ Zwei-Faktor-Bestätigung)
+ 
+ Rollen: `Administrator`, `Schulleitung`, `Foerderlehrkraft`, `Sekretariat`.
+ 
++## Betrieb in der Schulplattform
++
++In der Schulplattform laufen Webdienst und Erinnerungsdienst als Container; Domain,
++Zertifikat, Migration, Mailrelay und Sicherung übernimmt die Plattform. Den ersten
++persönlichen Zugang legt `./install.sh app-setup schulanmeldung` an. Siehe
++[PLATFORM.md](PLATFORM.md).
++
+ ## Einrichtung zur Entwicklung
+ 
+ ```bash
+diff --git a/app.py b/app.py
+index 3ba5f9f..630fae6 100644
+--- a/app.py
++++ b/app.py
+@@ -29,6 +29,7 @@ from sl_office.appointments.cli import register_cli as register_appointment_cli
+ from sl_office.maintenance import register_cli as register_maintenance_cli
+ from sl_office.open_day import open_day_bp
+ from sl_office.parent_portal import parent_portal_bp
++from sl_office.platform import register as register_platform
+ # Import new domain models so SQLAlchemy and Alembic include their metadata.
+ import sl_office.parent_portal.models  # noqa: F401, E402
+ import sl_office.open_day.models  # noqa: F401, E402
+@@ -1849,6 +1850,19 @@ def export_klassenlisten():
+                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+ 
+ 
++class TrustedProxyFix:
++    """X-Forwarded-* nur von den konfigurierten Proxy-Adressen auswerten, sonst unverändert."""
++
++    def __init__(self, wsgi_app, proxies):
++        self.plain = wsgi_app
++        self.fixed = ProxyFix(wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
++        self.proxies = proxies
++
++    def __call__(self, environ, start_response):
++        target = self.fixed if environ.get("REMOTE_ADDR") in self.proxies else self.plain
++        return target(environ, start_response)
++
++
+ def create_app(environment=None, config_overrides=None):
+     """Build an isolated SL-Office application instance."""
+     flask_app = Flask(__name__)
+@@ -1862,7 +1876,9 @@ def create_app(environment=None, config_overrides=None):
+     # Nur auswerten, wenn wirklich ein Proxy davorsteht -- sonst könnte ein
+     # Client die Kopfzeilen selbst mitschicken.
+     proxies = flask_app.config.get("TRUSTED_PROXIES", 0)
+-    if proxies:
++    if flask_app.config.get("PROXY_IPS"):
++        flask_app.wsgi_app = TrustedProxyFix(flask_app.wsgi_app, flask_app.config["PROXY_IPS"])
++    elif proxies:
+         flask_app.wsgi_app = ProxyFix(
+             flask_app.wsgi_app, x_for=proxies, x_proto=proxies, x_host=proxies, x_port=proxies,
+         )
+@@ -1880,6 +1896,7 @@ def create_app(environment=None, config_overrides=None):
+     flask_app.register_blueprint(parent_portal_bp)
+     register_appointment_cli(flask_app)
+     register_maintenance_cli(flask_app)
++    register_platform(flask_app)
+ 
+     # The year scope is registered once on the shared Session class; the
+     # read-only guard is per application.
+diff --git a/config.py b/config.py
+index 0c788eb..c7e2a3a 100644
+--- a/config.py
++++ b/config.py
+@@ -15,6 +15,23 @@ def _env_bool(name: str, default: bool = False) -> bool:
+     return default if value is None else value.strip().lower() in {"1", "true", "yes", "on"}
+ 
+ 
++def _file_or_env(name: str) -> str | None:
++    """NAME or NAME_FILE (container secrets); both at once is a configuration error."""
++    direct = (os.getenv(name) or "").strip()
++    path = (os.getenv(name + "_FILE") or "").strip()
++    if direct and path:
++        raise RuntimeError(f"{name} und {name}_FILE nicht gleichzeitig setzen.")
++    return Path(path).read_text(encoding="utf-8").strip() if path else (direct or None)
++
++
++def _proxy_ips() -> frozenset:
++    import ipaddress
++    items = [v.strip() for v in (os.getenv("SL_OFFICE_PROXY_IPS") or "").split(",") if v.strip()]
++    for item in items:
++        ipaddress.ip_address(item)  # nur explizite Adressen, keine Netze und kein '*'
++    return frozenset(items)
++
++
+ def _development_secret() -> str:
+     configured = os.getenv("SL_OFFICE_SECRET_KEY")
+     if configured:
+@@ -48,6 +65,10 @@ class BaseConfig:
+     #: Anzahl vorgeschalteter Reverse Proxys. 0 = direkt erreichbar, dann
+     #: werden X-Forwarded-*-Kopfzeilen ignoriert. Hinter nginx: 1.
+     TRUSTED_PROXIES = int(os.getenv("SL_OFFICE_TRUSTED_PROXIES", "0"))
++    #: Container-Betrieb: X-Forwarded-* nur von diesen Proxy-Adressen (hat Vorrang).
++    PROXY_IPS = _proxy_ips()
++    #: Ablage der Sicherungen aus der Oberfläche; ohne Angabe ``backups`` im Projektordner.
++    BACKUP_FOLDER = os.getenv("SL_OFFICE_BACKUP_FOLDER")
+     MAIL_SERVER = os.getenv("SL_OFFICE_MAIL_SERVER", "localhost")
+     MAIL_PORT = int(os.getenv("SL_OFFICE_MAIL_PORT", "25"))
+     MAIL_USE_TLS = _env_bool("SL_OFFICE_MAIL_USE_TLS", False)
+@@ -113,7 +134,7 @@ class ProductionConfig(BaseConfig):
+ 
+     @classmethod
+     def values(cls) -> dict:
+-        secret_key = os.getenv("SL_OFFICE_SECRET_KEY")
++        secret_key = _file_or_env("SL_OFFICE_SECRET_KEY")
+         database_url = os.getenv("SL_OFFICE_DATABASE_URL")
+         missing = [name for name, value in (("SL_OFFICE_SECRET_KEY", secret_key), ("SL_OFFICE_DATABASE_URL", database_url)) if not value]
+         if missing:
+diff --git a/docker-compose.yml b/docker-compose.yml
+new file mode 100644
+index 0000000..5ac40d2
+--- /dev/null
++++ b/docker-compose.yml
+@@ -0,0 +1,65 @@
++x-runtime: &runtime
++  SL_OFFICE_SECRET_KEY_FILE: /run/secrets/secret-key
++  SL_OFFICE_PUBLIC_BASE_URL: ${SL_OFFICE_PUBLIC_BASE_URL:-http://localhost:5016}
++  SL_OFFICE_PROXY_IPS: ${SL_OFFICE_PROXY_IPS:-}
++  SL_OFFICE_MAIL_SERVER: ${SL_OFFICE_MAIL_SERVER:-localhost}
++  SL_OFFICE_MAIL_PORT: ${SL_OFFICE_MAIL_PORT:-25}
++  SL_OFFICE_MAIL_USE_TLS: ${SL_OFFICE_MAIL_USE_TLS:-0}
++  SL_OFFICE_MAIL_FROM: ${SL_OFFICE_MAIL_FROM:-noreply@example.invalid}
++x-logging: &logging
++  driver: json-file
++  options: {max-size: 10m, max-file: "3"}
++services:
++  app:
++    build: {context: ., target: final}
++    image: schulanmeldung:0.1.0-dev
++    user: "10001:10001"
++    init: true
++    stop_grace_period: 40s
++    read_only: true
++    cap_drop: [ALL]
++    security_opt: [no-new-privileges:true]
++    tmpfs: ["/tmp:size=128m,mode=1777"]
++    mem_limit: 768m
++    cpus: 1.0
++    pids_limit: 128
++    environment: *runtime
++    volumes:
++      - data:/data
++      - ${SL_OFFICE_SECRET_FILE:?Datei mit mindestens 32 zufälligen Zeichen angeben}:/run/secrets/secret-key:ro
++    ports: ["127.0.0.1:${SL_OFFICE_PORT:-5016}:8000"]
++    healthcheck:
++      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"]
++      interval: 10s
++      timeout: 5s
++      retries: 6
++      start_period: 20s
++    logging: *logging
++  worker:
++    image: schulanmeldung:0.1.0-dev
++    command: [python, sl_worker.py]
++    user: "10001:10001"
++    init: true
++    stop_grace_period: 20s
++    read_only: true
++    cap_drop: [ALL]
++    security_opt: [no-new-privileges:true]
++    tmpfs: ["/tmp:size=32m,mode=1777"]
++    mem_limit: 384m
++    cpus: 0.5
++    pids_limit: 64
++    environment: *runtime
++    volumes:
++      - data:/data
++      - ${SL_OFFICE_SECRET_FILE:?Datei mit mindestens 32 zufälligen Zeichen angeben}:/run/secrets/secret-key:ro
++    depends_on:
++      app: {condition: service_healthy}
++    healthcheck:
++      test: [CMD, python, -c, "import os,time,sys; sys.exit(0 if time.time()-os.path.getmtime('/tmp/sl-worker.alive') < 300 else 1)"]
++      interval: 60s
++      timeout: 5s
++      retries: 3
++      start_period: 30s
++    logging: *logging
++volumes:
++  data:
+diff --git a/gunicorn.conf.py b/gunicorn.conf.py
+new file mode 100644
+index 0000000..9c5f495
+--- /dev/null
++++ b/gunicorn.conf.py
+@@ -0,0 +1,12 @@
++# Container-Betrieb (Schulplattform). Nativ startet sl-office.service Gunicorn direkt.
++bind = "0.0.0.0:8000"
++workers = 2
++threads = 2
++timeout = 120             # PDF-Sammeldrucke
++graceful_timeout = 30
++accesslog = None          # Aktivierungs- und Anmeldelinks tragen Token in der URL
++errorlog = "-"
++worker_tmp_dir = "/tmp"
++umask = 0o077
++forwarded_allow_ips = ""  # die App wertet X-Forwarded-* nur von SL_OFFICE_PROXY_IPS aus
++wsgi_app = "app:app"
+diff --git a/requirements.lock b/requirements.lock
+new file mode 100644
+index 0000000..d53c477
+--- /dev/null
++++ b/requirements.lock
+@@ -0,0 +1,32 @@
++# Resolved under Python 3.12.12, linux/amd64; wheel hashes.
++alembic==1.19.1 --hash=sha256:b39018cb3d9413a19cbd54cf3c02ad33998641f0538eb77413a488a21c3e14be
++blinker==1.9.0 --hash=sha256:ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc
++charset-normalizer==3.4.4 --hash=sha256:11d694519d7f29d6cd09f6ac70028dba10f92f6cdd059096db198c283794ac86
++click==8.3.1 --hash=sha256:981153a64e25f12d547d3426c367a4857371575ee7ad18df2a6183ab0545b2a6
++et_xmlfile==2.0.0 --hash=sha256:7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa
++Flask==3.1.2 --hash=sha256:ca1d8112ec8a6158cc29ea4858963350011b5c846a414cdb7a954aa9e967d03c
++Flask-Login==0.6.3 --hash=sha256:849b25b82a436bf830a054e74214074af59097171562ab10bfa999e6b78aae5d
++Flask-Migrate==4.1.0 --hash=sha256:24d8051af161782e0743af1b04a152d007bad9772b2bca67b7ec1e8ceeb3910d
++Flask-SQLAlchemy==3.1.1 --hash=sha256:4ba4be7f419dc72f4efd8802d69974803c37259dd42f3913b0dcf75c9447e0a0
++Flask-WTF==1.2.2 --hash=sha256:e93160c5c5b6b571cf99300b6e01b72f9a101027cab1579901f8b10c5daf0b70
++greenlet==3.3.0 --hash=sha256:047ab3df20ede6a57c35c14bf5200fcf04039d50f908270d3f9a7a82064f543b
++gunicorn==26.2.0 --hash=sha256:bd249d0b3f7972f7432f0a6b6ff3b3ee2d129f70cd1ff6c09a9dd9e29a2b88e3
++itsdangerous==2.2.0 --hash=sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef
++Jinja2==3.1.6 --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
++Mako==1.4.1 --hash=sha256:a359d9a94a541213958742b2698d0a7757bb83551767bc468a74b9905aba9617
++MarkupSafe==3.0.3 --hash=sha256:d6dd0be5b5b189d31db7cda48b91d7e0a9795f31430b7f271219ab30f1d3ac9d
++numpy==2.4.1 --hash=sha256:7ad270f438cbdd402c364980317fb6b117d9ec5e226fff5b4148dd9aa9fc6e02
++openpyxl==3.1.5 --hash=sha256:5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2
++pandas==2.3.3 --hash=sha256:b3d11d2fda7eb164ef27ffc14b4fcab16a80e1ce67e9f57e19ec0afaf715ba89
++pillow==12.1.0 --hash=sha256:a6dfc2af5b082b635af6e08e0d1f9f1c4e04d17d4e2ca0ef96131e85eda6eb17
++PyOTP==2.10.0 --hash=sha256:1df2f6a1bcc3bb0716172a5215ddc2f8c7c7fd26a13df9927d52e1746934836c
++pypdf==6.16.2 --hash=sha256:c8b09a59399062fb45a1b8156c18a787a10a3dae03ac9674397a226712c94604
++python-dateutil==2.9.0.post0 --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
++pytz==2025.2 --hash=sha256:5ddf76296dd8c44c26eb8f4b6f35488f3ccbf6fbbd7adee0b7262d43f0ec2f00
++reportlab==4.4.9 --hash=sha256:68e2d103ae8041a37714e8896ec9b79a1c1e911d68c3bd2ea17546568cf17bfd
++six==1.17.0 --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
++SQLAlchemy==2.0.45 --hash=sha256:ba547ac0b361ab4f1608afbc8432db669bd0819b3e12e29fb5fa9529a8bba81d
++typing_extensions==4.15.0 --hash=sha256:f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548
++tzdata==2025.3 --hash=sha256:06a47e5700f3081aab02b2e513160914ff0694bce9947d6b76ebd6bf57cfc5d1
++Werkzeug==3.1.5 --hash=sha256:5111e36e91086ece91f93268bb39b4a35c1e6f1feac762c9c822ded0a4e322dc
++WTForms==3.2.1 --hash=sha256:583bad77ba1dd7286463f21e11aa3043ca4869d03575921d1a1698d0715e0fd4
+diff --git a/requirements.txt b/requirements.txt
+index 0cd38aa..59e3ad1 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -9,7 +9,7 @@ Flask-SQLAlchemy==3.1.1
+ Flask-WTF==1.2.2
+ Flask==3.1.2
+ greenlet==3.3.0
+-gunicorn==21.2.0
++gunicorn==26.2.0
+ itsdangerous==2.2.0
+ Jinja2==3.1.6
+ Mako==1.4.1
+diff --git a/sl_office/platform.py b/sl_office/platform.py
+new file mode 100644
+index 0000000..c6c7ee9
+--- /dev/null
++++ b/sl_office/platform.py
+@@ -0,0 +1,82 @@
++"""Betrieb in der Schulplattform: Health-Endpunkte und Erstzugang über die Konsole.
++
++Kein Schemaaufbau beim Start; migriert wird ausdrücklich mit ``flask --app app db upgrade``.
++"""
++from __future__ import annotations
++
++import sqlite3
++from pathlib import Path
++
++import click
++from flask import jsonify
++from werkzeug.security import generate_password_hash
++
++MIGRATIONS = Path(__file__).resolve().parent.parent / "migrations"
++
++
++def alembic_heads() -> set[str]:
++    from alembic.config import Config
++    from alembic.script import ScriptDirectory
++    config = Config()
++    config.set_main_option("script_location", str(MIGRATIONS))
++    return set(ScriptDirectory.from_config(config).get_heads())
++
++
++def database_file(app) -> Path | None:
++    uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
++    if not uri.startswith("sqlite:///") or uri.endswith(":memory:"):
++        return None
++    path = Path(uri[len("sqlite:///"):])
++    return path if path.is_absolute() else Path(app.instance_path) / path
++
++
++def schema_ready(app, heads: set[str]) -> bool:
++    """Alembic-Stand entspricht genau den Heads der mitgelieferten Migrationen; legt nichts an."""
++    path = database_file(app)
++    if path is None or not path.is_file():
++        return False
++    try:
++        with sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5) as conn:
++            current = {row[0] for row in conn.execute("SELECT version_num FROM alembic_version")}
++    except sqlite3.Error:
++        return False
++    return current == heads
++
++
++def register(app) -> None:
++    heads = alembic_heads()
++
++    @app.get("/health/live")
++    def health_live():
++        return jsonify(status="ok")
++
++    @app.get("/health/ready")
++    def health_ready():
++        ready = schema_ready(app, heads)
++        return jsonify(status="ready" if ready else "not-ready"), (200 if ready else 503)
++
++    exempt = getattr(app, "extensions", {}).get("csrf")
++    if exempt is not None:
++        exempt.exempt(health_live)
++        exempt.exempt(health_ready)
++
++    @app.cli.command("create-admin")
++    @click.option("--username", prompt="Persönlicher Benutzername")
++    def create_admin(username):
++        """Persönlichen Administrator-Zugang anlegen (Passwort verdeckt; 2FA beim ersten Login)."""
++        from forms import MIN_PASSWORD_LENGTH
++        from models import User, db
++        username = username.strip()
++        if not username or User.query.filter_by(username=username).first():
++            raise click.ClickException("Benutzername leer oder bereits vergeben.")
++        for _ in range(3):
++            password = click.prompt("Passwort", hide_input=True, confirmation_prompt="Passwort wiederholen")
++            if len(password) >= MIN_PASSWORD_LENGTH:
++                break
++            click.echo(f"Mindestens {MIN_PASSWORD_LENGTH} Zeichen.", err=True)
++        else:
++            raise click.ClickException("Kein gültiges Passwort – nichts angelegt.")
++        db.session.add(User(username=username, password_hash=generate_password_hash(password),
++                            role="Administrator"))
++        db.session.commit()
++        click.echo(f"Administrator {username} angelegt. Beim ersten Login wird die Zwei-Faktor-Anmeldung eingerichtet.")
+diff --git a/sl_worker.py b/sl_worker.py
+new file mode 100644
+index 0000000..fa6d1e5
+--- /dev/null
++++ b/sl_worker.py
+@@ -0,0 +1,44 @@
++"""Erinnerungsdienst im Container (ersetzt sl-office-reminders.timer).
++
++Ein eigener Prozess, damit die mehreren Gunicorn-Arbeitsprozesse nichts doppelt senden.
++Stündlich; schreibt einen Herzschlag nach /tmp, den der Healthcheck prüft.
++"""
++import os
++import random
++import signal
++import threading
++import time
++from pathlib import Path
++
++from app import app
++from sl_office.appointments.cli import _run
++
++INTERVAL = int(os.getenv("SL_OFFICE_REMINDER_INTERVAL_SECONDS", "3600"))
++HEARTBEAT = Path(os.getenv("SL_OFFICE_WORKER_HEARTBEAT", "/tmp/sl-worker.alive"))
++stop = threading.Event()
++
++
++def beat():
++    HEARTBEAT.touch()
++
++
++def main():
++    signal.signal(signal.SIGTERM, lambda *_: stop.set())
++    signal.signal(signal.SIGINT, lambda *_: stop.set())
++    beat()
++    stop.wait(60 + random.randint(0, 120))           # nicht gleichzeitig mit dem Webstart
++    while not stop.is_set():
++        try:
++            with app.app_context():
++                sent, skipped = _run(app)
++            app.logger.warning("Erinnerungen verschickt: %s, übersprungen: %s", sent, skipped)
++        except Exception:  # ein Fehler darf den Dienst nicht beenden; nächster Lauf in einer Stunde
++            app.logger.exception("Erinnerungslauf fehlgeschlagen")
++        deadline = time.monotonic() + INTERVAL
++        while not stop.is_set() and time.monotonic() < deadline:
++            beat()
++            stop.wait(60)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/tests/test_platform.py b/tests/test_platform.py
+new file mode 100644
+index 0000000..ab41d56
+--- /dev/null
++++ b/tests/test_platform.py
+@@ -0,0 +1,100 @@
++"""Plattformbetrieb: Readiness am Alembic-Stand, Proxy-Vertrauen, Schlüsseldatei, Erstzugang."""
++import os
++import tempfile
++import unittest
++from pathlib import Path
++from unittest import mock
++
++from app import create_app
++
++
++def file_app(directory, **extra):
++    return create_app("testing", {
++        "SQLALCHEMY_DATABASE_URI": f"sqlite:///{directory}/database.db", "AUTO_CREATE_DB": False,
++        "UPLOAD_FOLDER": f"{directory}/uploads", **extra})
++
++
++class PlatformTests(unittest.TestCase):
++    def setUp(self):
++        self.tmp = tempfile.TemporaryDirectory()
++        self.dir = self.tmp.name
++
++    def tearDown(self):
++        self.tmp.cleanup()
++
++    def test_ready_only_after_explicit_upgrade_and_no_file_created(self):
++        app = file_app(self.dir)
++        client = app.test_client()
++        self.assertEqual(client.get("/health/live").status_code, 200)
++        self.assertEqual(client.get("/health/ready").status_code, 503)
++        self.assertFalse(Path(self.dir, "database.db").exists())
++        from flask_migrate import upgrade
++        with app.app_context():
++            upgrade(directory=str(Path(__file__).resolve().parent.parent / "migrations"))
++        self.assertEqual(client.get("/health/ready").status_code, 200)
++
++    def test_unknown_revision_is_not_ready(self):
++        app = file_app(self.dir)
++        from flask_migrate import upgrade
++        with app.app_context():
++            upgrade(directory=str(Path(__file__).resolve().parent.parent / "migrations"))
++        import sqlite3
++        with sqlite3.connect(Path(self.dir, "database.db")) as conn:
++            conn.execute("UPDATE alembic_version SET version_num='ffffffffffff'")
++        self.assertEqual(app.test_client().get("/health/ready").status_code, 503)
++
++    def test_forwarded_headers_only_from_configured_proxy(self):
++        import config
++        with mock.patch.dict(os.environ, {"SL_OFFICE_PROXY_IPS": "10.231.14.2"}):
++            proxies = config._proxy_ips()
++        with mock.patch.dict(os.environ, {"SL_OFFICE_PROXY_IPS": "*"}):
++            with self.assertRaises(ValueError):
++                config._proxy_ips()
++        app = create_app("testing", {"PROXY_IPS": proxies})
++        seen = {}
++
++        @app.get("/_probe")
++        def _probe():
++            from flask import request
++            seen.update(ip=request.remote_addr, url=request.url_root)
++            return "ok"
++
++        client = app.test_client()
++        headers = {"X-Forwarded-For": "203.0.113.9", "X-Forwarded-Proto": "https", "X-Forwarded-Host": "anmeldung.schule.example"}
++        client.get("/_probe", headers=headers, environ_base={"REMOTE_ADDR": "10.231.14.2"})
++        self.assertEqual(seen, {"ip": "203.0.113.9", "url": "https://anmeldung.schule.example/"})
++        client.get("/_probe", headers=headers, environ_base={"REMOTE_ADDR": "10.9.9.9"})
++        self.assertEqual(seen["ip"], "10.9.9.9")
++        self.assertTrue(seen["url"].startswith("http://localhost"))
++
++    def test_production_secret_from_file(self):
++        key = Path(self.dir, "key")
++        key.write_text("p" * 40 + "\n")
++        env = {"SL_OFFICE_SECRET_KEY_FILE": str(key), "SL_OFFICE_DATABASE_URL": f"sqlite:///{self.dir}/x.db"}
++        with mock.patch.dict(os.environ, env):
++            os.environ.pop("SL_OFFICE_SECRET_KEY", None)
++            from config import ProductionConfig
++            self.assertEqual(ProductionConfig.values()["SECRET_KEY"], "p" * 40)
++            os.environ["SL_OFFICE_SECRET_KEY"] = "q" * 40
++            with self.assertRaises(RuntimeError):
++                ProductionConfig.values()
++
++    def test_create_admin_without_default_password(self):
++        app = create_app("testing")
++        runner = app.test_cli_runner()
++        short = runner.invoke(args=["create-admin", "--username", "sl-leitung"], input="kurz\nkurz\n" * 3)
++        self.assertNotEqual(short.exit_code, 0)
++        ok = runner.invoke(args=["create-admin", "--username", "sl-leitung"],
++                           input="ein-langes-passwort\nein-langes-passwort\n")
++        self.assertEqual(ok.exit_code, 0, ok.output)
++        with app.app_context():
++            from models import User
++            user = User.query.filter_by(username="sl-leitung").one()
++            self.assertEqual(user.role, "Administrator")
++            self.assertFalse(user.two_factor_active)
++        again = runner.invoke(args=["create-admin", "--username", "sl-leitung"], input="x\n")
++        self.assertNotEqual(again.exit_code, 0)
++
++
++if __name__ == "__main__":
++    unittest.main()
