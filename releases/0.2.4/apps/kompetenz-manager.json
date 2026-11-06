@@ -1,0 +1,52 @@
+{
+  "acceptance": {
+    "amd64Build": "334f2839728d536f7f4ae7f9a30e0c640624590bf0596304bd5bc4d3ec2c5299",
+    "domainRollback": "def99e354e017f869cd920a312be5765bf2ca66ed119aad22a12afa7d456de6e",
+    "licenses": "7ef99fa6a9a63e0b50203ecc8a56e294636c7fb470c141f8bd45b283e16b4bc5",
+    "negativeAccess": "fe242ff835cb530e0ff921cfb756d25685bc62cab658b206ad9ecdda6f20ec60",
+    "restore": "0db168a4b59fc1741a5616b64d0f721c15cdc69af658b2376c723407db87f3c5",
+    "sbom": "17d07f3de313f90032e6796740907c9261a580180ea77ac0dbe272342f08e326",
+    "standalone": "2e7099c23df9d3e763b7cd8b379017b6ef1b79eeb29564488796f45c4f0df7fe"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/kompetenz-manager/docker-compose.yml"
+  ],
+  "database": {
+    "account": "kompetenz",
+    "engine": "sqlite",
+    "name": "kompetenz"
+  },
+  "domainEnvironment": [
+    "APP_BASE_URL"
+  ],
+  "health": {
+    "live": "/health/live",
+    "ready": "/health/ready"
+  },
+  "id": "kompetenz-manager",
+  "image": "ghcr.io/bingenberger/kompetenz-manager:0.1.0@sha256:75bb194ad582ff1924c01a76ad277d6f5e94306f639a33ad4b14152ee5ff7a30",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "instance",
+      "mount": "/app/instance",
+      "owner": "10001:10001"
+    },
+    {
+      "backup": true,
+      "id": "templates",
+      "mount": "/app/odt_templates",
+      "owner": "10001:10001"
+    }
+  ],
+  "port": 8000,
+  "resources": {
+    "cpus": 2.0,
+    "exportSlotsPerProcess": 1,
+    "memoryMiB": 1536,
+    "workers": 2
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "b42fbdf52d777bc5e258d15a1d9173e6970f7245"
+}

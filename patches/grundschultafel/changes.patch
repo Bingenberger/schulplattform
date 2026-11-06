@@ -1,7 +1,7 @@
 From 79e4991283c2fd765dcfecfdd996185e74c1841a Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Mon, 2 Nov 2026 11:23:36 +0100
-Subject: [PATCH 1/5] Replace default login with local single-use bootstrap
+Subject: [PATCH 1/6] Replace default login with local single-use bootstrap
 
 ---
  PLATFORM.md                               | 20 +++++++++
@@ -310,7 +310,7 @@ index de480b9..52a5cc2 100644
 From 4307aeeb5c172ee4a6ed8763ead2828281e9b66e Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Tue, 3 Nov 2026 08:34:23 +0100
-Subject: [PATCH 2/5] Add isolated Next runtime, transactional files and
+Subject: [PATCH 2/6] Add isolated Next runtime, transactional files and
  revocable personal sessions
 
 ---
@@ -2736,7 +2736,7 @@ index 9db6393..e238464 100644
 From f628e1267df216202ea61be399ef414004e9d7a7 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 08:19:22 +0100
-Subject: [PATCH 3/5] Publish versioned amd64 release images to GHCR on version
+Subject: [PATCH 3/6] Publish versioned amd64 release images to GHCR on version
  tags
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -2814,7 +2814,7 @@ index 0000000..14c4239
 From b90b1dd7cdc2c522c73bb2bcd419f1e22820a09e Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 12:14:19 +0100
-Subject: [PATCH 4/5] README: Installation im Rahmen der Schulplattform und
+Subject: [PATCH 4/6] README: Installation im Rahmen der Schulplattform und
  Standalone; veraltete Angaben korrigiert
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -2880,7 +2880,7 @@ index ab9a143..5139da5 100644
 From 1519d401e144d5875bd87860a9dd8afde5e5db2f Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Fri, 6 Nov 2026 13:39:32 +0100
-Subject: [PATCH 5/5] YouTube search: read the API key from a secret file
+Subject: [PATCH 5/6] YouTube search: read the API key from a secret file
  (YOUTUBE_API_KEY_FILE)
 
 The platform provides the key as a mounted file instead of an environment
@@ -2954,6 +2954,40 @@ index b1a6dbd..0ffd82b 100644
      }
  
      const response = await fetch(
+-- 
+2.43.0
+
+
+From 79cbeba2d113e95e668870b28dcaa8a025c13a10 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Fri, 6 Nov 2026 15:44:52 +0100
+Subject: [PATCH 6/6] YouTube embed: send the origin as referrer (player error
+ 153)
+
+The app sends Referrer-Policy: no-referrer on every page. YouTube refuses
+embedded players without a referrer and shows error 153. The iframe now uses
+strict-origin-when-cross-origin, so YouTube sees only the origin; all other
+requests keep no-referrer.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/components/Whiteboard.tsx | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/components/Whiteboard.tsx b/src/components/Whiteboard.tsx
+index 2283aba..b858b1a 100644
+--- a/src/components/Whiteboard.tsx
++++ b/src/components/Whiteboard.tsx
+@@ -2298,6 +2298,9 @@ export default function Whiteboard() {
+             height="100%"
+             src={`https://www.youtube-nocookie.com/embed/${video.youtubeId}`}
+             title="YouTube video player"
++            // The app sends Referrer-Policy: no-referrer; YouTube refuses embeds without a referrer
++            // (error 153). Only the origin is sent, never the path.
++            referrerPolicy="strict-origin-when-cross-origin"
+             frameBorder="0"
+             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+             allowFullScreen
 -- 
 2.43.0
 

@@ -130,3 +130,12 @@ Lokal im gebauten Runtime-Image (read-only, cap-drop ALL, echte Anmeldung mit Er
 geprüft: ohne Einstellungen beide 503; leere Schlüsseldatei 503; Testschlüssel erreicht Google
 (Antwort 500 wegen ungültigem Schlüssel); Galerie mit `https://pix.foerster.rocks` liefert 24 Treffer
 und Vorschaubilder. Mit einem echten YouTube-Schlüssel nicht geprüft.
+
+## Release 0.1.2 (6. November 2026)
+
+Eingebettete Videos zeigten auf dem Server „Fehler 153“ (Konfiguration des Videoplayers). Die
+Plattform-Integration setzt `Referrer-Policy: no-referrer` für alle Antworten; YouTube verweigert
+eingebettete Player ohne Referrer. Commit `79cbeba` gibt nur dem YouTube-iframe
+`referrerPolicy="strict-origin-when-cross-origin"`: YouTube erhält die Origin der Tafel, keinen Pfad;
+alle übrigen Anfragen bleiben bei `no-referrer`. In Chromium (Playwright 1.64.1) gegen das echte
+YouTube geprüft: Seite mit `no-referrer` ohne Attribut → Fehler 153, mit Attribut → Video lädt.

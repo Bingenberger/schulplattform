@@ -1,0 +1,31 @@
+{
+  "app": "sl-journal",
+  "artifacts": [],
+  "images": {
+    "sl-journal": "ghcr.io/bingenberger/sl-journal:0.1.0@sha256:560bc3125d6b76c28a3a71cfdf6d95bd4807bf9dcd50d7d0916a4e87df96f6fc"
+  },
+  "inspection": {
+    "sl-journal": {
+      "architecture": "amd64",
+      "attestationPredicates": [
+        "https://slsa.dev/provenance/v1",
+        "https://spdx.dev/Document"
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "25e7090de33e0c701719be16d157fb110f1667eb",
+        "org.opencontainers.image.source": "https://github.com/Bingenberger/SL-Journal",
+        "org.opencontainers.image.version": "0.1.0"
+      },
+      "os": "linux",
+      "user": "10001:10001"
+    }
+  },
+  "item": "amd64Build",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "25e7090de33e0c701719be16d157fb110f1667eb",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "Published linux/amd64 image(s) with revision label, SBOM and provenance.",
+  "testedCommit": "424bd10cdf1dceaa21b03d5ce3979c2b6283c634"
+}

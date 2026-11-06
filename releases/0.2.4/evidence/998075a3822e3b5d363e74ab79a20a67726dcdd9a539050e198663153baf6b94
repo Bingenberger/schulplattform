@@ -1,0 +1,17 @@
+{
+  "Id": "sha256:3df623b1e19ebfe80d4e396a56c41ca0acbe0ad19e319268e2e3aea82d54f3e9",
+  "Architecture": "amd64",
+  "Os": "linux",
+  "Size": 644840683,
+  "RepoDigests": [],
+  "runtime": {
+    "python": "3.12.12",
+    "sqlite": "3.40.1",
+    "Flask": "3.1.3",
+    "Flask-SQLAlchemy": "3.1.1",
+    "SQLAlchemy": "2.1.6",
+    "gunicorn": "26.2.0",
+    "Pillow": "13.0.0"
+  },
+  "libreoffice": "LibreOffice 7.4.7.2 40(Build:2)"
+}

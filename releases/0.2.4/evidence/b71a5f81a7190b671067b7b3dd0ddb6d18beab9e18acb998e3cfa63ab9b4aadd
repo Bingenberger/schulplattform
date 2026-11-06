@@ -1,0 +1,12 @@
+{
+  "app": "gswb",
+  "artifacts": [],
+  "item": "restore",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "aa0ea29f8209a4af575dfcac001e512fcbcd789d",
+  "schemaVersion": 1,
+  "status": "open",
+  "summary": "No restore evidence recorded for gswb.",
+  "testedCommit": "eebb0d6fb20eba632ae0a395b8957fb9d085ee23"
+}
