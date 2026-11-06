@@ -116,3 +116,17 @@ und vollständige Releaseabnahme bleiben offen.
 
 Quell-/Integrationspaket im Plattformrepository: bb28c35;
 [Commit-Rohbeleg](evidence/grundschultafel-work-package-commit.log).
+
+## Release 0.1.1 (6. November 2026)
+
+Auf dem echten Server fehlten Bildergalerie und YouTube-Suche: Die Plattform setzte beide fest auf
+aus (`GALLERY_ORIGIN: ""`, `TAFEL_YOUTUBE_ENABLED: "0"`), und die Tafel konnte den API-Schlüssel nur
+als Umgebungsvariable lesen. Commit `1519d40` liest ihn aus `YOUTUBE_API_KEY_FILE` (Fallback
+`YOUTUBE_API_KEY`); fehlt er, antwortet die Suche 503 statt 500. Die Plattform stellt die
+Galerie-Adresse über `gallery_origin` in `platform.toml` und den Schlüssel über
+`./install.sh youtube-key` bereit; ohne beides bleibt alles aus.
+
+Lokal im gebauten Runtime-Image (read-only, cap-drop ALL, echte Anmeldung mit Erstzugang und PIN)
+geprüft: ohne Einstellungen beide 503; leere Schlüsseldatei 503; Testschlüssel erreicht Google
+(Antwort 500 wegen ungültigem Schlüssel); Galerie mit `https://pix.foerster.rocks` liefert 24 Treffer
+und Vorschaubilder. Mit einem echten YouTube-Schlüssel nicht geprüft.

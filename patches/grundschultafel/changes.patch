@@ -1,7 +1,7 @@
 From 79e4991283c2fd765dcfecfdd996185e74c1841a Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Mon, 2 Nov 2026 11:23:36 +0100
-Subject: [PATCH 1/4] Replace default login with local single-use bootstrap
+Subject: [PATCH 1/5] Replace default login with local single-use bootstrap
 
 ---
  PLATFORM.md                               | 20 +++++++++
@@ -310,7 +310,7 @@ index de480b9..52a5cc2 100644
 From 4307aeeb5c172ee4a6ed8763ead2828281e9b66e Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Tue, 3 Nov 2026 08:34:23 +0100
-Subject: [PATCH 2/4] Add isolated Next runtime, transactional files and
+Subject: [PATCH 2/5] Add isolated Next runtime, transactional files and
  revocable personal sessions
 
 ---
@@ -2736,7 +2736,7 @@ index 9db6393..e238464 100644
 From f628e1267df216202ea61be399ef414004e9d7a7 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 08:19:22 +0100
-Subject: [PATCH 3/4] Publish versioned amd64 release images to GHCR on version
+Subject: [PATCH 3/5] Publish versioned amd64 release images to GHCR on version
  tags
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -2814,7 +2814,7 @@ index 0000000..14c4239
 From b90b1dd7cdc2c522c73bb2bcd419f1e22820a09e Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 12:14:19 +0100
-Subject: [PATCH 4/4] README: Installation im Rahmen der Schulplattform und
+Subject: [PATCH 4/5] README: Installation im Rahmen der Schulplattform und
  Standalone; veraltete Angaben korrigiert
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -2873,6 +2873,87 @@ index ab9a143..5139da5 100644
  ## Features
  
  ### Zeichenwerkzeuge
+-- 
+2.43.0
+
+
+From 1519d401e144d5875bd87860a9dd8afde5e5db2f Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Fri, 6 Nov 2026 13:39:32 +0100
+Subject: [PATCH 5/5] YouTube search: read the API key from a secret file
+ (YOUTUBE_API_KEY_FILE)
+
+The platform provides the key as a mounted file instead of an environment
+variable. A missing or empty key now answers 503 like a disabled search.
+TAFEL_YOUTUBE_ENABLED and YOUTUBE_API_KEY_FILE are configurable in compose.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ PLATFORM.md                  |  3 ++-
+ docker-compose.yml           |  3 ++-
+ src/app/api/youtube/route.ts | 14 ++++++++++++--
+ 3 files changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/PLATFORM.md b/PLATFORM.md
+index ae54db6..6405c3f 100644
+--- a/PLATFORM.md
++++ b/PLATFORM.md
+@@ -90,7 +90,8 @@ Löschung alter Unterrichtsdateien. QR-Zugänge gehören nicht hinter zusätzlic
+ 
+ GALLERY_ORIGIN ist standardmäßig leer; externe Galerie dann 503. Bei expliziter
+ Aktivierung nur die konfigurierte Origin, keine Redirects, Zeit-/Größenlimits.
+-YouTube-Suche benötigt TAFEL_YOUTUBE_ENABLED=1 und YOUTUBE_API_KEY; sonst 503.
++YouTube-Suche benötigt TAFEL_YOUTUBE_ENABLED=1 und einen Schlüssel, entweder als Datei
++(YOUTUBE_API_KEY_FILE, so stellt ihn die Plattform bereit) oder als YOUTUBE_API_KEY; sonst 503.
+ Direkt eingefügte Video-URLs können weiterhin externe Browserabrufe verursachen.
+ Keine externe SMTP-Verbindung.
+ 
+diff --git a/docker-compose.yml b/docker-compose.yml
+index a851f82..030afa0 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -18,7 +18,8 @@ services:
+       TAFEL_DATA_DIR: /data
+       TAFEL_ASSET_DIR: /data/assets
+       GALLERY_ORIGIN: ${GALLERY_ORIGIN:-}
+-      TAFEL_YOUTUBE_ENABLED: "0"
++      TAFEL_YOUTUBE_ENABLED: ${TAFEL_YOUTUBE_ENABLED:-0}
++      YOUTUBE_API_KEY_FILE: ${YOUTUBE_API_KEY_FILE:-}
+     volumes:
+       - data:/data
+       - ${TAFEL_SECRET_FILE:?private session key file required}:/run/secrets/session-key:ro
+diff --git a/src/app/api/youtube/route.ts b/src/app/api/youtube/route.ts
+index b1a6dbd..0ffd82b 100644
+--- a/src/app/api/youtube/route.ts
++++ b/src/app/api/youtube/route.ts
+@@ -1,5 +1,15 @@
+ export const dynamic='force-dynamic';
+ import { NextResponse } from 'next/server';
++import { readFileSync } from 'node:fs';
++
++// Platform: key as a mounted secret file (YOUTUBE_API_KEY_FILE); standalone: YOUTUBE_API_KEY.
++function youtubeKey() {
++  const file = process.env.YOUTUBE_API_KEY_FILE;
++  if (file) {
++    try { return readFileSync(file, 'utf8').trim(); } catch { return ''; }
++  }
++  return (process.env.YOUTUBE_API_KEY || '').trim();
++}
+ 
+ export async function GET(request: Request) {
+   try {
+@@ -11,9 +21,9 @@ export async function GET(request: Request) {
+     }
+ 
+     if(process.env.TAFEL_YOUTUBE_ENABLED!=='1')return NextResponse.json({error:'Videosuche derzeit nicht verfügbar'},{status:503});
+-    const API_KEY = process.env.YOUTUBE_API_KEY;
++    const API_KEY = youtubeKey();
+     if (!API_KEY) {
+-      return NextResponse.json({ error: 'YouTube API key not configured' }, { status: 500 });
++      return NextResponse.json({ error: 'Videosuche derzeit nicht verfügbar' }, { status: 503 });
+     }
+ 
+     const response = await fetch(
 -- 
 2.43.0
 

@@ -1,0 +1,12 @@
+{
+  "app": "schuleva",
+  "artifacts": [],
+  "images": {
+    "schuleva": "ghcr.io/bingenberger/schuleva:0.1.0@sha256:6d7de4adcac5d0eacf6b2e6faccf72c511e6a58df3ec288ee26e64df95cc25dd"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}

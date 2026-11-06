@@ -1,0 +1,13 @@
+{
+  "Id": "sha256:0499ac5fd33b65cd1282c207ec539e053f6238e86a659a422c6f72ea5667fe77",
+  "Architecture": "amd64",
+  "Os": "linux",
+  "Size": 249196589,
+  "RepoDigests": [],
+  "runtime": {
+    "node": "v22.23.4",
+    "abi": "127",
+    "betterSqlite": "11.10.0",
+    "sqlite": "3.49.2"
+  }
+}

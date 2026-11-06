@@ -1,0 +1,15 @@
+{
+  "tls": true,
+  "canonicalQr": true,
+  "websocketOrigin": true,
+  "publicPinJoin": true,
+  "expiredSessionCannotCreateAnotherGame": true,
+  "gameCompleted": true,
+  "userId": 1,
+  "quizId": 4,
+  "mediaUrl": "/media/54ea3cdd4536f4873b.png",
+  "imageId": "sha256:0499ac5fd33b65cd1282c207ec539e053f6238e86a659a422c6f72ea5667fe77",
+  "stopDuringGameBlocked": true,
+  "backendPortsPrivate": true,
+  "nodeLts": "22.23.4"
+}

@@ -1,0 +1,17 @@
+{
+  "app": "zackboing",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/zackboing-platform.json",
+      "sha256": "934d3700156b75ada4656275aaf2ace1c9b725d41701ae6972551b6d5e3b68e2"
+    }
+  ],
+  "item": "negativeAccess",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "8ee2b9eec613d25b861e41de12ede251bdd7a0f0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "negativeAccess evidence from the local pilot work packages.",
+  "testedCommit": "668b7f724e69e431215610183745886958b08d25"
+}

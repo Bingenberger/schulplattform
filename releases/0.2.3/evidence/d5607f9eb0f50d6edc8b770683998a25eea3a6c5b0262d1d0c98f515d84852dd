@@ -1,0 +1,31 @@
+{
+  "app": "schuleva",
+  "artifacts": [],
+  "images": {
+    "schuleva": "ghcr.io/bingenberger/schuleva:0.1.0@sha256:6d7de4adcac5d0eacf6b2e6faccf72c511e6a58df3ec288ee26e64df95cc25dd"
+  },
+  "inspection": {
+    "schuleva": {
+      "architecture": "amd64",
+      "attestationPredicates": [
+        "https://slsa.dev/provenance/v1",
+        "https://spdx.dev/Document"
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "69e5cc0b0707246176e6c9e4936a1df533187d6a",
+        "org.opencontainers.image.source": "https://github.com/Bingenberger/schuleva",
+        "org.opencontainers.image.version": "0.1.0"
+      },
+      "os": "linux",
+      "user": "10001:10001"
+    }
+  },
+  "item": "amd64Build",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "69e5cc0b0707246176e6c9e4936a1df533187d6a",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "Published linux/amd64 image(s) with revision label, SBOM and provenance.",
+  "testedCommit": "a5c4608a8ccf0517fe0e7a719b093e0acff98375"
+}

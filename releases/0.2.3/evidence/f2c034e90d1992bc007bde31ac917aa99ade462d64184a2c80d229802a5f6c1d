@@ -1,0 +1,20 @@
+{
+  "scope": "stopped JSON file store and asset tree; fresh volume, original separately supplied key",
+  "archiveSha256": "012c1e19ff145b4af9655e608098417a01a1e6197ba58675ff503c13490a34ef",
+  "files": 19,
+  "userIdsPreserved": true,
+  "ownershipAndPermissions": true,
+  "schema": 1,
+  "nonemptyTargetRejected": true,
+  "notebookAndAssetRecovered": true,
+  "teacherIdMatchesSource": true,
+  "deletedAccountRemainsDenied": true,
+  "crossOwnerAndAdminDenied": true,
+  "noMigrationOrBootstrapOnRestore": true,
+  "limits": [
+    "local unencrypted archive",
+    "no offsite transport",
+    "no browser rendering"
+  ],
+  "stoppedDataRetained": true
+}
