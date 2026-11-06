@@ -20,6 +20,8 @@ from .terminal import open_tty
 SCHEMA = Path(__file__).resolve().parents[1] / "schemas/platform-config-v1.schema.json"
 DEFAULT_PATH = Path("/etc/schulplattform/platform.toml")
 DEFAULT_NETWORK_BASE = "10.231.0.0/16"
+# Apps that may fetch images from an operator-chosen external gallery (server side).
+GALLERY_APPS = ("grundschultafel",)
 
 
 class ConfigError(ValueError):
@@ -40,6 +42,8 @@ def validate(data):
         if entry["hostname"] in seen:
             raise ConfigError(f"Hostname {entry['hostname']} used twice ({seen[entry['hostname']]}, {app})")
         seen[entry["hostname"]] = app
+        if "gallery_origin" in entry and app not in GALLERY_APPS:
+            raise ConfigError(f"gallery_origin is only supported for {', '.join(GALLERY_APPS)}")
     if not any(entry["enabled"] for entry in data["apps"].values()):
         raise ConfigError("At least one app must be enabled")
     ipv4 = ipaddress.IPv4Address(platform["public_ipv4"])
@@ -182,6 +186,13 @@ def wizard(path=DEFAULT_PATH, existing=None, tty_path="/dev/tty"):
             suggestion = previous.get("hostname") or (f"{SUGGESTED_PREFIX[app]}.{parent}" if parent else None)
             data["apps"][app] = {"enabled": enabled,
                                  "hostname": ask(f"{app}: Hostname", suggestion, r"[a-z0-9.-]+")}
+            if app in GALLERY_APPS and enabled:
+                gallery = ask(f"{app}: Bildergalerie (https://…, leer = aus)", previous.get("gallery_origin", ""),
+                              r"|https://[a-z0-9.-]+")
+                if gallery:
+                    data["apps"][app]["gallery_origin"] = gallery
+            elif "gallery_origin" in previous:
+                data["apps"][app]["gallery_origin"] = previous["gallery_origin"]
         mode = ask("Mailversand (relay = über Ihren SMTP-Anbieter, none = keiner)",
                    existing.get("smtp", {}).get("mode", "relay"), r"relay|none")
         smtp = {"mode": mode}

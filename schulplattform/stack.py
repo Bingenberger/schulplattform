@@ -212,6 +212,10 @@ class Stack:
             os.fsync(stream.fileno())
         os.chmod(path, 0o444)
 
+    def youtube_key_set(self):
+        path = self.layout.runtime / "tafel-youtube-key"
+        return path.is_file() and not path.is_symlink() and bool(path.read_text().strip())
+
     def context(self, app_id, hostname):
         app = APPS[app_id]
         values = {
@@ -222,6 +226,9 @@ class Stack:
             "runtime": str(self.layout.runtime),
             "postgres16": catalogue.INFRASTRUCTURE["postgres16"],
             "postgres18": catalogue.INFRASTRUCTURE["postgres18"],
+            # Optional external features (grundschultafel); off unless configured.
+            "gallery_origin": json.dumps(self.config["apps"].get(app_id, {}).get("gallery_origin", "")),
+            "youtube_enabled": json.dumps("1" if self.youtube_key_set() else "0"),
         }
         for service, image in app.images.items():
             values["image_" + service] = self.release.image(image)

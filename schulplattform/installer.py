@@ -6,7 +6,7 @@ Production commands (root on Ubuntu 24.04):
   plan    --bundle B --trusted-key K
   apply   --bundle B --trusted-key K [--reconfigure]
   status | reconcile [--app X] | domain-change APP HOST | start APP | stop APP
-  admin-setup | app-setup APP | smtp-password | backup [--app X|--all] | restore-probe APP
+  admin-setup | app-setup APP | smtp-password | youtube-key | backup [--app X|--all] | restore-probe APP
 The local pilot commands (pilot-*) remain for development.
 """
 import argparse
@@ -126,7 +126,7 @@ def warnings(host):
 
 
 PRODUCTION = ["configure", "plan", "apply", "status", "reconcile", "domain-change", "start", "stop",
-              "admin-setup", "app-setup", "smtp-password", "backup", "restore-probe", "restore",
+              "admin-setup", "app-setup", "smtp-password", "youtube-key", "backup", "restore-probe", "restore",
               "import-key", "import", "restore-platform"]
 
 
@@ -271,6 +271,10 @@ def _main(argv=None):
             parser.exit(1, 'Passwörter stimmen nicht überein; nichts geändert.\n')
         SecretStore(platform_.layout.secrets).replace('smtp-password', first)
         print('SMTP-Passwort gespeichert.')
+    elif args.action == 'youtube-key':
+        from .appsetup import set_youtube_key
+        enabled = set_youtube_key(platform_)
+        print('Videosuche der Tafel ' + ('eingeschaltet.' if enabled else 'ausgeschaltet.'))
     elif args.action == 'backup':
         from .backups import BackupService
         service = BackupService(platform_)

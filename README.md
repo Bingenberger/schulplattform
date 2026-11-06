@@ -108,6 +108,7 @@ Ausführliche Checkliste: [docs/betrieb/bereitstellung.md](docs/betrieb/bereitst
 | `./install.sh restore-probe APP` | Sicherung isoliert prüfen |
 | `./install.sh restore APP ARCHIV --confirm-replace` | App-Daten wiederherstellen |
 | `./install.sh restore-platform ARCHIV --confirm-replace` | Server nach Totalausfall neu aufbauen (vor `apply`) |
+| `./install.sh youtube-key` | YouTube-Suche der Tafel ein-/ausschalten ([Galerie und YouTube](docs/betrieb/bereitstellung.md#bildergalerie-und-youtube-suche-grundschultafel)) |
 
 Das Dashboard unter der Verwaltungsdomain zeigt dasselbe und erlaubt Domains, Mail, Sicherungen und Lebenszyklus (ausblenden, stoppen, deinstallieren, Daten löschen) über fest definierte Aktionen.
 

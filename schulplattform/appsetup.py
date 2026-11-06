@@ -75,3 +75,35 @@ def setup_app(platform, app_id):
         platform.stack.compose(app_id, "exec", "app", *argv, tty=True, capture=False)
     else:
         raise StateError("Unknown setup kind")
+
+
+YOUTUBE_KEY = "tafel-youtube-key"
+
+
+def _replace_projection(path, value):
+    """Rotatable operator key (unlike first-access hashes): replace atomically, empty disables."""
+    if path.is_symlink() or not path.exists():
+        raise StateError("Projection missing; run apply first")
+    temporary = path.with_name("." + path.name + ".new")
+    fd = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+    with os.fdopen(fd, "w") as stream:
+        stream.write(value)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.chmod(temporary, 0o444)
+    os.replace(temporary, path)
+
+
+def set_youtube_key(platform):
+    """Store the YouTube Data API key for the grundschultafel video search; empty input switches it off."""
+    if "grundschultafel" not in platform.stack.apps:
+        raise StateError("grundschultafel is not installed")
+    with open_tty() as tty:
+        key = getpass.getpass("YouTube-API-Schlüssel (unsichtbar, leer = Videosuche aus): ", stream=tty).strip()
+    if key and not re.fullmatch(r"[A-Za-z0-9_-]{20,100}", key):
+        raise StateError("Das sieht nicht nach einem YouTube-API-Schlüssel aus; nichts geändert")
+    _replace_projection(platform.layout.runtime / YOUTUBE_KEY, key)
+    platform.stack.render(platform.current_domains())
+    platform.stack.compose("grundschultafel", "up", "-d", "--pull", "never", "--no-build", "--force-recreate",
+                           "--wait", *APPS["grundschultafel"].services)
+    return bool(key)

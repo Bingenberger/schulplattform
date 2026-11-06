@@ -395,3 +395,50 @@ def test_confirmed_import_counts_as_first_access(tmp_path, monkeypatch, capsys):
     assert json.loads((state / "bootstrap.json").read_text())["appSetup"]["gswb"] is False
     installer._main(["import", "zackboing", "a.tar.gpg", "--confirm-replace", *common])
     assert json.loads((state / "bootstrap.json").read_text())["appSetup"] == {"zackboing": True, "gswb": False}
+
+
+def test_tafel_gallery_and_video_search_stay_off_until_configured(tmp_path):
+    layout, stack, domains = render(tmp_path, sample())
+    override = yaml.load((layout.generated / "grundschultafel.yml").read_text(), Loader=_TagLoader)
+    app = override["services"]["app"]
+    assert app["environment"]["GALLERY_ORIGIN"] == "" and app["environment"]["TAFEL_YOUTUBE_ENABLED"] == "0"
+    key = layout.runtime / "tafel-youtube-key"
+    assert key.read_text() == ""
+    assert f"{key}:/run/secrets/youtube-key:ro" in app["volumes"]
+    assert app["environment"]["YOUTUBE_API_KEY_FILE"] == "/run/secrets/youtube-key"
+    # Other apps never see these settings.
+    assert "GALLERY_ORIGIN" not in (layout.generated / "schulhelfer.yml").read_text()
+
+
+def test_tafel_gallery_and_video_search_follow_configuration_and_key(tmp_path):
+    data = sample(**{"apps.grundschultafel.gallery_origin": "https://pix.example.org"})
+    cfg.validate(data)
+    layout, stack, domains = render(tmp_path, data)
+    from schulplattform.appsetup import _replace_projection
+    _replace_projection(layout.runtime / "tafel-youtube-key", "AIza" + "x" * 35)
+    stack.render(domains)                                   # 'empty' projection keeps the operator's key
+    assert (layout.runtime / "tafel-youtube-key").read_text() == "AIza" + "x" * 35
+    app = yaml.load((layout.generated / "grundschultafel.yml").read_text(), Loader=_TagLoader)["services"]["app"]
+    assert app["environment"]["GALLERY_ORIGIN"] == "https://pix.example.org"
+    assert app["environment"]["TAFEL_YOUTUBE_ENABLED"] == "1"
+    _replace_projection(layout.runtime / "tafel-youtube-key", "")
+    stack.render(domains)
+    app = yaml.load((layout.generated / "grundschultafel.yml").read_text(), Loader=_TagLoader)["services"]["app"]
+    assert app["environment"]["TAFEL_YOUTUBE_ENABLED"] == "0"
+
+
+@pytest.mark.parametrize("app,origin,message", [
+    ("grundschultafel", "http://pix.example.org", "gallery_origin"),
+    ("grundschultafel", "https://pix.example.org/pfad", "gallery_origin"),
+    ("gswb", "https://pix.example.org", "only supported"),
+])
+def test_gallery_origin_is_validated(app, origin, message):
+    with pytest.raises(cfg.ConfigError, match=message):
+        cfg.validate(sample(**{f"apps.{app}.gallery_origin": origin}))
+
+
+def test_gallery_origin_survives_toml_roundtrip(tmp_path):
+    data = sample(**{"apps.grundschultafel.gallery_origin": "https://pix.example.org"})
+    path = tmp_path / "platform.toml"
+    cfg.write(data, path)
+    assert cfg.load(path)["apps"]["grundschultafel"]["gallery_origin"] == "https://pix.example.org"

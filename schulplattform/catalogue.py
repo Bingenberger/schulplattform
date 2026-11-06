@@ -265,7 +265,8 @@ secrets:
     App("grundschultafel", 6, 3000, "/health/ready", ("app",),
         images={"app": "grundschultafel"},
         compose_env={"TAFEL_SECRET_FILE": "tafel-key"},
-        secrets=(("tafel-key", "random:tafel-key"),),
+        # tafel-youtube-key: empty until './install.sh youtube-key'; search stays off while empty.
+        secrets=(("tafel-key", "random:tafel-key"), ("tafel-youtube-key", "empty")),
         migrations=(("node", "scripts/migrate.mjs"),),
         checks=(Check("GET", "/api/admin/users", 401),),
         setup=("exec", ("node", "scripts/bootstrap.mjs", "{name}")),
@@ -276,8 +277,11 @@ secrets:
     ports: !reset []
     environment:
       BASE_URL: {origin}
-      GALLERY_ORIGIN: ""
-      TAFEL_YOUTUBE_ENABLED: "0"
+      GALLERY_ORIGIN: {gallery_origin}
+      TAFEL_YOUTUBE_ENABLED: {youtube_enabled}
+      YOUTUBE_API_KEY_FILE: /run/secrets/youtube-key
+    volumes:
+      - {runtime}/tafel-youtube-key:/run/secrets/youtube-key:ro
     networks:
       default: {{}}
       proxy:

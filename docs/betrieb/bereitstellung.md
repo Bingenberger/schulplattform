@@ -114,3 +114,26 @@ Eigene Schriften (`.ttf`/`.otf`) gehören auf dem Host nach:
 ```
 
 Das Verzeichnis wird schreibgeschützt nach `/usr/local/share/fonts` in den App-Container eingebunden. Neue Dateien gelten ab dem nächsten Export, ein Neustart ist nicht nötig. Die Dateien müssen für alle lesbar sein (`chmod 644`). Sie sind nicht Teil der App-Sicherung; bewahren Sie die Originale auf, und achten Sie auf die Lizenz der Schrift.
+
+## Bildergalerie und YouTube-Suche (grundschultafel)
+
+Beide Funktionen rufen externe Dienste auf und sind deshalb ausgeschaltet, bis sie ausdrücklich eingerichtet werden. Ein direkt eingefügter YouTube-Link funktioniert immer; das Video lädt dann der Browser selbst von YouTube.
+
+**Bildergalerie:** In `/etc/schulplattform/platform.toml` beim Abschnitt der Tafel die Adresse der Galerie eintragen (nur `https://` und Hostname, ohne Pfad):
+
+```toml
+[apps.grundschultafel]
+enabled = true
+hostname = "tafel.schule.example"
+gallery_origin = "https://pix.example.org"
+```
+
+Danach `./install.sh apply --reconfigure` (mit `--bundle` und `--trusted-key` wie oben). `./install.sh configure` fragt die Adresse ebenfalls ab. Die Tafel holt Suchergebnisse und Bilder serverseitig nur von genau dieser Adresse, ohne Weiterleitungen.
+
+**YouTube-Suche:** braucht einen Schlüssel für die YouTube Data API v3 aus der Google Cloud Console. Ist der Schlüssel dort auf IP-Adressen beschränkt, die öffentliche IPv4 dieses Servers freigeben.
+
+```sh
+./install.sh youtube-key
+```
+
+Der Schlüssel wird unsichtbar eingegeben, unter `/var/lib/schulplattform/runtime/tafel-youtube-key` abgelegt (Teil der Plattform-Sicherung) und die Tafel neu gestartet. Erneuter Aufruf ersetzt den Schlüssel; leere Eingabe schaltet die Suche wieder aus. Suchbegriffe gehen dabei an Google.
