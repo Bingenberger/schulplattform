@@ -129,3 +129,9 @@ Migrationsjobs enthält jetzt den Grund.
 
 Tests (Test-Image, read-only, ohne Netz): 64/64, davon neu eine `create_all`-Datenbank des
 Basis-Commits, eine ohne die Spalte `token` und eine mit fremder Spalte, die abgelehnt wird.
+
+## Release 0.1.2 (6. November 2026)
+
+Übernimmt `7327c7c` und `c3bfdb7` vom Nutzer: optische Überarbeitung. Pico (indigo) und die Phosphor-Icons (MIT, regular und fill) liegen jetzt unter `static/vendor`. Die App lädt keine Stylesheets mehr von jsDelivr. Das Makro `icon()` maskiert Name und Klasse. Die Tests setzen `BASE_URL` und `SECRET_KEY` vor dem App-Import.
+
+Tests im Test-Image (ohne Netz): 64/64. `verify_schulhelfer_standalone.py` ist grün: Buchung, Mail an den Sink, parallele Anfragen und SMTP-Ausfall.

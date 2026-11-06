@@ -44,13 +44,13 @@
   {
     "app": "grundschultafel",
     "baseCommit": "496466cac7cc2b3e48a6acd2940ebc91029c145f",
-    "implementationCommit": "79cbeba2d113e95e668870b28dcaa8a025c13a10",
+    "implementationCommit": "b1f5c6a0ab055834a9a573a2109facbb5a0bec98",
     "patch": "patches/grundschultafel/changes.patch"
   },
   {
     "app": "schulhelfer",
     "baseCommit": "01fb181a120a215d8ec9935a05ade3abbcba3309",
-    "implementationCommit": "a30453e4c6a298d296a0ff6bc9899ad839b4d980",
+    "implementationCommit": "c3bfdb7fed1c6547284eee5a245560a922273813",
     "patch": "patches/schulhelfer/changes.patch"
   },
   {

@@ -139,3 +139,15 @@ eingebettete Player ohne Referrer. Commit `79cbeba` gibt nur dem YouTube-iframe
 `referrerPolicy="strict-origin-when-cross-origin"`: YouTube erhält die Origin der Tafel, keinen Pfad;
 alle übrigen Anfragen bleiben bei `no-referrer`. In Chromium (Playwright 1.64.1) gegen das echte
 YouTube geprüft: Seite mit `no-referrer` ohne Attribut → Fehler 153, mit Attribut → Video lädt.
+
+## Release 0.1.3 (6. November 2026)
+
+Übernimmt vier Commits vom Nutzer (`745df91`..`b1f5c6a`):
+- Eingebettete Elemente wie Timer oder YouTube bleiben beim Speichern erhalten. Gespeichert wird zentral über einen einzigen Canvas-Commit. Fehler werden gemeldet, und große Bilder werden vor dem Speichern verkleinert.
+- Zu große Notizbücher (über 20 MB) lehnt der Server mit 413 ab. Ein beschädigtes Notizbuch blendet in der Liste nicht mehr alle anderen aus. Für die Namen in der Liste liest der Server nur den Anfang jeder Datei.
+- Sperren, die ein abgestürzter Prozess hinterlassen hat, werden übernommen. Das funktioniert auch, wenn der Neustart dieselbe PID hat (Instanz-ID) oder die Sperre älter als 30 s ist.
+- Ist die Grenze von 10 Sitzungen erreicht, endet die älteste Sitzung, statt den Login abzuweisen. Beschädigte Sitzungsdateien blockieren den Login nicht mehr.
+- Hochgeladene Handy-Bilder werden nach der Übernahme gelöscht. Was nach einem Tag nicht abgeholt ist, wird aufgeräumt.
+- Login-Schutz: Prüfen und Zählen eines Versuchs passieren in einem gesperrten Schritt. Auf einem Gerät, auf dem sich das Konto schon angemeldet hat, gibt es einen eigenen Fehlerzähler. Grundlage ist das signierte Cookie `tafel_known` (365 Tage, enthält kein Sitzungsrecht, weil `decrypt` eine `sid` verlangt). Wer fremde PINs rät, sperrt die Lehrkraft dadurch nicht aus.
+
+Tests im Test-Image (read-only, ohne Netz): 10/10. `prove_grundschultafel_standalone.py` mit dem neuen Runtime-Image ist grün, auch die Sperre nach fünf Fehlversuchen über einen Neustart hinweg.

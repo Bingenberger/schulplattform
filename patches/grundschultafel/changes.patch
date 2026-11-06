@@ -1,7 +1,7 @@
 From 79e4991283c2fd765dcfecfdd996185e74c1841a Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Mon, 2 Nov 2026 11:23:36 +0100
-Subject: [PATCH 1/6] Replace default login with local single-use bootstrap
+Subject: [PATCH 01/10] Replace default login with local single-use bootstrap
 
 ---
  PLATFORM.md                               | 20 +++++++++
@@ -310,7 +310,7 @@ index de480b9..52a5cc2 100644
 From 4307aeeb5c172ee4a6ed8763ead2828281e9b66e Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Tue, 3 Nov 2026 08:34:23 +0100
-Subject: [PATCH 2/6] Add isolated Next runtime, transactional files and
+Subject: [PATCH 02/10] Add isolated Next runtime, transactional files and
  revocable personal sessions
 
 ---
@@ -2736,8 +2736,8 @@ index 9db6393..e238464 100644
 From f628e1267df216202ea61be399ef414004e9d7a7 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 08:19:22 +0100
-Subject: [PATCH 3/6] Publish versioned amd64 release images to GHCR on version
- tags
+Subject: [PATCH 03/10] Publish versioned amd64 release images to GHCR on
+ version tags
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
@@ -2814,7 +2814,7 @@ index 0000000..14c4239
 From b90b1dd7cdc2c522c73bb2bcd419f1e22820a09e Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 12:14:19 +0100
-Subject: [PATCH 4/6] README: Installation im Rahmen der Schulplattform und
+Subject: [PATCH 04/10] README: Installation im Rahmen der Schulplattform und
  Standalone; veraltete Angaben korrigiert
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -2880,7 +2880,7 @@ index ab9a143..5139da5 100644
 From 1519d401e144d5875bd87860a9dd8afde5e5db2f Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Fri, 6 Nov 2026 13:39:32 +0100
-Subject: [PATCH 5/6] YouTube search: read the API key from a secret file
+Subject: [PATCH 05/10] YouTube search: read the API key from a secret file
  (YOUTUBE_API_KEY_FILE)
 
 The platform provides the key as a mounted file instead of an environment
@@ -2961,8 +2961,8 @@ index b1a6dbd..0ffd82b 100644
 From 79cbeba2d113e95e668870b28dcaa8a025c13a10 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Fri, 6 Nov 2026 15:44:52 +0100
-Subject: [PATCH 6/6] YouTube embed: send the origin as referrer (player error
- 153)
+Subject: [PATCH 06/10] YouTube embed: send the origin as referrer (player
+ error 153)
 
 The app sends Referrer-Policy: no-referrer on every page. YouTube refuses
 embedded players without a referrer and shows error 153. The iframe now uses
@@ -2988,6 +2988,1521 @@ index 2283aba..b858b1a 100644
              frameBorder="0"
              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
              allowFullScreen
+-- 
+2.43.0
+
+
+From 745df91d2dc4ddd88b1e1758924ba7736600c42f Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Fri, 6 Nov 2026 16:58:55 +0100
+Subject: [PATCH 07/10] =?UTF-8?q?Fix:=20Eingebettete=20Elemente=20(Timer,?=
+ =?UTF-8?q?=20YouTube,=20=E2=80=A6)=20beim=20Speichern=20erhalten?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Fabric 7 ignoriert Argumente von canvas.toJSON(); Zusatzeigenschaften
+(id, youtubeId, timerType, url, isRuler, isLockedStroke, isFill) wurden
+daher nie gespeichert. Sie sind jetzt global über
+FabricObject.customProperties registriert.
+
+Außerdem aktualisiert jeder Verlaufs-Snapshot den Seitenstand im Store,
+sodass neu eingefügte Videos, Timer und Hintergründe sofort im
+gespeicherten Tafelbild enthalten sind. Beim Speichern wird der
+aktuelle Store-Stand gelesen.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/components/Sidebar.tsx    |  2 ++
+ src/components/Whiteboard.tsx | 56 ++++++++++++++++++++---------------
+ 2 files changed, 34 insertions(+), 24 deletions(-)
+
+diff --git a/src/components/Sidebar.tsx b/src/components/Sidebar.tsx
+index 054e863..c4279c1 100644
+--- a/src/components/Sidebar.tsx
++++ b/src/components/Sidebar.tsx
+@@ -63,6 +63,8 @@ export default function Sidebar() {
+     }
+ 
+     try {
++      // Read the freshest state at click time (not the value captured at render)
++      const { pages, journalImages } = useWhiteboardStore.getState();
+       const payload = { name, pages, journalImages };
+       console.log('[Save] Speichere Heft, Seiten:', pages.length, '– Objekte pro Seite:', pages.map(p => (p.canvasData as any)?.objects?.length ?? 'kein canvasData'));
+       const res = await fetch(`/api/notebooks/${id}`, {
+diff --git a/src/components/Whiteboard.tsx b/src/components/Whiteboard.tsx
+index b858b1a..315ea11 100644
+--- a/src/components/Whiteboard.tsx
++++ b/src/components/Whiteboard.tsx
+@@ -359,6 +359,11 @@ function TimerOverlay({ timer, activeTool, isSelected }: { timer: TimerRect, act
+   );
+ }
+ 
++// Custom object properties that must survive serialisation (saving, undo, page switch).
++// Fabric >= 6 ignores arguments to canvas.toJSON(); custom properties are only
++// serialised when registered globally via FabricObject.customProperties.
++fabric.FabricObject.customProperties = ['id', 'youtubeId', 'timerType', 'url', 'isRuler', 'isLockedStroke', 'isFill'];
++
+ export default function Whiteboard() {
+   const canvasRef = useRef<HTMLCanvasElement>(null);
+   const containerRef = useRef<HTMLDivElement>(null);
+@@ -366,7 +371,6 @@ export default function Whiteboard() {
+   const [fabricCanvas, setFabricCanvas] = useState<fabric.Canvas | null>(null);
+ 
+   // --- Undo / Redo history (per page, keyed by pageId) ---
+-  const CANVAS_JSON_KEYS = ['id', 'youtubeId', 'timerType', 'isRuler', 'isLockedStroke'];
+   const MAX_HISTORY = 50;
+   const historyRef = useRef<Record<string, { stack: any[]; index: number }>>({});
+   const isHistoryLocked = useRef(false);
+@@ -381,6 +385,10 @@ export default function Whiteboard() {
+   };
+ 
+   const pushToHistory = (pageId: string, json: any) => {
++    // Every history snapshot is also the latest page state; keep the store in sync so
++    // saving a notebook includes objects that were added without an explicit save call
++    // (YouTube videos, timers, backgrounds, …).
++    useWhiteboardStore.getState().updatePageData(pageId, json);
+     const hist = getPageHistory(pageId);
+     if (hist.index < hist.stack.length - 1) {
+       hist.stack = hist.stack.slice(0, hist.index + 1);
+@@ -633,7 +641,7 @@ export default function Whiteboard() {
+     if (!fabricCanvas) return;
+     const hist = getPageHistory(currentPageId);
+     if (hist.index === -1) {
+-      const json = (fabricCanvas as any).toJSON(CANVAS_JSON_KEYS);
++      const json = fabricCanvas.toJSON();
+       hist.stack = [json];
+       hist.index = 0;
+     }
+@@ -653,20 +661,20 @@ export default function Whiteboard() {
+       historyDebounceTimer.current = setTimeout(() => {
+         historyDebounceTimer.current = null;
+         if (isHistoryLocked.current || !fabricCanvas) return;
+-        const json = (fabricCanvas as any).toJSON(CANVAS_JSON_KEYS);
++        const json = fabricCanvas.toJSON();
+         pushToHistory(currentPageIdRef.current, json);
+       }, 80);
+     };
+ 
+     const onPathCreated = () => {
+       if (isHistoryLocked.current) return;
+-      const json = (fabricCanvas as any).toJSON(CANVAS_JSON_KEYS);
++      const json = fabricCanvas.toJSON();
+       pushToHistory(currentPageIdRef.current, json);
+     };
+ 
+     const onObjectModified = () => {
+       if (isHistoryLocked.current) return;
+-      const json = (fabricCanvas as any).toJSON(CANVAS_JSON_KEYS);
++      const json = fabricCanvas.toJSON();
+       pushToHistory(currentPageIdRef.current, json);
+     };
+ 
+@@ -882,7 +890,7 @@ export default function Whiteboard() {
+           fabricCanvas.sendObjectToBack(img);
+           fabricCanvas.requestRenderAll();
+           const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-          updatePageData(currentPageId, (fabricCanvas as any).toJSON(['id', 'youtubeId', 'timerType', 'isRuler', 'isLockedStroke', 'isFill']));
++          updatePageData(currentPageId, fabricCanvas.toJSON());
+         });
+       } else if (activeTool === 'text') {
+         const pointer = options.scenePoint || options.pointer || { x: 100, y: 100 };
+@@ -940,7 +948,7 @@ export default function Whiteboard() {
+           if (event.target !== textObject) return;
+           fabricCanvas.off('text:editing:exited', handleEditingExited);
+           const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-          updatePageData(currentPageId, (fabricCanvas as any).toJSON(['id', 'youtubeId', 'timerType', 'isRuler', 'isLockedStroke']));
++          updatePageData(currentPageId, fabricCanvas.toJSON());
+           setActiveTool('move');
+         };
+ 
+@@ -1152,7 +1160,7 @@ export default function Whiteboard() {
+         }
+         canvas.renderAll();
+         const { updatePageData: upd, currentPageId: pid } = useWhiteboardStore.getState();
+-        const canvasJson = (canvas as any).toJSON(CANVAS_JSON_KEYS);
++        const canvasJson = canvas.toJSON();
+         upd(pid, canvasJson);
+         consumeNewImage();
+ 
+@@ -1224,7 +1232,7 @@ export default function Whiteboard() {
+             canvas.remove(target);
+             canvas.requestRenderAll();
+             const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-            updatePageData(currentPageId, canvas.toJSON(['id', 'youtubeId', 'timerType', 'url', 'isLockedStroke']));
++            updatePageData(currentPageId, canvas.toJSON());
+           }
+           return true;
+         },
+@@ -1314,7 +1322,7 @@ export default function Whiteboard() {
+             canvas.remove(target);
+             canvas.requestRenderAll();
+             const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-            updatePageData(currentPageId, canvas.toJSON(['id', 'youtubeId', 'timerType', 'url', 'isLockedStroke']));
++            updatePageData(currentPageId, canvas.toJSON());
+           }
+           return true;
+         },
+@@ -1387,7 +1395,7 @@ export default function Whiteboard() {
+             canvas.remove(target);
+             canvas.requestRenderAll();
+             const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-            updatePageData(currentPageId, (canvas as any).toJSON(['id', 'youtubeId', 'timerType', 'isRuler', 'isLockedStroke']));
++            updatePageData(currentPageId, canvas.toJSON());
+           }
+           return true;
+         };
+@@ -1423,7 +1431,7 @@ export default function Whiteboard() {
+         
+         // Save state immediately
+         const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-        updatePageData(currentPageId, (fabricCanvas as any).toJSON(['id', 'youtubeId', 'timerType', 'isRuler', 'isLockedStroke']));
++        updatePageData(currentPageId, fabricCanvas.toJSON());
+       }
+ 
+       consumeNewShape();
+@@ -1513,7 +1521,7 @@ export default function Whiteboard() {
+           canvas.remove(target);
+           canvas.requestRenderAll();
+           const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-          updatePageData(currentPageId, (canvas as any).toJSON(['id', 'youtubeId', 'timerType', 'isRuler', 'isLockedStroke']));
++          updatePageData(currentPageId, canvas.toJSON());
+         })
+       };
+       // --- End Delete Control ---
+@@ -1523,7 +1531,7 @@ export default function Whiteboard() {
+       fabricCanvas.renderAll();
+       
+       const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-      updatePageData(currentPageId, (fabricCanvas as any).toJSON(['id', 'youtubeId', 'timerType', 'isRuler', 'isLockedStroke']));
++      updatePageData(currentPageId, fabricCanvas.toJSON());
+ 
+       consumeNewRuler();
+       useWhiteboardStore.getState().setActiveTool('move');
+@@ -1574,7 +1582,7 @@ export default function Whiteboard() {
+ 
+     // Save old page state only when switching pages within the same notebook
+     if (pageChanged) {
+-      const oldJson: any = (fabricCanvas as any).toJSON(['id', 'youtubeId', 'timerType', 'isRuler', 'isLockedStroke']);
++      const oldJson: any = fabricCanvas.toJSON();
+       updatePageData(prevPageId.current, oldJson);
+     }
+ 
+@@ -1604,7 +1612,7 @@ export default function Whiteboard() {
+           // Baseline entry so the user can undo back to the loaded state
+           const hist = getPageHistory(currentPageId);
+           if (hist.index === -1) {
+-            const json = (fabricCanvas as any).toJSON(CANVAS_JSON_KEYS);
++            const json = fabricCanvas.toJSON();
+             hist.stack = [json];
+             hist.index = 0;
+             useWhiteboardStore.getState().setCanUndo(false);
+@@ -1622,7 +1630,7 @@ export default function Whiteboard() {
+       // Baseline: empty canvas
+       const hist = getPageHistory(currentPageId);
+       if (hist.index === -1) {
+-        const json = (fabricCanvas as any).toJSON(CANVAS_JSON_KEYS);
++        const json = fabricCanvas.toJSON();
+         hist.stack = [json];
+         hist.index = 0;
+         useWhiteboardStore.getState().setCanUndo(false);
+@@ -1839,7 +1847,7 @@ export default function Whiteboard() {
+       if (isErasing) {
+         isErasing = false;
+         // Save state after we're done erasing
+-        const json: any = (fabricCanvas as any).toJSON(['id', 'youtubeId', 'timerType', 'isRuler', 'isLockedStroke']);
++        const json: any = fabricCanvas.toJSON();
+         updatePageData(currentPageId, json);
+       } else if (activeTool === 'rs' && rsStartPoint) {
+         if (!rsPointerDownOnObject && !rsMoved) {
+@@ -1849,10 +1857,10 @@ export default function Whiteboard() {
+           setRsPicker({ left: rsStartPoint.x, top: rsStartPoint.y });
+         } else if (!rsPointerDownOnObject && isDrawingRs && snapLine) {
+           snapLine.setCoords();
+-          const json: any = (fabricCanvas as any).toJSON(['id', 'youtubeId', 'timerType', 'isRuler', 'isLockedStroke']);
++          const json: any = fabricCanvas.toJSON();
+           updatePageData(currentPageId, json);
+         } else if (rsPointerDownOnObject && rsMoved) {
+-          const json: any = (fabricCanvas as any).toJSON(['id', 'youtubeId', 'timerType', 'isRuler', 'isLockedStroke']);
++          const json: any = fabricCanvas.toJSON();
+           updatePageData(currentPageId, json);
+         }
+         snapLine = null;
+@@ -1869,7 +1877,7 @@ export default function Whiteboard() {
+         // Only restore freehand if not in straight line mode
+         fabricCanvas.isDrawingMode = !useWhiteboardStore.getState().isStraightLineMode;
+         
+-        const json: any = (fabricCanvas as any).toJSON(['id', 'youtubeId', 'timerType', 'isRuler', 'isLockedStroke']);
++        const json: any = fabricCanvas.toJSON();
+         updatePageData(currentPageId, json);
+       } else if (isDrawingStraight) {
+         isDrawingStraight = false;
+@@ -1877,7 +1885,7 @@ export default function Whiteboard() {
+         snapLine = null;
+         activeRuler = null;
+         
+-        const json: any = (fabricCanvas as any).toJSON(['id', 'youtubeId', 'timerType', 'isRuler', 'isLockedStroke']);
++        const json: any = fabricCanvas.toJSON();
+         updatePageData(currentPageId, json);
+       }
+     };
+@@ -1892,13 +1900,13 @@ export default function Whiteboard() {
+ 
+     const saveStateForPath = () => {
+       if ((activeTool === 'pen' || activeTool === 'rs') && !isSnapping && !isDrawingStraight && !isDrawingRs) {
+-        const json: any = (fabricCanvas as any).toJSON(['id', 'youtubeId', 'timerType', 'isRuler', 'isLockedStroke']);
++        const json: any = fabricCanvas.toJSON();
+         updatePageData(currentPageId, json);
+       }
+     };
+ 
+     const saveStateForModified = () => {
+-      const json: any = (fabricCanvas as any).toJSON(['id', 'youtubeId', 'timerType', 'isRuler', 'isLockedStroke']);
++      const json: any = fabricCanvas.toJSON();
+       updatePageData(currentPageId, json);
+     };
+ 
+-- 
+2.43.0
+
+
+From 6309022c068efde05fbebc47a99d9447492ae6d4 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Fri, 6 Nov 2026 18:09:28 +0100
+Subject: [PATCH 08/10] Speichern robuster: zentraler Canvas-Commit,
+ Fehlermeldungen, Bildverkleinerung
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Zentrale commitCanvas()-Funktion schreibt jede Änderung genau einmal in
+  Verlauf und Seitenstand; ersetzt ~20 verstreute Speicheraufrufe und die
+  doppelte Sicherung pro Strich.
+- Hintergrund, Tafel leeren, Textformatierung und gerade Linien werden
+  jetzt gespeichert und sind rückgängig machbar.
+- "Speichern" übernimmt vorher den Live-Stand der Tafel und zeigt Erfolg
+  bzw. Fehler sichtbar an (abgelaufene Anmeldung, Heft zu groß, offline).
+  Der Server antwortet bei zu großen Heften mit 413.
+- Große Fotos werden beim Einfügen auf max. 1600 px verkleinert.
+- Ladevorgänge (Seitenwechsel, Undo/Redo) laufen über eine Warteschlange;
+  schnelles Blättern überschreibt keine Seiten mehr, Neuladen eines Hefts
+  überschreibt keine frisch geladenen Seiten.
+- Füllflächen bleiben nach Laden gesperrt, Textfelder behalten ihre
+  Bedienelemente nach Undo/Redo.
+- Undo/Redo werden nicht mehr bei jedem Seitenwechsel erneut ausgelöst.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/app/api/notebooks/[id]/route.ts |   8 +-
+ src/components/Sidebar.tsx          |  46 +++-
+ src/components/Whiteboard.tsx       | 356 +++++++++++++++++-----------
+ src/store/useWhiteboardStore.ts     |   6 +
+ 4 files changed, 278 insertions(+), 138 deletions(-)
+
+diff --git a/src/app/api/notebooks/[id]/route.ts b/src/app/api/notebooks/[id]/route.ts
+index 7eb2007..c7f4e56 100644
+--- a/src/app/api/notebooks/[id]/route.ts
++++ b/src/app/api/notebooks/[id]/route.ts
+@@ -23,11 +23,17 @@ export async function GET(_request:Request,{params}:{params:Promise<{id:string}>
+ export async function PUT(request:Request,{params}:{params:Promise<{id:string}>}){
+   try {
+     const row=await target(params);if(!row)return NextResponse.json({error:'Unauthorized'},{status:401});
++    // Next's proxy truncates bodies above its limit, so reject oversized saves by header first
++    if(Number(request.headers.get('content-length')||0)>20*1024*1024)return NextResponse.json({error:'Notizbuch ist zu groß'},{status:413});
+     const body=await boundedJson(request,20*1024*1024);
+     const lock='notebook-'+createHash('sha256').update(row.session.id+':'+row.id).digest('hex');
+     await store.lock(lock,async()=>store.atomic(row.file,body));
+     return NextResponse.json({success:true,id:row.id});
+-  }catch{return NextResponse.json({error:'Notizbuch konnte nicht gespeichert werden'},{status:400});}
++  }catch(error){
++    // Distinguish "too large" so the client can tell the teacher what to do
++    if(error instanceof Error&&error.message==='Body limit')return NextResponse.json({error:'Notizbuch ist zu groß'},{status:413});
++    return NextResponse.json({error:'Notizbuch konnte nicht gespeichert werden'},{status:400});
++  }
+ }
+ export async function DELETE(_request:Request,{params}:{params:Promise<{id:string}>}){
+   try {
+diff --git a/src/components/Sidebar.tsx b/src/components/Sidebar.tsx
+index c4279c1..c6973d6 100644
+--- a/src/components/Sidebar.tsx
++++ b/src/components/Sidebar.tsx
+@@ -1,7 +1,7 @@
+ 'use client';
+ 
+ import { useWhiteboardStore } from '@/store/useWhiteboardStore';
+-import { useState, useEffect } from 'react';
++import { useState, useEffect, useRef } from 'react';
+ import { Save, FolderOpen, ChevronUp, ChevronDown, Plus, X, FilePlus, Pen, Trash2, LogOut, ShieldAlert, List } from 'lucide-react';
+ import { v4 as uuidv4 } from 'uuid';
+ import { useRouter } from 'next/navigation';
+@@ -11,7 +11,7 @@ export default function Sidebar() {
+     notebookId, notebookName, pages, currentPageId, 
+     setNotebook, loadNotebookState, switchPage, addPage,
+     resetNotebook, renameNotebook,
+-    isJournalOpen, toggleJournal, journalImages
++    isJournalOpen, toggleJournal
+   } = useWhiteboardStore();
+   
+   const [isModalOpen, setIsModalOpen] = useState(false);
+@@ -20,6 +20,23 @@ export default function Sidebar() {
+   const [notebookToDelete, setNotebookToDelete] = useState<{id: string, name: string} | null>(null);
+   const [notebooks, setNotebooks] = useState<{ id: string, name: string, updatedAt: string }[]>([]);
+   const [saving, setSaving] = useState(false);
++  const [saveStatus, setSaveStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
++  const saveStatusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
++  const showSaveStatus = (status: { kind: 'ok' | 'error'; text: string }) => {
++    if (saveStatusTimer.current) clearTimeout(saveStatusTimer.current);
++    setSaveStatus(status);
++    // Success fades out; errors stay until dismissed so they cannot be missed
++    if (status.kind === 'ok') saveStatusTimer.current = setTimeout(() => setSaveStatus(null), 2000);
++  };
++  const saveErrorText = (status: number) => {
++    if (status === 401 || status === 403) {
++      return 'Nicht gespeichert: Deine Anmeldung ist abgelaufen. Bitte in einem neuen Tab anmelden (diesen Tab offen lassen!) und dann hier erneut speichern.';
++    }
++    if (status === 413) {
++      return 'Nicht gespeichert: Das Heft ist zu groß (zu viele oder zu große Bilder). Bitte Bilder entfernen oder auf mehrere Hefte verteilen.';
++    }
++    return `Nicht gespeichert (Fehler ${status}). Bitte erneut versuchen.`;
++  };
+   const [user, setUser] = useState<{username: string, role: string} | null>(null);
+   const router = useRouter();
+ 
+@@ -63,7 +80,8 @@ export default function Sidebar() {
+     }
+ 
+     try {
+-      // Read the freshest state at click time (not the value captured at render)
++      // Write the live canvas into the store first, then read the freshest state
++      useWhiteboardStore.getState().canvasFlush?.();
+       const { pages, journalImages } = useWhiteboardStore.getState();
+       const payload = { name, pages, journalImages };
+       console.log('[Save] Speichere Heft, Seiten:', pages.length, '– Objekte pro Seite:', pages.map(p => (p.canvasData as any)?.objects?.length ?? 'kein canvasData'));
+@@ -73,8 +91,14 @@ export default function Sidebar() {
+         body: JSON.stringify(payload)
+       });
+       console.log('[Save] Server-Antwort:', res.status, res.ok ? 'OK' : 'FEHLER');
++      if (res.ok) {
++        showSaveStatus({ kind: 'ok', text: 'Gespeichert' });
++      } else {
++        showSaveStatus({ kind: 'error', text: saveErrorText(res.status) });
++      }
+     } catch (e) {
+       console.error('Fehler beim Speichern!', e);
++      showSaveStatus({ kind: 'error', text: 'Nicht gespeichert: Der Server ist nicht erreichbar. Bitte Verbindung prüfen und erneut speichern.' });
+     } finally {
+       setSaving(false);
+     }
+@@ -521,6 +545,22 @@ export default function Sidebar() {
+           </div>
+         </div>
+       )}
++
++      {saveStatus && (
++        <div
++          role={saveStatus.kind === 'error' ? 'alert' : 'status'}
++          onClick={() => setSaveStatus(null)}
++          title="Schließen"
++          style={{
++            position: 'fixed', left: '50%', bottom: '24px', transform: 'translateX(-50%)',
++            maxWidth: 'min(560px, calc(100vw - 32px))', padding: '12px 18px', borderRadius: '10px',
++            background: saveStatus.kind === 'error' ? 'var(--danger)' : 'var(--primary)', color: 'white',
++            fontWeight: 600, boxShadow: '0 6px 20px rgba(0,0,0,0.25)', zIndex: 10000, cursor: 'pointer'
++          }}
++        >
++          {saveStatus.text}
++        </div>
++      )}
+     </div>
+   );
+ }
+diff --git a/src/components/Whiteboard.tsx b/src/components/Whiteboard.tsx
+index 315ea11..281785e 100644
+--- a/src/components/Whiteboard.tsx
++++ b/src/components/Whiteboard.tsx
+@@ -359,6 +359,28 @@ function TimerOverlay({ timer, activeTool, isSelected }: { timer: TimerRect, act
+   );
+ }
+ 
++// Large photos (e.g. from the phone upload) are stored inside the notebook as data URLs.
++// Downscale them on insertion so notebooks stay well below the server's size limit.
++const MAX_IMAGE_DIMENSION = 1600;
++const MAX_UNSCALED_DATA_URL_LENGTH = 700_000;
++async function shrinkImageDataUrl(dataUrl: string): Promise<string> {
++  const mime = /^data:(image\/(?:jpeg|png|webp));base64,/.exec(dataUrl)?.[1];
++  if (!mime) return dataUrl; // keep SVG/GIF etc. untouched
++  const img = new Image();
++  img.src = dataUrl;
++  await img.decode();
++  const longest = Math.max(img.naturalWidth, img.naturalHeight);
++  if (longest <= MAX_IMAGE_DIMENSION && dataUrl.length <= MAX_UNSCALED_DATA_URL_LENGTH) return dataUrl;
++  const scale = Math.min(1, MAX_IMAGE_DIMENSION / longest);
++  const canvas = document.createElement('canvas');
++  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
++  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
++  canvas.getContext('2d')?.drawImage(img, 0, 0, canvas.width, canvas.height);
++  // PNG keeps transparency; photos are re-encoded as JPEG/WebP
++  const shrunk = mime === 'image/png' ? canvas.toDataURL('image/png') : canvas.toDataURL(mime, 0.85);
++  return shrunk.length < dataUrl.length ? shrunk : dataUrl;
++}
++
+ // Custom object properties that must survive serialisation (saving, undo, page switch).
+ // Fabric >= 6 ignores arguments to canvas.toJSON(); custom properties are only
+ // serialised when registered globally via FabricObject.customProperties.
+@@ -386,8 +408,7 @@ export default function Whiteboard() {
+ 
+   const pushToHistory = (pageId: string, json: any) => {
+     // Every history snapshot is also the latest page state; keep the store in sync so
+-    // saving a notebook includes objects that were added without an explicit save call
+-    // (YouTube videos, timers, backgrounds, …).
++    // saving a notebook includes everything that is on the canvas.
+     useWhiteboardStore.getState().updatePageData(pageId, json);
+     const hist = getPageHistory(pageId);
+     if (hist.index < hist.stack.length - 1) {
+@@ -400,6 +421,97 @@ export default function Whiteboard() {
+     store.setCanUndo(hist.index > 0);
+     store.setCanRedo(false);
+   };
++
++  // --- Central commit: the only place that turns canvas changes into a history entry
++  // and a page-store update. Fabric events mark the canvas dirty; changes that fire no
++  // event (background image, text formatting, coordinates set while drawing) call
++  // commitCanvas(true).
++  const fabricRef = useRef<fabric.Canvas | null>(null);
++  const isDirty = useRef(false);
++
++  const cancelScheduledCommit = () => {
++    if (historyDebounceTimer.current) {
++      clearTimeout(historyDebounceTimer.current);
++      historyDebounceTimer.current = null;
++    }
++  };
++
++  const commitCanvas = (force = false) => {
++    const canvas = fabricRef.current;
++    if (!canvas || isHistoryLocked.current) return;
++    if (!force && !isDirty.current) return;
++    cancelScheduledCommit();
++    isDirty.current = false;
++    pushToHistory(currentPageIdRef.current, canvas.toJSON());
++  };
++
++  const scheduleCommit = () => {
++    if (isHistoryLocked.current) return;
++    isDirty.current = true;
++    cancelScheduledCommit();
++    historyDebounceTimer.current = setTimeout(() => {
++      historyDebounceTimer.current = null;
++      commitCanvas();
++    }, 80);
++  };
++
++  // Canvas-replacing operations (page load, undo/redo, clearing a new page) run one after
++  // another through this queue. While any is queued or running, the history is locked so
++  // their canvas events never produce commits, and the canvas is never captured half-loaded.
++  const canvasOpQueue = useRef<Promise<unknown>>(Promise.resolve());
++  const handledUndoSignal = useRef(useWhiteboardStore.getState().undoSignal);
++  const handledRedoSignal = useRef(useWhiteboardStore.getState().redoSignal);
++  const lockDepth = useRef(0);
++  const pageLoadSeq = useRef(0);
++  const runLocked = (fn: () => unknown): Promise<void> => {
++    cancelScheduledCommit();
++    isDirty.current = false;
++    lockDepth.current++;
++    isHistoryLocked.current = true;
++    const run = canvasOpQueue.current
++      .then(() => fn())
++      .then(() => undefined)
++      .finally(() => {
++        lockDepth.current--;
++        isHistoryLocked.current = lockDepth.current > 0;
++      });
++    canvasOpQueue.current = run.catch(() => undefined);
++    return run;
++  };
++
++  // Used by "Speichern": make sure the store holds exactly what the canvas shows,
++  // including pending debounced changes and text that is still being edited.
++  const flushCanvasToStore = () => {
++    const canvas = fabricRef.current;
++    if (!canvas || isHistoryLocked.current) return;
++    if (isDirty.current) {
++      commitCanvas();
++    } else {
++      useWhiteboardStore.getState().updatePageData(currentPageIdRef.current, canvas.toJSON());
++    }
++  };
++
++  // Re-apply runtime-only object state that Fabric does not serialise
++  // (custom controls, interaction flags). Called after every loadFromJSON.
++  const restoreLoadedObjects = (canvas: fabric.Canvas) => {
++    canvas.getObjects().forEach((obj) => {
++      if (isTextObject(obj)) {
++        obj.controls = createTextControls((target, c) => {
++          c.remove(target);
++          c.requestRenderAll();
++          setSelectedTextParams(null);
++        });
++        obj.set({
++          lockScalingFlip: true,
++          minWidth: obj.minWidth || 120,
++        });
++      }
++      if ((obj as any).isFill) {
++        obj.set({ selectable: false, evented: false });
++      }
++    });
++  };
++
+   const [youtubeVideos, setYoutubeVideos] = useState<YoutubeRect[]>([]);
+   const [timers, setTimers] = useState<TimerRect[]>([]);
+   const [selectedTimerId, setSelectedTimerId] = useState<string | null>(null);
+@@ -652,42 +764,35 @@ export default function Whiteboard() {
+     currentPageIdRef.current = currentPageId;
+   }, [currentPageId]);
+ 
+-  // Listen to Fabric events and push canvas snapshots into the history stack
++  // Give the store access to the canvas flush so "Speichern" always saves the live state
+   useEffect(() => {
++    fabricRef.current = fabricCanvas;
+     if (!fabricCanvas) return;
+-
+-    const schedulePush = () => {
+-      if (historyDebounceTimer.current) clearTimeout(historyDebounceTimer.current);
+-      historyDebounceTimer.current = setTimeout(() => {
+-        historyDebounceTimer.current = null;
+-        if (isHistoryLocked.current || !fabricCanvas) return;
+-        const json = fabricCanvas.toJSON();
+-        pushToHistory(currentPageIdRef.current, json);
+-      }, 80);
++    useWhiteboardStore.getState().setCanvasFlush(flushCanvasToStore);
++    return () => {
++      cancelScheduledCommit();
++      useWhiteboardStore.getState().setCanvasFlush(null);
+     };
++  }, [fabricCanvas]);
+ 
+-    const onPathCreated = () => {
+-      if (isHistoryLocked.current) return;
+-      const json = fabricCanvas.toJSON();
+-      pushToHistory(currentPageIdRef.current, json);
+-    };
++  // Listen to Fabric events and commit canvas snapshots (history + page store)
++  useEffect(() => {
++    if (!fabricCanvas) return;
+ 
+-    const onObjectModified = () => {
++    const commitNow = () => {
+       if (isHistoryLocked.current) return;
+-      const json = fabricCanvas.toJSON();
+-      pushToHistory(currentPageIdRef.current, json);
++      isDirty.current = true;
++      commitCanvas();
+     };
+ 
+     const onObjectAdded = (e: any) => {
+-      if (isHistoryLocked.current) return;
+       if (e.target?.type === 'path') return; // path:created handles this
+-      schedulePush();
++      scheduleCommit();
+     };
+ 
+-    const onObjectRemoved = () => {
+-      if (isHistoryLocked.current) return;
+-      schedulePush();
+-    };
++    const onPathCreated = commitNow;
++    const onObjectModified = commitNow;
++    const onObjectRemoved = scheduleCommit;
+ 
+     fabricCanvas.on('path:created', onPathCreated);
+     fabricCanvas.on('object:modified', onObjectModified);
+@@ -724,38 +829,46 @@ export default function Whiteboard() {
+ 
+   // Undo: restore previous history entry
+   useEffect(() => {
+-    if (!fabricCanvas || undoSignal === 0) return;
++    // Only react to a new signal, not to page switches re-running this effect
++    if (!fabricCanvas || undoSignal === handledUndoSignal.current) return;
++    handledUndoSignal.current = undoSignal;
++    commitCanvas(); // a change still waiting in the debounce belongs to the history first
+     const hist = getPageHistory(currentPageId);
+     if (hist.index <= 0) return;
+     hist.index--;
+     const json = hist.stack[hist.index];
+-    isHistoryLocked.current = true;
+-    void (fabricCanvas as any).loadFromJSON(json).then(() => {
++    void runLocked(async () => {
++      await fabricCanvas.loadFromJSON(json);
++      restoreLoadedObjects(fabricCanvas);
+       fabricCanvas.requestRenderAll();
++    }).then(() => {
+       useWhiteboardStore.getState().updatePageData(currentPageId, json);
+-      isHistoryLocked.current = false;
+       const store = useWhiteboardStore.getState();
+       store.setCanUndo(hist.index > 0);
+       store.setCanRedo(hist.index < hist.stack.length - 1);
+-    });
++    }).catch((error) => console.error('Fehler beim Wiederherstellen aus dem Verlauf:', error));
+   }, [undoSignal, fabricCanvas, currentPageId]);
+ 
+   // Redo: restore next history entry
+   useEffect(() => {
+-    if (!fabricCanvas || redoSignal === 0) return;
++    // Only react to a new signal, not to page switches re-running this effect
++    if (!fabricCanvas || redoSignal === handledRedoSignal.current) return;
++    handledRedoSignal.current = redoSignal;
++    commitCanvas(); // a change still waiting in the debounce belongs to the history first
+     const hist = getPageHistory(currentPageId);
+     if (hist.index >= hist.stack.length - 1) return;
+     hist.index++;
+     const json = hist.stack[hist.index];
+-    isHistoryLocked.current = true;
+-    void (fabricCanvas as any).loadFromJSON(json).then(() => {
++    void runLocked(async () => {
++      await fabricCanvas.loadFromJSON(json);
++      restoreLoadedObjects(fabricCanvas);
+       fabricCanvas.requestRenderAll();
++    }).then(() => {
+       useWhiteboardStore.getState().updatePageData(currentPageId, json);
+-      isHistoryLocked.current = false;
+       const store = useWhiteboardStore.getState();
+       store.setCanUndo(hist.index > 0);
+       store.setCanRedo(hist.index < hist.stack.length - 1);
+-    });
++    }).catch((error) => console.error('Fehler beim Wiederherstellen aus dem Verlauf:', error));
+   }, [redoSignal, fabricCanvas, currentPageId]);
+ 
+   useEffect(() => {
+@@ -889,16 +1002,14 @@ export default function Whiteboard() {
+           fabricCanvas.add(img);
+           fabricCanvas.sendObjectToBack(img);
+           fabricCanvas.requestRenderAll();
+-          const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-          updatePageData(currentPageId, fabricCanvas.toJSON());
++          commitCanvas();
+         });
+       } else if (activeTool === 'text') {
+         const pointer = options.scenePoint || options.pointer || { x: 100, y: 100 };
+         const onDeleteText = (target: fabric.Object, canvas: fabric.Canvas) => {
+           canvas.remove(target);
+           canvas.requestRenderAll();
+-          const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-          updatePageData(currentPageId, canvas.toJSON());
++          commitCanvas();
+           setSelectedTextParams(null);
+         };
+ 
+@@ -947,8 +1058,7 @@ export default function Whiteboard() {
+         const handleEditingExited = (event: any) => {
+           if (event.target !== textObject) return;
+           fabricCanvas.off('text:editing:exited', handleEditingExited);
+-          const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-          updatePageData(currentPageId, fabricCanvas.toJSON());
++          commitCanvas();
+           setActiveTool('move');
+         };
+ 
+@@ -1056,6 +1166,7 @@ export default function Whiteboard() {
+       fabricCanvas.clear();
+       fabricCanvas.backgroundColor = '#ffffff';
+       fabricCanvas.renderAll();
++      commitCanvas(true);
+     }
+   }, [clearCanvasSignal, fabricCanvas]);
+ 
+@@ -1087,6 +1198,9 @@ export default function Whiteboard() {
+           console.warn('[Whiteboard] Data-URL-Konvertierung fehlgeschlagen, benutze Original-URL:', e);
+         }
+       }
++      if (imageUrl.startsWith('data:')) {
++        imageUrl = await shrinkImageDataUrl(imageUrl).catch(() => imageUrl);
++      }
+ 
+       fabric.Image.fromURL(imageUrl).then((img) => {
+         // Center image and scale if too big
+@@ -1119,8 +1233,7 @@ export default function Whiteboard() {
+             if (canvas) {
+               canvas.remove(target);
+               canvas.requestRenderAll();
+-              const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-              updatePageData(currentPageId, canvas.toJSON());
++              commitCanvas();
+             }
+             return true;
+           },
+@@ -1159,9 +1272,7 @@ export default function Whiteboard() {
+           canvas.setActiveObject(img);
+         }
+         canvas.renderAll();
+-        const { updatePageData: upd, currentPageId: pid } = useWhiteboardStore.getState();
+-        const canvasJson = canvas.toJSON();
+-        upd(pid, canvasJson);
++        commitCanvas();
+         consumeNewImage();
+ 
+         if (!isRsImageInsertion) {
+@@ -1231,8 +1342,7 @@ export default function Whiteboard() {
+           if (canvas) {
+             canvas.remove(target);
+             canvas.requestRenderAll();
+-            const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-            updatePageData(currentPageId, canvas.toJSON());
++            commitCanvas();
+           }
+           return true;
+         },
+@@ -1321,8 +1431,7 @@ export default function Whiteboard() {
+           if (canvas) {
+             canvas.remove(target);
+             canvas.requestRenderAll();
+-            const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-            updatePageData(currentPageId, canvas.toJSON());
++            commitCanvas();
+           }
+           return true;
+         },
+@@ -1394,8 +1503,7 @@ export default function Whiteboard() {
+           if (canvas) {
+             canvas.remove(target);
+             canvas.requestRenderAll();
+-            const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-            updatePageData(currentPageId, canvas.toJSON());
++            commitCanvas();
+           }
+           return true;
+         };
+@@ -1430,8 +1538,7 @@ export default function Whiteboard() {
+         fabricCanvas.renderAll();
+         
+         // Save state immediately
+-        const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-        updatePageData(currentPageId, fabricCanvas.toJSON());
++        commitCanvas();
+       }
+ 
+       consumeNewShape();
+@@ -1520,8 +1627,7 @@ export default function Whiteboard() {
+         deleteControl: createSmallDeleteControl((target, canvas) => {
+           canvas.remove(target);
+           canvas.requestRenderAll();
+-          const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-          updatePageData(currentPageId, canvas.toJSON());
++          commitCanvas();
+         })
+       };
+       // --- End Delete Control ---
+@@ -1530,8 +1636,7 @@ export default function Whiteboard() {
+       fabricCanvas.setActiveObject(rulerGroup);
+       fabricCanvas.renderAll();
+       
+-      const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-      updatePageData(currentPageId, fabricCanvas.toJSON());
++      commitCanvas();
+ 
+       consumeNewRuler();
+       useWhiteboardStore.getState().setActiveTool('move');
+@@ -1555,7 +1660,8 @@ export default function Whiteboard() {
+         
+         fabricCanvas.backgroundImage = img;
+         fabricCanvas.renderAll();
+-        
++        commitCanvas(true); // background changes fire no Fabric event
++
+         consumeNewBackground();
+       });
+     }
+@@ -1580,62 +1686,51 @@ export default function Whiteboard() {
+       useWhiteboardStore.getState().setCanRedo(false);
+     }
+ 
+-    // Save old page state only when switching pages within the same notebook
+-    if (pageChanged) {
+-      const oldJson: any = fabricCanvas.toJSON();
+-      updatePageData(prevPageId.current, oldJson);
++    // Save the old page only when switching pages within the same notebook. When a
++    // notebook was (re)loaded, the canvas still shows the discarded state and must not
++    // overwrite the freshly loaded pages.
++    // While an earlier load is still pending the canvas does not show the old page yet;
++    // the old page's stored data is then still current (nothing can change while locked).
++    if (pageChanged && !notebookLoaded && lockDepth.current === 0) {
++      updatePageData(prevPageId.current, fabricCanvas.toJSON());
+     }
++    // Pending changes belong to the old page / old notebook; never commit them to the new one.
++    cancelScheduledCommit();
++    isDirty.current = false;
++
++    const setBaseline = (pageId: string) => {
++      const hist = getPageHistory(pageId);
++      if (hist.index === -1) {
++        hist.stack = [fabricCanvas.toJSON()];
++        hist.index = 0;
++      }
++      const store = useWhiteboardStore.getState();
++      store.setCanUndo(hist.index > 0);
++      store.setCanRedo(hist.index < hist.stack.length - 1);
++    };
+ 
+     const newPage = pages.find(p => p.id === currentPageId);
++    const targetPageId = currentPageId;
++    const seq = ++pageLoadSeq.current;
++    const isStale = () => seq !== pageLoadSeq.current; // a newer page switch superseded this one
+     if (newPage?.canvasData) {
+-      isHistoryLocked.current = true;
+-      void fabricCanvas
+-        .loadFromJSON(newPage.canvasData)
+-        .then(() => {
+-          fabricCanvas.getObjects().forEach((obj) => {
+-            if (isTextObject(obj)) {
+-              obj.controls = createTextControls((target, canvas) => {
+-                canvas.remove(target);
+-                canvas.requestRenderAll();
+-                const { updatePageData, currentPageId } = useWhiteboardStore.getState();
+-                updatePageData(currentPageId, canvas.toJSON());
+-                setSelectedTextParams(null);
+-              });
+-              obj.set({
+-                lockScalingFlip: true,
+-                minWidth: obj.minWidth || 120,
+-              });
+-            }
+-          });
+-          fabricCanvas.requestRenderAll();
+-          isHistoryLocked.current = false;
+-          // Baseline entry so the user can undo back to the loaded state
+-          const hist = getPageHistory(currentPageId);
+-          if (hist.index === -1) {
+-            const json = fabricCanvas.toJSON();
+-            hist.stack = [json];
+-            hist.index = 0;
+-            useWhiteboardStore.getState().setCanUndo(false);
+-            useWhiteboardStore.getState().setCanRedo(false);
+-          }
+-        })
++      void runLocked(async () => {
++        if (isStale()) return;
++        await fabricCanvas.loadFromJSON(newPage.canvasData);
++        restoreLoadedObjects(fabricCanvas);
++        fabricCanvas.requestRenderAll();
++      })
++        .then(() => { if (!isStale()) setBaseline(targetPageId); })
+         .catch((error) => {
+-          isHistoryLocked.current = false;
+           console.error('Fehler beim Laden des Canvas-JSON:', error);
+         });
+     } else {
+-      fabricCanvas.clear();
+-      fabricCanvas.backgroundColor = '#ffffff';
+-      fabricCanvas.renderAll();
+-      // Baseline: empty canvas
+-      const hist = getPageHistory(currentPageId);
+-      if (hist.index === -1) {
+-        const json = fabricCanvas.toJSON();
+-        hist.stack = [json];
+-        hist.index = 0;
+-        useWhiteboardStore.getState().setCanUndo(false);
+-        useWhiteboardStore.getState().setCanRedo(false);
+-      }
++      void runLocked(() => {
++        if (isStale()) return;
++        fabricCanvas.clear();
++        fabricCanvas.backgroundColor = '#ffffff';
++        fabricCanvas.renderAll();
++      }).then(() => { if (!isStale()) setBaseline(targetPageId); });
+     }
+ 
+     prevPageId.current = currentPageId;
+@@ -1760,6 +1855,7 @@ export default function Whiteboard() {
+           });
+           (snapLine as any).isLockedStroke = true;
+           fabricCanvas.add(snapLine);
++          cancelScheduledCommit(); // committed once the line is finished
+         }
+       } else if (activeTool === 'pen') {
+         const ruler = fabricCanvas.getObjects().find(o => (o as any).isRuler);
+@@ -1788,6 +1884,7 @@ export default function Whiteboard() {
+             });
+             (snapLine as any).isLockedStroke = true;
+             fabricCanvas.add(snapLine);
++            cancelScheduledCommit(); // committed once the line is finished
+           }
+         }
+ 
+@@ -1806,6 +1903,7 @@ export default function Whiteboard() {
+             evented: false
+           });
+           fabricCanvas.add(snapLine);
++          cancelScheduledCommit(); // committed once the line is finished
+         }
+       }
+     };
+@@ -1846,22 +1944,22 @@ export default function Whiteboard() {
+     const finishCurrentStroke = () => {
+       if (isErasing) {
+         isErasing = false;
+-        // Save state after we're done erasing
+-        const json: any = fabricCanvas.toJSON();
+-        updatePageData(currentPageId, json);
++        // Commit once after erasing (removals/additions marked the canvas dirty)
++        commitCanvas();
+       } else if (activeTool === 'rs' && rsStartPoint) {
+         if (!rsPointerDownOnObject && !rsMoved) {
+           if (snapLine) {
+             fabricCanvas.remove(snapLine);
++            // the temporary line was added and removed again: nothing to commit
++            cancelScheduledCommit();
++            isDirty.current = false;
+           }
+           setRsPicker({ left: rsStartPoint.x, top: rsStartPoint.y });
+         } else if (!rsPointerDownOnObject && isDrawingRs && snapLine) {
+           snapLine.setCoords();
+-          const json: any = fabricCanvas.toJSON();
+-          updatePageData(currentPageId, json);
++          commitCanvas(true);
+         } else if (rsPointerDownOnObject && rsMoved) {
+-          const json: any = fabricCanvas.toJSON();
+-          updatePageData(currentPageId, json);
++          commitCanvas(); // the drag itself fired object:modified
+         }
+         snapLine = null;
+         isDrawingRs = false;
+@@ -1877,16 +1975,14 @@ export default function Whiteboard() {
+         // Only restore freehand if not in straight line mode
+         fabricCanvas.isDrawingMode = !useWhiteboardStore.getState().isStraightLineMode;
+         
+-        const json: any = fabricCanvas.toJSON();
+-        updatePageData(currentPageId, json);
++        commitCanvas(true);
+       } else if (isDrawingStraight) {
+         isDrawingStraight = false;
+         if (snapLine) snapLine.setCoords();
+         snapLine = null;
+         activeRuler = null;
+         
+-        const json: any = fabricCanvas.toJSON();
+-        updatePageData(currentPageId, json);
++        commitCanvas(true);
+       }
+     };
+ 
+@@ -1898,23 +1994,10 @@ export default function Whiteboard() {
+       finishCurrentStroke();
+     };
+ 
+-    const saveStateForPath = () => {
+-      if ((activeTool === 'pen' || activeTool === 'rs') && !isSnapping && !isDrawingStraight && !isDrawingRs) {
+-        const json: any = fabricCanvas.toJSON();
+-        updatePageData(currentPageId, json);
+-      }
+-    };
+-
+-    const saveStateForModified = () => {
+-      const json: any = fabricCanvas.toJSON();
+-      updatePageData(currentPageId, json);
+-    };
+ 
+     fabricCanvas.on('mouse:down', onMouseDown);
+     fabricCanvas.on('mouse:move', onMouseMove);
+     fabricCanvas.on('mouse:up', onMouseUp);
+-    fabricCanvas.on('path:created', saveStateForPath);
+-    fabricCanvas.on('object:modified', saveStateForModified);
+     window.addEventListener('pointerup', onPointerReleasedOutsideCanvas);
+     window.addEventListener('pointercancel', onPointerReleasedOutsideCanvas);
+     window.addEventListener('mouseup', onPointerReleasedOutsideCanvas);
+@@ -1924,8 +2007,6 @@ export default function Whiteboard() {
+       fabricCanvas.off('mouse:down', onMouseDown);
+       fabricCanvas.off('mouse:move', onMouseMove);
+       fabricCanvas.off('mouse:up', onMouseUp);
+-      fabricCanvas.off('path:created', saveStateForPath);
+-      fabricCanvas.off('object:modified', saveStateForModified);
+       window.removeEventListener('pointerup', onPointerReleasedOutsideCanvas);
+       window.removeEventListener('pointercancel', onPointerReleasedOutsideCanvas);
+       window.removeEventListener('mouseup', onPointerReleasedOutsideCanvas);
+@@ -2064,6 +2145,7 @@ export default function Whiteboard() {
+     }
+     
+     fabricCanvas?.renderAll();
++    commitCanvas(true); // style changes fire no Fabric event
+     setSelectedTextParams({ ...selectedTextParams, isBold: !currentIsBold });
+   };
+ 
+@@ -2090,6 +2172,7 @@ export default function Whiteboard() {
+     }
+ 
+     fabricCanvas?.renderAll();
++    commitCanvas(true); // style changes fire no Fabric event
+     setSelectedTextParams({ ...selectedTextParams, isItalic: !currentIsItalic });
+   };
+ 
+@@ -2114,6 +2197,7 @@ export default function Whiteboard() {
+     }
+ 
+     fabricCanvas?.renderAll();
++    commitCanvas(true); // style changes fire no Fabric event
+     setSelectedTextParams({ ...selectedTextParams, isUnderline: !currentIsUnderline });
+   };
+ 
+@@ -2138,6 +2222,7 @@ export default function Whiteboard() {
+     }
+ 
+     fabricCanvas?.renderAll();
++    commitCanvas(true); // style changes fire no Fabric event
+     setSelectedTextParams({ ...selectedTextParams, isLinethrough: !currentIsLinethrough });
+   };
+ 
+@@ -2169,6 +2254,7 @@ export default function Whiteboard() {
+     textObj.initDimensions();
+ 
+     fabricCanvas?.renderAll();
++    commitCanvas(true); // style changes fire no Fabric event
+     setSelectedTextParams({ ...selectedTextParams, fontSize: newSize });
+   };
+ 
+@@ -2177,6 +2263,7 @@ export default function Whiteboard() {
+     selectedTextParams.obj.set({ textAlign: alignment });
+     selectedTextParams.obj.initDimensions();
+     fabricCanvas?.renderAll();
++    commitCanvas(true); // style changes fire no Fabric event
+     setSelectedTextParams({ ...selectedTextParams, textAlign: alignment });
+   };
+ 
+@@ -2186,6 +2273,7 @@ export default function Whiteboard() {
+     selectedTextParams.obj.set({ lineHeight: nextLineHeight });
+     selectedTextParams.obj.initDimensions();
+     fabricCanvas?.renderAll();
++    commitCanvas(true); // style changes fire no Fabric event
+     setSelectedTextParams({ ...selectedTextParams, lineHeight: nextLineHeight });
+   };
+   return (
+diff --git a/src/store/useWhiteboardStore.ts b/src/store/useWhiteboardStore.ts
+index 32ba20e..4bd35d2 100644
+--- a/src/store/useWhiteboardStore.ts
++++ b/src/store/useWhiteboardStore.ts
+@@ -75,6 +75,9 @@ interface WhiteboardState {
+   switchPage: (id: string) => void;
+   deletePage: (id: string) => void;
+   updatePageData: (id: string, canvasData: any) => void;
++  // Registered by the Whiteboard: writes the live canvas into the current page before saving
++  canvasFlush: (() => void) | null;
++  setCanvasFlush: (fn: (() => void) | null) => void;
+   
+   // Persistence
+   notebookId: string | null;
+@@ -188,6 +191,9 @@ export const useWhiteboardStore = create<WhiteboardState>((set, get) => ({
+     }));
+   },
+ 
++  canvasFlush: null,
++  setCanvasFlush: (fn) => set({ canvasFlush: fn }),
++
+   notebookId: null,
+   notebookName: null,
+   notebookLoadSignal: 0,
+-- 
+2.43.0
+
+
+From 28446d8e268285364a85d01812266ba90e61d506 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Fri, 6 Nov 2026 18:23:14 +0100
+Subject: [PATCH 09/10] =?UTF-8?q?Betrieb=20robuster:=20verwaiste=20Sperren?=
+ =?UTF-8?q?,=20Upload-Aufr=C3=A4umen,=20Sitzungslimit?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Sperren speichern PID und Prozess-Instanz; Sperren einer früheren
+  Instanz (gleiche PID nach Container-Neustart) und Sperren älter als
+  30 s werden übernommen. Altes PID-Format wird weiter erkannt.
+- Handy-Uploads werden gelöscht, sobald die Tafel sie als Data-URL
+  übernommen hat; nie abgeholte Uploads nach 24 h.
+- Beim Erreichen von 10 Sitzungen pro Person endet die älteste statt den
+  Login abzulehnen; abgelaufene/beschädigte Sitzungsdateien blockieren
+  nicht mehr.
+- Tests für Sperrübernahme und Sitzungslimit ergänzt.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ scripts/test-runtime.cjs  | 21 ++++++++++++++++++++-
+ src/lib/file-store.cjs    | 24 +++++++++++++++++++-----
+ src/lib/mobile-store.cjs  | 11 ++++++++++-
+ src/lib/session-store.cjs | 18 +++++++++++++-----
+ 4 files changed, 62 insertions(+), 12 deletions(-)
+
+diff --git a/scripts/test-runtime.cjs b/scripts/test-runtime.cjs
+index 7b0454c..81b9e01 100644
+--- a/scripts/test-runtime.cjs
++++ b/scripts/test-runtime.cjs
+@@ -70,16 +70,35 @@ async function test(name,fn){await fn();console.log('PASS '+name);count++;}
+   const metadata=JSON.parse(fs.readFileSync(expiryfile));metadata.expires=0;store.atomic(expiryfile,metadata);assert.equal(sessions.verify(expiry,key),null);
+   const deleted=await sessions.issue(rows[0],key);store.atomic(path.join(store.dataDir(),'users.json'),rows.slice(1));assert.equal(sessions.verify(deleted,key),null);
+  });
++ await test('stale locks of a crashed earlier incarnation are taken over',async()=>{
++  // simulate a crash: lock dir left behind with this PID but another incarnation
++  const dir=path.join(store.dataDir(),'.lock-users');fs.mkdirSync(dir);
++  fs.writeFileSync(path.join(dir,'pid'),JSON.stringify({pid:process.pid,instance:'crashed'}));
++  await store.lock('users',async()=>{});
++  fs.mkdirSync(dir);fs.writeFileSync(path.join(dir,'pid'),String(process.pid)); // legacy format
++  await store.lock('users',async()=>{});
++  assert.equal(fs.existsSync(dir),false);
++ });
++ await test('per-user session limit ends the oldest session instead of refusing login',async()=>{
++  const user=store.users()[0],key=device();
++  const sids=[];for(let i=0;i<12;i++)sids.push(await sessions.issue(user,key));
++  assert.equal(sessions.verify(sids[0],key),null);assert.equal(sessions.verify(sids[1],key),null);
++  assert.equal(sessions.verify(sids[11],key).id,user.id);
++  fs.writeFileSync(path.join(store.dataDir(),'sessions','0'.repeat(64)+'.json'),'{corrupt');
++  assert.ok(await sessions.issue(user,key));
++  for(const sid of sids)sessions.revoke(sid);
++ });
+  await test('mobile tickets reject arbitrary, expired, foreign and repeated use',async()=>{
+   const bytes=Buffer.from('89504e470d0a1a0a00000000','hex'),ticket=await mobile.issue('worker-1');
+   await assert.rejects(mobile.upload(device(),bytes));
+   const url=await mobile.upload(ticket,bytes);assert.match(url,/^\/assets\/uploads\/worker-1\/[a-f0-9-]+\.png$/);
+   await assert.rejects(mobile.upload(ticket,bytes));await assert.rejects(mobile.poll(ticket,'worker-2'));
++  const file=path.join(store.assetDir(),url.slice('/assets/'.length));assert.equal(fs.statSync(file).mode&0o777,0o600);
+   assert.equal(await mobile.poll(ticket,'worker-1'),'data:image/png;base64,'+bytes.toString('base64'));
++  assert.equal(fs.existsSync(file),false,'picked-up upload is deleted');
+   assert.equal(await mobile.poll(ticket,'worker-1'),null);
+   const expired=await mobile.issue('worker-1',Date.now()-16*60*1000);await assert.rejects(mobile.upload(expired,bytes));
+   const pending=await mobile.issue('worker-1');await assert.rejects(mobile.upload(pending,Buffer.from('<script>')));await assert.rejects(mobile.upload(pending,Buffer.alloc(5*1024*1024+1)));
+-  const file=path.join(store.assetDir(),url.slice('/assets/'.length));assert.equal(fs.statSync(file).mode&0o777,0o600);
+  });
+  await test('mobile outstanding ticket quota is finite',async()=>{
+   for(let i=0;i<20;i++)await mobile.issue('quota-user');
+diff --git a/src/lib/file-store.cjs b/src/lib/file-store.cjs
+index dd58b2d..5d7cd30 100644
+--- a/src/lib/file-store.cjs
++++ b/src/lib/file-store.cjs
+@@ -15,6 +15,23 @@ function atomic(file, value) {
+   try { fs.renameSync(temporary,file); const dir = fs.openSync(path.dirname(file),'r'); try {fs.fsyncSync(dir);} finally {fs.closeSync(dir);} }
+   finally {if (fs.existsSync(temporary)) fs.unlinkSync(temporary);}
+ }
++// Identifies this process incarnation. PIDs alone are not enough: in a container the
++// restarted server usually gets the same small PID as the crashed one that left a lock.
++const INSTANCE = crypto.randomUUID();
++// Locks guard short file operations; one older than this was left behind by a crash
++// (e.g. by a replica in another PID namespace, where the PID check is meaningless).
++const STALE_LOCK_MS = 30000;
++function lockIsStale(dir, content) {
++  let owner;
++  try {owner = JSON.parse(content);} catch {owner = null;}
++  if (!owner || typeof owner !== 'object') owner = {pid:Number(content)}; // legacy format: plain PID
++  if (owner && owner.instance === INSTANCE) return false; // held by this very process
++  if (owner && owner.pid === process.pid) return true;   // our PID, but an earlier incarnation
++  let alive = true;
++  try {process.kill(owner.pid,0);} catch(e) {if(e.code === 'ESRCH') alive=false;}
++  if (!alive) return true;
++  return Date.now()-fs.statSync(dir).mtimeMs > STALE_LOCK_MS;
++}
+ async function lock(name, action) {
+   if (!/^[a-zA-Z0-9-]+$/.test(name)) throw new Error('Invalid operation lock');
+   fs.mkdirSync(dataDir(),{recursive:true,mode:0o700});
+@@ -23,15 +40,12 @@ async function lock(name, action) {
+   while (true) {
+     try {
+       fs.mkdirSync(dir,{mode:0o700});
+-      fs.writeFileSync(path.join(dir,'pid'),String(process.pid),{mode:0o600,flag:'wx'});
++      fs.writeFileSync(path.join(dir,'pid'),JSON.stringify({pid:process.pid,instance:INSTANCE}),{mode:0o600,flag:'wx'});
+       break;
+     } catch(error) {
+       if (error.code !== 'EEXIST') throw error;
+       try {
+-        const owner = Number(fs.readFileSync(path.join(dir,'pid'),'utf8'));
+-        let alive = true;
+-        try {process.kill(owner,0);} catch(e) {if(e.code === 'ESRCH') alive=false;}
+-        if (!alive) {fs.unlinkSync(path.join(dir,'pid'));fs.rmdirSync(dir);continue;}
++        if (lockIsStale(dir, fs.readFileSync(path.join(dir,'pid'),'utf8'))) {fs.unlinkSync(path.join(dir,'pid'));fs.rmdirSync(dir);continue;}
+       } catch(e) {
+         if (e.code === 'ENOENT' && fs.existsSync(dir) && Date.now()-fs.statSync(dir).mtimeMs>2000) {
+           try {fs.rmdirSync(dir);} catch {}
+diff --git a/src/lib/mobile-store.cjs b/src/lib/mobile-store.cjs
+index c7a9539..0fb18fc 100644
+--- a/src/lib/mobile-store.cjs
++++ b/src/lib/mobile-store.cjs
+@@ -39,6 +39,12 @@ async function upload(token,bytes,now=Date.now()) {
+     if(row.expires<=now||row.state!=='waiting') throw new Error('Upload ticket expired or used');
+     const directory=path.join(store.assetDir(),'uploads',row.owner);
+     fs.mkdirSync(directory,{recursive:true,mode:0o700});
++    // Uploads are only a hand-over to the board (tickets live 15 minutes); anything older
++    // than a day was never picked up and only blocks the quota.
++    for(const name of fs.readdirSync(directory)){
++      const target=path.join(directory,name);
++      if(now-fs.statSync(target).mtimeMs>24*60*60*1000)fs.unlinkSync(target);
++    }
+     const existing=fs.readdirSync(directory);
+     const size=existing.reduce((n,name)=>n+fs.statSync(path.join(directory,name)).size,0);
+     if(existing.length>=200||size+bytes.length>100*1024*1024) throw new Error('Upload storage busy');
+@@ -55,8 +61,11 @@ async function poll(token,owner,now=Date.now()) {
+     const row=read(token);
+     if(row.owner!==owner||row.expires<=now) throw new Error('Upload ticket unavailable');
+     if(row.state!=='available') return null;
+-    const bytes=fs.readFileSync(path.join(store.assetDir(),'uploads',owner,row.name));
++    const upload=path.join(store.assetDir(),'uploads',owner,row.name);
++    const bytes=fs.readFileSync(upload);
+     row.state='consumed';store.atomic(file(token),row);
++    // The board stores the image inline as a data URL; the file is no longer needed
++    fs.unlinkSync(upload);
+     return 'data:'+row.mime+';base64,'+bytes.toString('base64');
+   });
+ }
+diff --git a/src/lib/session-store.cjs b/src/lib/session-store.cjs
+index 210cfb4..5122184 100644
+--- a/src/lib/session-store.cjs
++++ b/src/lib/session-store.cjs
+@@ -12,14 +12,22 @@ async function issue(user,device) {
+     const directory=path.join(store.dataDir(),'sessions');
+     fs.mkdirSync(directory,{recursive:true,mode:0o700});
+     const files=fs.readdirSync(directory).filter(f=>/^[a-f0-9]{64}\.json$/.test(f));
+-    let current=0;
++    let live=0;
++    const mine=[];
+     for(const file of files) {
+       const target=path.join(directory,file);
+-      const row=JSON.parse(fs.readFileSync(target,'utf8'));
+-      if(row.expires<=Date.now()) fs.unlinkSync(target);
+-      else if(row.id===user.id) current++;
++      let row;
++      try {row=JSON.parse(fs.readFileSync(target,'utf8'));} catch {row=null;}
++      // expired or unreadable records are dead weight; one corrupt file must not block logins
++      if(!row||!(row.expires>Date.now())) {fs.unlinkSync(target);continue;}
++      live++;
++      if(row.id===user.id) mine.push({target,expires:row.expires});
+     }
+-    if(files.length>4000||current>=10) throw new Error('Session slots busy');
++    if(live>=4000) throw new Error('Session slots busy');
++    // Closed browsers keep their session until expiry; instead of locking the teacher out,
++    // the oldest of their sessions ends when the per-user limit is reached.
++    mine.sort((a,b)=>a.expires-b.expires);
++    while(mine.length>=10) fs.unlinkSync(mine.shift().target);
+     const sid=crypto.randomBytes(32).toString('base64url');
+     store.atomic(filename(sid),{id:user.id,deviceHash:digest(device),version:version(user),expires:Date.now()+8*60*60*1000});
+     return sid;
+-- 
+2.43.0
+
+
+From b1f5c6a0ab055834a9a573a2109facbb5a0bec98 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Fri, 6 Nov 2026 18:28:31 +0100
+Subject: [PATCH 10/10] Login-Schutz, robuste Heftliste und Symlink-sichere
+ Assets
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Login: Versuche werden atomar vor der PIN-Prüfung gezählt, parallele
+  Anfragen umgehen die Sperre nicht mehr.
+- Bekannte Geräte: Nach erfolgreichem Login merkt sich das Gerät per
+  signiertem Cookie (365 Tage) die angemeldeten Konten. Fehlversuche von
+  dort werden separat gezählt, sodass PIN-Raten über die öffentliche
+  Namensliste die Lehrkraft nicht von ihrer Tafel aussperrt.
+- Heftliste: liest nur den Dateianfang für den Namen; beschädigte Hefte
+  werden übersprungen statt die ganze Liste zu blockieren.
+- Assets: Wurzelverzeichnis wird per realpath aufgelöst, damit ein
+  symlinkter Daten-/Asset-Ordner funktioniert.
+- Test für Sitzungslimit robust gegen gleiche Ablaufzeiten gemacht.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ scripts/test-runtime.cjs              |  2 +-
+ src/app/api/auth/login/route.ts       | 59 +++++++++++++++++++--------
+ src/app/api/notebooks/route.ts        | 24 +++++++++--
+ src/app/assets/[...segments]/route.ts |  3 +-
+ src/lib/session.ts                    | 26 ++++++++++++
+ 5 files changed, 93 insertions(+), 21 deletions(-)
+
+diff --git a/scripts/test-runtime.cjs b/scripts/test-runtime.cjs
+index 81b9e01..bbf0d5f 100644
+--- a/scripts/test-runtime.cjs
++++ b/scripts/test-runtime.cjs
+@@ -82,7 +82,7 @@ async function test(name,fn){await fn();console.log('PASS '+name);count++;}
+  await test('per-user session limit ends the oldest session instead of refusing login',async()=>{
+   const user=store.users()[0],key=device();
+   const sids=[];for(let i=0;i<12;i++)sids.push(await sessions.issue(user,key));
+-  assert.equal(sessions.verify(sids[0],key),null);assert.equal(sessions.verify(sids[1],key),null);
++  assert.equal(sids.filter(sid=>sessions.verify(sid,key)).length,10);
+   assert.equal(sessions.verify(sids[11],key).id,user.id);
+   fs.writeFileSync(path.join(store.dataDir(),'sessions','0'.repeat(64)+'.json'),'{corrupt');
+   assert.ok(await sessions.issue(user,key));
+diff --git a/src/app/api/auth/login/route.ts b/src/app/api/auth/login/route.ts
+index b0d9b3d..89ddec2 100644
+--- a/src/app/api/auth/login/route.ts
++++ b/src/app/api/auth/login/route.ts
+@@ -1,36 +1,63 @@
+ import {NextResponse} from 'next/server';
+ import {authenticate,getUser} from '@/lib/users';
+-import {createSession} from '@/lib/session';
++import {createSession,knownDevice,rememberDevice} from '@/lib/session';
+ import {boundedJson} from '@/lib/platform';
+ import * as store from '@/lib/file-store.cjs';
+ import path from 'node:path';
+ import fs from 'node:fs';
+-async function attempt(username:string, failed?:boolean) {
++import {createHash} from 'node:crypto';
++
++const MAX_FAILURES=5;
++const WINDOW_MS=15*60*1000;
++type Attempts=Record<string,{count:number,until:number,start:number}>;
++
++// Check and count in one locked step: parallel requests cannot all pass the check before
++// any failure is recorded. Every attempt is counted up front; a success clears the counter.
++async function reserveAttempt(key:string):Promise<boolean> {
+   return store.lock('attempts',async()=>{
+     const file=path.join(store.dataDir(),'login-attempts.json');
+-    let rows:Record<string,{count:number,until:number,start:number}>={};
++    let rows:Attempts={};
+     try{rows=JSON.parse(fs.readFileSync(file,'utf8'));}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
+-    const key=(await getUser(username))?username.toLowerCase():'_unknown';
+-    const now=Date.now();const row=rows[key];
+-    if(failed===undefined)return !row||row.until<=now;
+-    if(!failed)delete rows[key];
+-    else {
+-      const current=!row||now-row.start>900000?{count:0,until:0,start:now}:row;
+-      current.count++;if(current.count>=5)current.until=now+900000;rows[key]=current;
+-    }
+-    for(const name of Object.keys(rows))if(now-rows[name].start>1800000&&rows[name].until<=now)delete rows[name];
+-    store.atomic(file,rows);return true;
++    const now=Date.now();
++    for(const name of Object.keys(rows))if(now-rows[name].start>2*WINDOW_MS&&rows[name].until<=now)delete rows[name];
++    const row=rows[key];
++    if(row&&row.until>now){store.atomic(file,rows);return false;}
++    const current=!row||now-row.start>WINDOW_MS?{count:0,until:0,start:now}:row;
++    current.count++;
++    if(current.count>=MAX_FAILURES)current.until=now+WINDOW_MS;
++    rows[key]=current;
++    store.atomic(file,rows);
++    return true;
+   });
+ }
++async function clearAttempts(key:string) {
++  await store.lock('attempts',async()=>{
++    const file=path.join(store.dataDir(),'login-attempts.json');
++    let rows:Attempts={};
++    try{rows=JSON.parse(fs.readFileSync(file,'utf8'));}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
++    if(!(key in rows))return;
++    delete rows[key];
++    store.atomic(file,rows);
++  });
++}
++
+ export async function POST(request:Request) {
+   try {
+     const {username,password}=await boundedJson(request);
+     if(typeof username!=='string'||typeof password!=='string'||username.length>80||password.length>256) return NextResponse.json({error:'Ungültige Anmeldedaten'},{status:400});
+-    if(!await attempt(username))return NextResponse.json({error:'Zu viele Versuche. Bitte später erneut versuchen.'},{status:429,headers:{'Retry-After':'900'}});
++    const account=await getUser(username);
++    // A device this account has logged in on before gets its own failure counter, so PIN
++    // guessing elsewhere (the names are listed publicly) cannot lock the teacher out here.
++    const device=account?await knownDevice():null;
++    const key=!account?'_unknown'
++      :device?.users.includes(account.id)?'device:'+createHash('sha256').update(device.nonce+':'+account.id).digest('hex')
++      :username.toLowerCase();
++    if(!await reserveAttempt(key))return NextResponse.json({error:'Zu viele Versuche. Bitte später erneut versuchen.'},{status:429,headers:{'Retry-After':'900'}});
+     const user=await authenticate(username,password);
+-    if(!user){await attempt(username,true);return NextResponse.json({error:'Ungültige Anmeldedaten'},{status:401});}
+-    await attempt(username,false);
++    if(!user)return NextResponse.json({error:'Ungültige Anmeldedaten'},{status:401});
++    await clearAttempts(key);
+     await createSession({id:user.id,username:user.username,role:user.role,mustChangePassword:user.mustChangePassword??false},user.passwordHash);
++    await rememberDevice(user.id);
+     return NextResponse.json({success:true,redirect:user.mustChangePassword?'/change-password':'/'});
+   }catch{return NextResponse.json({error:'Anmeldung fehlgeschlagen'},{status:400});}
+ }
+diff --git a/src/app/api/notebooks/route.ts b/src/app/api/notebooks/route.ts
+index df7589e..519c16f 100644
+--- a/src/app/api/notebooks/route.ts
++++ b/src/app/api/notebooks/route.ts
+@@ -4,17 +4,35 @@ import {getSession} from '@/lib/session';
+ import * as store from '@/lib/file-store.cjs';
+ import fs from 'node:fs/promises';
+ import path from 'node:path';
++// Notebooks can be many MB (inline images). The client always writes "name" as the first
++// key, so read only the start of the file; fall back to a full parse for other layouts.
++async function notebookName(file:string):Promise<string|undefined> {
++  const handle=await fs.open(file,'r');
++  try {
++    const {buffer,bytesRead}=await handle.read(Buffer.alloc(4096),0,4096,0);
++    const head=/^\s*\{\s*"name"\s*:\s*("(?:[^"\\]|\\.)*")/.exec(buffer.subarray(0,bytesRead).toString('utf8'));
++    if(head)return JSON.parse(head[1]);
++  } finally {await handle.close();}
++  const raw=JSON.parse(await fs.readFile(file,'utf8'));
++  return typeof raw?.name==='string'?raw.name:undefined;
++}
+ export async function GET(){
+   const session=await getSession();
+   if(!session)return NextResponse.json({error:'Unauthorized'},{status:401});
+   const directory=path.join(store.dataDir(),session.id);
+   try {
+     const files=(await fs.readdir(directory)).filter(file=>file.endsWith('.json')&&store.segment(file.slice(0,-5)));
+-    const notebooks=await Promise.all(files.map(async file=>{
++    const entries=await Promise.all(files.map(async file=>{
+       const target=path.join(directory,file);
+-      const raw=JSON.parse(await fs.readFile(target,'utf8'));
+-      return {id:file.slice(0,-5),name:typeof raw.name==='string'?raw.name:file.slice(0,-5),updatedAt:(await fs.stat(target)).mtime.toISOString()};
++      try {
++        return {id:file.slice(0,-5),name:(await notebookName(target))??file.slice(0,-5),updatedAt:(await fs.stat(target)).mtime.toISOString()};
++      } catch(error) {
++        // One damaged file must not hide all other notebooks
++        console.error('Notizbuch nicht lesbar, wird übersprungen:',file,(error as Error).message);
++        return null;
++      }
+     }));
++    const notebooks=entries.filter((entry):entry is NonNullable<typeof entry>=>entry!==null);
+     return NextResponse.json({notebooks:notebooks.sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))});
+   }catch(error){
+     if((error as NodeJS.ErrnoException).code==='ENOENT')return NextResponse.json({notebooks:[]});
+diff --git a/src/app/assets/[...segments]/route.ts b/src/app/assets/[...segments]/route.ts
+index 893a851..af33f87 100644
+--- a/src/app/assets/[...segments]/route.ts
++++ b/src/app/assets/[...segments]/route.ts
+@@ -11,7 +11,8 @@ export async function GET(_request:Request,{params}:{params:Promise<{segments:st
+     if(!segments.length||segments.some(value=>!store.segment(value)))throw new Error('Invalid asset');
+     if(!['backgrounds','journal','rs','gallery','uploads'].includes(segments[0]))throw new Error('Invalid category');
+     if(segments[0]==='uploads'&&segments[1]!==session.id)throw new Error('Private asset');
+-    const root=path.resolve(store.assetDir());
++    // Resolve symlinks on both sides, so a symlinked data/asset directory keeps working
++    const root=await fs.realpath(path.resolve(store.assetDir()));
+     const file=await fs.realpath(path.join(root,...segments));
+     if(!file.startsWith(root+path.sep)||(await fs.stat(file)).size>16*1024*1024)throw new Error('Invalid asset');
+     const types:Record<string,string>={'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.gif':'image/gif','.svg':'image/svg+xml'};
+diff --git a/src/lib/session.ts b/src/lib/session.ts
+index b66b628..caf4bc4 100644
+--- a/src/lib/session.ts
++++ b/src/lib/session.ts
+@@ -44,6 +44,32 @@ export async function createSession(payload:SessionPayload,credentialHash?:strin
+   jar.set('tafel_device',device,options);
+   jar.set('session',await encrypt({...payload,sid}),options);
+ }
++// --- Known devices -----------------------------------------------------------------
++// After a successful login the browser keeps a signed, long-lived cookie naming the
++// accounts that have logged in on it. Login failures from such a device are counted
++// separately, so strangers guessing PINs for a (publicly listed) name cannot lock the
++// teacher out of their own board. Shared classroom boards can remember several accounts.
++const KNOWN_DEVICE_COOKIE='tafel_known';
++const KNOWN_DEVICE_MAX_USERS=50;
++export interface KnownDevice {nonce:string;users:string[]}
++export async function knownDevice():Promise<KnownDevice|null> {
++  try {
++    const jar=await cookies();
++    const value=jar.get(KNOWN_DEVICE_COOKIE)?.value;
++    if(!value) return null;
++    const {payload}=await jwtVerify(value,getKey(),{algorithms:['HS256']});
++    if(payload.typ!=='known-device'||typeof payload.nonce!=='string'||!Array.isArray(payload.users)) return null;
++    return {nonce:payload.nonce,users:payload.users.filter((u):u is string=>typeof u==='string')};
++  } catch {return null;}
++}
++export async function rememberDevice(userId:string) {
++  const current=await knownDevice();
++  const users=[userId,...(current?.users??[]).filter(u=>u!==userId)].slice(0,KNOWN_DEVICE_MAX_USERS);
++  const nonce=current?.nonce??randomBytes(16).toString('base64url');
++  const token=await new SignJWT({typ:'known-device',nonce,users}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime('365d').sign(getKey());
++  const jar=await cookies();
++  jar.set(KNOWN_DEVICE_COOKIE,token,{httpOnly:true,secure:(process.env.BASE_URL||'').startsWith('https://'),sameSite:'strict',path:'/',maxAge:365*24*60*60});
++}
+ export async function clearSession() {
+   const jar=await cookies();
+   const claims=await decrypt(jar.get('session')?.value||'');
 -- 
 2.43.0
 

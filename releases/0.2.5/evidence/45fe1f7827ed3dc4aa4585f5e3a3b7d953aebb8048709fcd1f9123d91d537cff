@@ -1,0 +1,17 @@
+{
+  "app": "losverkauf",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/losverkauf-restore.json",
+      "sha256": "a371ae32770a859f89d08afb7a5d7cc15a6106d16d8c7e1e788f7a479a0cf6df"
+    }
+  ],
+  "item": "restore",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "b40e06da5b5f29fe984ab326dc5d546cf7d83d99",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "restore evidence from the local pilot work packages.",
+  "testedCommit": "b40e06da5b5f29fe984ab326dc5d546cf7d83d99"
+}

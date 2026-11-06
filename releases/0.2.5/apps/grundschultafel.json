@@ -1,0 +1,46 @@
+{
+  "acceptance": {
+    "amd64Build": "36ed3f901d88ff851a9e7bd6a64372bddab019565144cd705fb9da26af563923",
+    "domainRollback": "f531e92290700c22af5698333fbe6e85210b3b62d6ecbcf23e0e7b3bb5ad0a25",
+    "licenses": "4f47ff23be1e24f33bd930805a1b43da7ff081ccea6ef46ebc1b84dcfb498237",
+    "negativeAccess": "41c2fd2c43986906232f4568c0206cf0f74354edcfc7403f0e8314cff5592c7d",
+    "restore": "bbc36b60078f166599177252c25c1ec0354fafabe6b4381c9962eabcc7ab3f0c",
+    "sbom": "2344dd424fd4aaab1fd961ec96d2d934cfaaaee7bc583e6127c043bed1b14629",
+    "standalone": "2c5f3cf504850d0c82ddca63893c8e391582ec7429c5feac3408396f5ce628d5"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/grundschultafel/docker-compose.yml"
+  ],
+  "database": {
+    "account": "grundschultafel",
+    "engine": "files",
+    "name": "grundschultafel"
+  },
+  "domainEnvironment": [
+    "BASE_URL"
+  ],
+  "health": {
+    "live": "/health/live",
+    "ready": "/health/ready"
+  },
+  "id": "grundschultafel",
+  "image": "ghcr.io/bingenberger/grundschultafel:0.1.3@sha256:9c4d5ffafb8e367838c0b90bcef85f05a4318ef08dbbc5d8a57f141b474def24",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "data",
+      "mount": "/data",
+      "owner": "10001:10001"
+    }
+  ],
+  "port": 3000,
+  "resources": {
+    "cpus": 1.0,
+    "exportSlotsPerProcess": 0,
+    "memoryMiB": 512,
+    "workers": 1
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "b1f5c6a0ab055834a9a573a2109facbb5a0bec98"
+}

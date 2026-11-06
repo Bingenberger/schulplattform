@@ -1,0 +1,17 @@
+{
+  "app": "leseflux",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/leseflux-standalone.json",
+      "sha256": "4f6e159a060e3b0df64f7d7405ad947ffca3f7b313acc0f21b151d0e892e1217"
+    }
+  ],
+  "item": "standalone",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "3862d194588e5f4d03f0cc8bc763650e4b528b73",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "standalone evidence from the local pilot work packages.",
+  "testedCommit": "d129a2e6da550344ac4ede14851aff789c33ccb8"
+}
