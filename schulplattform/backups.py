@@ -39,6 +39,23 @@ HELPER = "python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fd
 APP_UID = "10001:10001"
 SQLITE_SUFFIXES = (".db", ".sqlite", ".sqlite3")
 DATABASE_SERVICE = {"schulwissen": "db", "fahrradausbildung": "db", "leseflux": "postgres", "abgen": "postgres"}
+# Incremental volumes: a full copy at least this often, or when more than half of the bytes changed.
+FULL_COPY_DAYS = 28
+LONG_TIMEOUT = 7200  # seconds for copying large volumes (tens of gigabytes)
+
+FILELIST_SCRIPT = r"""
+import json, os, sys
+root = sys.argv[1]
+files = {}
+for base, dirs, names in os.walk(root):
+    for name in names:
+        path = os.path.join(base, name)
+        if os.path.islink(path):
+            continue
+        st = os.stat(path)
+        files[os.path.relpath(path, root)] = [st.st_size, st.st_mtime_ns]
+print(json.dumps(files))
+"""
 
 SQLITE_SCRIPT = r"""
 import os, sqlite3, sys, json
@@ -118,6 +135,27 @@ def decrypt_stream(source, destination, key):
             return header
 
 
+def read_header(path):
+    """The authenticated plaintext header of an archive (app, createdAt, bases) without decrypting it."""
+    with open(path, "rb") as source:
+        if source.read(len(MAGIC)) != MAGIC:
+            raise StateError("Not a platform backup archive")
+        (length,) = struct.unpack(">I", source.read(4))
+        if length > 65536:
+            raise StateError("Invalid archive header")
+        return json.loads(source.read(length))
+
+
+def _stamp_of(app_id, name):
+    stamp = Path(name).stem[len(app_id) + 1:]
+    return datetime.strptime(stamp, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+
+
+def safe_relative(path):
+    parts = Path(path).parts
+    return bool(parts) and not Path(path).is_absolute() and ".." not in parts
+
+
 class BackupService:
     def __init__(self, platform):
         self.platform = platform
@@ -166,6 +204,7 @@ class BackupService:
         try:
             os.chmod(work, 0o700)
             healthy = self.stack.healthy(app_id)
+            new_bases = {}  # incremental volumes copied in full this time -> file listing
             info = {"schemaVersion": 1, "app": app_id, "release": self.platform.release.version, "healthy": healthy,
                     "sourceCommit": manifest["sourceCommit"], "createdAt": stamp,
                     "engine": manifest["database"]["engine"], "database": manifest["database"]["name"],
@@ -206,15 +245,38 @@ class BackupService:
                 if running:
                     self.stack.compose(app_id, "pause", *running)
                 try:
-                    self.stack.command([self.stack.docker, "run", "--rm", "--network", "none", "--read-only",
-                                        "--user", APP_UID, "--cap-drop", "ALL", "--security-opt",
-                                        "no-new-privileges:true", "-v", f"{name}:/src:ro", "-v", f"{snap}:/out",
-                                        HELPER, "tar", "-C", "/src",
-                                        # Only the files copied through the SQLite API above (and their
-                                        # journals) are left out; every other file stays in the snapshot.
-                                        *[f"--exclude=./{c['file']}{suffix}" for c in checks
-                                          for suffix in ("", "-wal", "-shm", "-journal")],
-                                        "-cf", "/out/files.tar", "."])
+                    skipped = {f"{c['file']}{suffix}" for c in checks for suffix in ("", "-wal", "-shm", "-journal")}
+                    plan = None
+                    if volume in APPS[app_id].incremental_volumes:
+                        listing = json.loads(self.stack.command(
+                            [self.stack.docker, "run", "--rm", "--network", "none", "--read-only", "--user", APP_UID,
+                             "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "-v", f"{name}:/src:ro",
+                             HELPER, "python", "-c", FILELIST_SCRIPT, "/src"], timeout=LONG_TIMEOUT) or "{}")
+                        listing = {path: meta for path, meta in listing.items() if path not in skipped}
+                        plan = self._incremental_plan(app_id, volume, listing, stamp)
+                        if plan is None:
+                            new_bases[volume] = listing
+                    if plan is not None:
+                        # Only new or changed files; deletions are listed in backup.json.
+                        (snap / "changed.list").write_bytes(b"".join(p.encode() + b"\0" for p in plan["changed"]))
+                        self.stack.command([self.stack.docker, "run", "--rm", "--network", "none", "--read-only",
+                                            "--user", APP_UID, "--cap-drop", "ALL", "--security-opt",
+                                            "no-new-privileges:true", "-v", f"{name}:/src:ro", "-v", f"{snap}:/out",
+                                            HELPER, "tar", "-C", "/src", "--null", "-T", "/out/changed.list",
+                                            "-cf", "/out/files.tar"], timeout=LONG_TIMEOUT)
+                        (snap / "changed.list").unlink()
+                        info.setdefault("volumeRefs", {})[volume] = {
+                            "base": plan["base"], "deleted": plan["deleted"], "changed": len(plan["changed"])}
+                    else:
+                        self.stack.command([self.stack.docker, "run", "--rm", "--network", "none", "--read-only",
+                                            "--user", APP_UID, "--cap-drop", "ALL", "--security-opt",
+                                            "no-new-privileges:true", "-v", f"{name}:/src:ro", "-v", f"{snap}:/out",
+                                            HELPER, "tar", "-C", "/src",
+                                            # Only the files copied through the SQLite API above (and their
+                                            # journals) are left out; every other file stays in the snapshot.
+                                            *[f"--exclude=./{c['file']}{suffix}" for c in checks
+                                              for suffix in ("", "-wal", "-shm", "-journal")],
+                                            "-cf", "/out/files.tar", "."], timeout=LONG_TIMEOUT)
                 finally:
                     if running:
                         self.stack.compose(app_id, "unpause", *running, check=False)
@@ -224,12 +286,17 @@ class BackupService:
             (work / "backup.json").write_text(json.dumps(info, indent=2))
             archive = target_dir / f"{app_id}-{stamp}.spbk"
             temporary = archive.with_suffix(".partial")
+            header = {"app": app_id, "createdAt": stamp, "release": info["release"]}
+            bases = sorted({ref["base"] for ref in info.get("volumeRefs", {}).values()})
+            if bases:
+                header["bases"] = bases  # read by rotate(): a referenced full copy must stay
             with temporary.open("wb") as out:
                 reader = _tar_reader(work)
-                plain_digest = encrypt_stream(reader, out, self.key(),
-                                              {"app": app_id, "createdAt": stamp, "release": info["release"]})
+                plain_digest = encrypt_stream(reader, out, self.key(), header)
             os.chmod(temporary, 0o600)
             os.replace(temporary, archive)
+            for volume, listing in new_bases.items():
+                self._write_manifest(archive, volume, listing)
         finally:
             shutil.rmtree(work, ignore_errors=True)
         size = archive.stat().st_size
@@ -237,6 +304,10 @@ class BackupService:
         self.rotate(app_id)
         values = dict(lastSuccess=stamp, lastArchive=archive.name, size=size, plainSha256=plain_digest,
                       offsite=offsite, healthyAtBackup=healthy)
+        if new_bases:
+            with exclusive(self.layout.backups / "status.lock"):
+                status = json.loads(self.status_path.read_text()) if self.status_path.exists() else {}
+            values["volumeBases"] = status.get(app_id, {}).get("volumeBases", {}) | {v: archive.name for v in new_bases}
         if healthy:
             values["lastHealthyArchive"] = archive.name
         self._record(app_id, **values)
@@ -282,14 +353,82 @@ class BackupService:
         return {"app": "_platform", "archive": archive.name, "offsite": offsite}
 
     def rotate(self, app_id):
+        """Delete archives older than the retention, except the newest and every full copy that a kept
+        archive still references (incremental volumes)."""
         days = self.platform.config["backup"].get("retention_days", 14)
         limit = datetime.now(timezone.utc) - timedelta(days=days)
-        archives = sorted((self.layout.backups / app_id).glob(f"{app_id}-*.spbk"))
-        for archive in archives[:-1]:  # always keep the newest
-            stamp = archive.stem.split("-", 1)[1] if app_id.count("-") == 0 else archive.stem[len(app_id) + 1:]
-            created = datetime.strptime(stamp, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
-            if created < limit:
+        folder = self.layout.backups / app_id
+        archives = sorted(folder.glob(f"{app_id}-*.spbk"))
+        keep = {a.name for a in archives[-1:]} | {a.name for a in archives if _stamp_of(app_id, a.name) >= limit}
+        referenced = set()
+        for name in keep:
+            try:
+                referenced.update(read_header(folder / name).get("bases", []))
+            except (OSError, ValueError, StateError):
+                pass
+        for archive in archives:
+            if archive.name not in keep and archive.name not in referenced:
                 archive.unlink()
+                for manifest in folder.glob(f"{archive.stem}.*.manifest"):
+                    manifest.unlink()
+
+    # --- incremental volumes ---------------------------------------------------------------
+    def _write_manifest(self, archive, volume, listing):
+        """File list of a full copy, encrypted next to the archive (needed for the next increments)."""
+        path = archive.with_name(f"{archive.stem}.{volume}.manifest")
+        temporary = path.with_suffix(".partial")
+        with temporary.open("wb") as out:
+            encrypt_stream(io.BytesIO(json.dumps(listing).encode()), out, self.key(),
+                           {"manifestFor": archive.name, "volume": volume})
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, path)
+
+    def _read_manifest(self, archive, volume):
+        path = archive.with_name(f"{archive.stem}.{volume}.manifest")
+        plain = io.BytesIO()
+        with open(path, "rb") as source:
+            header = decrypt_stream(source, plain, self.key())
+        if header.get("manifestFor") != archive.name or header.get("volume") != volume:
+            raise StateError("Manifest does not belong to this archive")
+        return json.loads(plain.getvalue())
+
+    def _incremental_plan(self, app_id, volume, listing, stamp):
+        """None = make a full copy; otherwise the changed and deleted files against the last full copy."""
+        status = json.loads(self.status_path.read_text()) if self.status_path.exists() else {}
+        base_name = status.get(app_id, {}).get("volumeBases", {}).get(volume)
+        if not base_name:
+            return None
+        base = self.layout.backups / app_id / base_name
+        now = datetime.strptime(stamp, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+        if not base.is_file() or now - _stamp_of(app_id, base_name) >= timedelta(days=FULL_COPY_DAYS):
+            return None
+        try:
+            previous = self._read_manifest(base, volume)
+        except (OSError, ValueError, StateError):
+            return None
+        changed = sorted(path for path, meta in listing.items() if previous.get(path) != meta)
+        deleted = sorted(path for path in previous if path not in listing)
+        total = sum(meta[0] for meta in listing.values()) or 1
+        if sum(listing[path][0] for path in changed) * 2 > total:
+            return None
+        return {"base": base_name, "changed": changed, "deleted": deleted}
+
+    def unpack_bases(self, app_id, work, key=None):
+        """For an incremental archive: decrypt the referenced full copies into work/base/<name>."""
+        info = json.loads((Path(work) / "backup.json").read_text())
+        for name in sorted({ref["base"] for ref in info.get("volumeRefs", {}).values()}):
+            if Path(name).name != name or not name.startswith(app_id + "-") or not name.endswith(".spbk"):
+                raise StateError("Invalid base archive reference")
+            source = self.layout.backups / app_id / name
+            if not source.is_file():
+                raise StateError(f"Die Sicherung braucht ihre Vollkopie {name}; diese fehlt in "
+                                 f"{self.layout.backups / app_id} (aus dem externen Backup-Ziel dorthin kopieren)")
+            target = Path(work) / "base" / name
+            header = self.unpack(source, target, key)
+            base_info = json.loads((target / "backup.json").read_text())
+            if header.get("app") != app_id or base_info.get("app") != app_id or base_info.get("volumeRefs"):
+                raise StateError(f"{name} is no full copy of {app_id}")
+        return info
 
     def offsite(self, archive):
         target = self.platform.config["backup"].get("offsite")
@@ -312,7 +451,7 @@ class BackupService:
                     login, port = login.rsplit(":", 1)
                 subprocess.run(["scp", "-q", "-P", port, "-i", str(key), "-o", "BatchMode=yes",
                                 "-o", "StrictHostKeyChecking=yes", str(archive), f"{login}:/{path}/"],
-                               check=True, capture_output=True, timeout=3600)
+                               check=True, capture_output=True, timeout=6 * 3600)  # large archives, slow uplinks
             return {"status": "ok", "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
         except (OSError, subprocess.SubprocessError):
             return {"status": "fehler", "detail": "Übertragung zum Backup-Ziel fehlgeschlagen"}
@@ -324,15 +463,37 @@ class BackupService:
         return archives[-1]
 
     def unpack(self, archive, destination, key=None):
+        """Decrypt and extract in one stream (no plaintext copy of the archive on disk)."""
         destination = Path(destination)
         destination.mkdir(parents=True, exist_ok=True, mode=0o700)
-        with tempfile.TemporaryFile(dir=destination) as plain:
-            with open(archive, "rb") as source:
-                header = decrypt_stream(source, plain, key or self.key())
-            plain.seek(0)
-            with tarfile.open(fileobj=plain, mode="r:") as tar:
-                tar.extractall(destination, filter="data")
-        return header
+        import threading
+        read_fd, write_fd = os.pipe()
+        result = {}
+
+        def produce():
+            try:
+                with open(archive, "rb") as source, os.fdopen(write_fd, "wb") as sink:
+                    result["header"] = decrypt_stream(source, sink, key or self.key())
+            except BaseException as exc:  # reported after the reader finished
+                result["error"] = exc
+
+        thread = threading.Thread(target=produce, daemon=True)
+        thread.start()
+        failure = None
+        try:
+            with os.fdopen(read_fd, "rb") as plain:
+                with tarfile.open(fileobj=plain, mode="r|") as tar:
+                    tar.extractall(destination, filter="data")
+                while plain.read(1 << 20):  # trailing tar padding: let the decrypting thread finish
+                    pass
+        except (tarfile.TarError, EOFError, OSError) as exc:
+            failure = StateError(f"Archive could not be unpacked: {type(exc).__name__}")
+        thread.join()
+        if "error" in result or failure:
+            # Nothing extracted from a damaged or foreign archive may be used.
+            shutil.rmtree(destination, ignore_errors=True)
+            raise result.get("error") or failure
+        return result["header"]
 
     def restore_probe(self, app_id):
         """Decrypt the newest archive and check it in isolation; never touches live data."""
@@ -340,8 +501,11 @@ class BackupService:
         work = Path(tempfile.mkdtemp(prefix=f".probe-{app_id}-", dir=self.layout.backups))
         try:
             self.unpack(archive, work)
-            info = json.loads((work / "backup.json").read_text())
+            info = self.unpack_bases(app_id, work)
             result = {"archive": archive.name, "app": app_id}
+            if info.get("volumeRefs"):
+                result["incremental"] = {v: {"base": r["base"], "changed": r["changed"], "deleted": len(r["deleted"])}
+                                         for v, r in info["volumeRefs"].items()}
             if info["engine"].startswith("postgres"):
                 result["postgres"] = self._probe_postgres(app_id, info, work)
             for check in info["sqlite"]:
@@ -414,6 +578,7 @@ def restore(service, app_id, archive, key=None, confirm=False):
         header = service.unpack(archive, work, key)
         if header.get("app") != app_id:
             raise StateError("Archive belongs to a different app")
+        service.unpack_bases(app_id, work, key)
         facts = restore_directory(service, app_id, work)
         facts["archive"] = Path(archive).name
         return facts
@@ -472,13 +637,35 @@ def restore_directory(service, app_id, work, legacy=False):
                        "-v", f"{name}:/dst", HELPER, "chown", owners.get(volume, APP_UID), "/dst"])
         sqlite_dir = work / "sqlite" / volume
         sqlite_dir.mkdir(parents=True, exist_ok=True)
+        ref = info.get("volumeRefs", {}).get(volume)
+        base_mount, steps = [], ""
+        # Platform backups and older exports carry files.tar; streamed exports a plain files/ tree.
+        if (work / "volumes" / volume / "files.tar").is_file():
+            copy_in = "tar -C /dst --no-same-owner --no-same-permissions -xf /in/files.tar"
+        elif (work / "volumes" / volume / "files").is_dir():
+            copy_in = "cp -R /in/files/. /dst/"
+        else:
+            copy_in = "true"  # streamed export of a volume without plain files (e.g. only SQLite)
+        if ref:
+            # Incremental volume: full copy first, then remove deleted files, then the changed files.
+            base_dir = work / "base" / ref["base"] / "volumes" / volume
+            if not (base_dir / "files.tar").is_file():
+                raise StateError(f"Full copy {ref['base']} has no volume {volume}")
+            deleted = [path for path in ref.get("deleted", []) if isinstance(path, str)]
+            if len(deleted) != len(ref.get("deleted", [])) or not all(safe_relative(p) for p in deleted):
+                raise StateError("Invalid deletion list in archive")
+            (work / "volumes" / volume / "deleted.list").write_bytes(b"".join(p.encode() + b"\0" for p in deleted))
+            os.chmod(work / "volumes" / volume / "deleted.list", 0o644)
+            base_mount = ["-v", f"{base_dir}:/base:ro"]
+            steps = ("tar -C /dst --no-same-owner --no-same-permissions -xf /base/files.tar && "
+                     "(cd /dst && xargs -0 -r rm -f -- < /in/deleted.list) && ")
         stack.command([stack.docker, "run", "--rm", "--network", "none", "--read-only", "--user", APP_UID,
                        "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
-                       "-v", f"{name}:/dst", "-v", f"{work}/volumes/{volume}:/in:ro",
+                       "-v", f"{name}:/dst", "-v", f"{work}/volumes/{volume}:/in:ro", *base_mount,
                        "-v", f"{sqlite_dir}:/sqlite:ro", HELPER, "sh", "-c",
-                       "tar -C /dst --no-same-owner --no-same-permissions -xf /in/files.tar && "
+                       steps + copy_in + " && "
                        "cd /sqlite && find . -type f -exec sh -c 'mkdir -p \"/dst/$(dirname \"$1\")\" && "
-                       "cp \"$1\" \"/dst/$1\" && chmod 600 \"/dst/$1\"' _ {} \\;"])
+                       "cp \"$1\" \"/dst/$1\" && chmod 600 \"/dst/$1\"' _ {} \\;"], timeout=LONG_TIMEOUT)
         facts["volumes"].append(volume)
     if info["engine"].startswith("postgres"):
         db_service = DATABASE_SERVICE[app_id]

@@ -2,6 +2,9 @@
 # Schulplattform installer entry point. Creates the hash-locked Python environment
 # on first use (Ubuntu 24.04, root) and then runs the installer CLI.
 set -eu
+# Relative paths on the command line (archives, bundle, key files) refer to where the operator is.
+SP_CALLER_CWD=$(pwd)
+export SP_CALLER_CWD
 cd "$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 if [ ! -x .venv/bin/python ]; then
   if [ "$(id -u)" -ne 0 ]; then

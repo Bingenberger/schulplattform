@@ -65,26 +65,33 @@ def decrypt(platform, archive, destination):
     key = SecretStore(platform.layout.secrets).path(TRANSFER_KEY)
     if not key.exists():
         raise StateError("No transfer key on this server; run './install.sh import-key' first")
-    plain = Path(destination) / "archive.tar"
-    with open(plain, "wb") as out:
-        result = subprocess.run(["gpg", "--batch", "--quiet", "--no-tty", "--homedir", str(destination),
-                                 "--passphrase-file", str(key), "--decrypt", str(archive)],
-                                stdout=out, stderr=subprocess.PIPE, timeout=7200)
-    if result.returncode:
-        # gpg's own message (no key material) tells a wrong key from a truncated or foreign file.
-        detail = " ".join(result.stderr.decode(errors="replace").split())[-300:]
-        raise StateError("Archive could not be decrypted (wrong transfer key or modified file)"
-                         + (f"; gpg: {detail}" if detail else ""))
     unpacked = Path(destination) / "unpacked"
     unpacked.mkdir(mode=0o700)
     import tarfile
+    # Decrypt straight into the extraction (no plaintext copy of a possibly very large archive on disk).
+    process = subprocess.Popen(["gpg", "--batch", "--quiet", "--no-tty", "--homedir", str(destination),
+                                "--passphrase-file", str(key), "--decrypt", str(archive)],
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    broken = None
     try:
-        with tarfile.open(plain, "r:") as tar:
+        with tarfile.open(fileobj=process.stdout, mode="r|") as tar:
             tar.extractall(unpacked, filter="data")
+        while process.stdout.read(1 << 20):
+            pass
     except (tarfile.TarError, EOFError) as exc:
+        broken = exc
+    finally:
+        process.stdout.close()
+        stderr = process.stderr.read()
+        process.wait(timeout=7200)
+    if process.returncode:
+        # gpg's own message (no key material) tells a wrong key from a truncated or foreign file.
+        detail = " ".join(stderr.decode(errors="replace").split())[-300:]
+        raise StateError("Archive could not be decrypted (wrong transfer key or modified file)"
+                         + (f"; gpg: {detail}" if detail else ""))
+    if broken is not None:
         # gpg exits 0 on a truncated file and emits what it got; the tar then breaks off.
-        raise StateError(f"Archive is incomplete (interrupted copy?); compare its sha256 with the export: {exc}")
-    plain.unlink()
+        raise StateError(f"Archive is incomplete (interrupted copy?); compare its sha256 with the export: {broken}")
     return unpacked
 
 

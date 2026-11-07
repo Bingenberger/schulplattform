@@ -9,6 +9,20 @@ altserver = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(altserver)
 
 
+
+def volume_tar(volume_dir):
+    """Exports stream volume data as volumes/<v>/files/; present it like the former inner files.tar."""
+    import io
+    import tarfile
+    files = Path(volume_dir) / "files"
+    assert files.is_dir() and not (Path(volume_dir) / "files.tar").exists()
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w") as tar:
+        for item in sorted(files.rglob("*")):
+            tar.add(item, arcname="./" + str(item.relative_to(files)), recursive=False)
+    buffer.seek(0)
+    return tarfile.open(fileobj=buffer, mode="r")
+
 def test_database_is_reported_without_credentials():
     url = "postgresql://kompetenz_user:/ab+c/d@127.0.0.1:5432/kompetenz_manager_utf8"
     report = altserver.redacted_database(url)
@@ -75,7 +89,7 @@ def test_fundkiste_export_carries_team_key_from_unit(tmp_path, monkeypatch):
                     summary["archive"]], check=True, env={"GNUPGHOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
     with tarfile.open(plain) as outer:
         outer.extractall(tmp_path / "x", filter="data")
-    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+    with volume_tar(tmp_path / "x/volumes/data") as inner:
         names = inner.getnames()
         assert "./photos/x.jpg" in names and names.count("./team_key.txt") == 1
         assert inner.extractfile("./team_key.txt").read() == b"AusDerUnit12"
@@ -108,7 +122,7 @@ def test_schuleva_export_moves_surveys_and_skips_cron_copies(tmp_path, monkeypat
     with tarfile.open(plain) as outer:
         outer.extractall(tmp_path / "x", filter="data")
         assert not any("backups" in name for name in outer.getnames())
-    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+    with volume_tar(tmp_path / "x/volumes/data") as inner:
         names = inner.getnames()
         assert "./surveys/eltern_kl4.json" in names
         assert not any("backups" in name for name in names) and "./db.sqlite" not in names
@@ -144,7 +158,7 @@ def test_schulkasse_export_carries_the_2fa_key_and_skips_own_backups(tmp_path, m
     info = json.loads((tmp_path / "x/backup.json").read_text())
     assert info["secrets"] == ["schulkasse-key"]
     assert (tmp_path / "x/secrets/schulkasse-key").read_text() == "a" * 64
-    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+    with volume_tar(tmp_path / "x/volumes/data") as inner:
         names = inner.getnames()
     assert {"./belege/beleg1.pdf", "./brief.toml"} <= set(names)
     assert not any("backups" in n for n in names)
@@ -185,7 +199,7 @@ def test_schulanmeldung_export_follows_env_paths_and_takes_the_signature(tmp_pat
         outer.extractall(tmp_path / "x", filter="data")
     info = json.loads((tmp_path / "x/backup.json").read_text())
     assert info["counts"]["data/database.db"]["schueler"] == 2 and info["sqlite"][0]["alembic"] == ["b4c1e82f5a37"]
-    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+    with volume_tar(tmp_path / "x/volumes/data") as inner:
         names = set(inner.getnames())
     assert {"./uploads/gutachten/a.pdf", "./briefkopf/unterschrift.png"} <= names
     assert "secrets" not in info   # the session key is not needed: TOTP and parent links do not depend on it
@@ -237,7 +251,7 @@ def test_sl_journal_export_needs_stopped_service_and_carries_the_database_key(tm
     info = json.loads((tmp_path / "x/backup.json").read_text())
     assert info["secrets"] == ["sl-journal/master-key"]
     assert (tmp_path / "x/secrets/sl-journal/master-key").read_text() == "m" * 43 + "="
-    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+    with volume_tar(tmp_path / "x/volumes/data") as inner:
         names = set(inner.getnames())
     assert {"./journal.db", "./attachments/a1", "./backup.key"} <= names
     assert not any(n.startswith("./backups") or n.endswith("master.key") for n in names)
@@ -280,7 +294,7 @@ def test_zackboing_export_takes_wal_contents_and_uploads(tmp_path, monkeypatch):
                     summary["archive"]], check=True, env={"GNUPGHOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
     with tarfile.open(plain) as outer:
         outer.extractall(tmp_path / "x", filter="data")
-    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+    with volume_tar(tmp_path / "x/volumes/data") as inner:
         names = inner.getnames()
     assert "./uploads/bild.png" in names
     assert not {"./zackboing.db", "./zackboing.db-wal", "./zackboing.db-shm"} & set(names)
@@ -373,7 +387,7 @@ def test_losverkauf_export_skips_backup_copies_and_carries_tokens(tmp_path, monk
                     summary["archive"]], check=True, env={"GNUPGHOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
     with tarfile.open(plain) as outer:
         outer.extractall(tmp_path / "x", filter="data")
-    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+    with volume_tar(tmp_path / "x/volumes/data") as inner:
         names = inner.getnames()
     assert not any("backups" in name for name in names)
     assert "./maps/bezirke.geojson" in names
@@ -412,7 +426,7 @@ def test_schulanmeldung_export_merges_old_default_and_configured_upload_folders(
                     summary["archive"]], check=True, env={"GNUPGHOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
     with tarfile.open(plain) as outer:
         outer.extractall(tmp_path / "x", filter="data")
-    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+    with volume_tar(tmp_path / "x/volumes/data") as inner:
         names = inner.getnames()
     assert {"./uploads/alt1.pdf", "./uploads/alt2.pdf", "./uploads/neu.pdf"} <= set(names)
     (base / "uploads/neu.pdf").write_bytes(b"%PDF andere Fassung")
@@ -447,7 +461,7 @@ def test_grundschultafel_export_moves_public_assets_into_the_data_volume(tmp_pat
                     summary["archive"]], check=True, env={"GNUPGHOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
     with tarfile.open(plain) as outer:
         outer.extractall(tmp_path / "x", filter="data")
-    with tarfile.open(tmp_path / "x/volumes/data/files.tar") as inner:
+    with volume_tar(tmp_path / "x/volumes/data") as inner:
         names = set(inner.getnames())
     assert {"./users.json", f"./{uid}/nb1.json", "./assets/gallery/Mixed/bild.png"} <= names
     assert not any("timer" in name for name in names)
@@ -507,7 +521,7 @@ def test_bildergalerie_export_moves_static_images_with_checksums(tmp_path, monke
                     summary["archive"]], check=True, env={"GNUPGHOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
     with tarfile.open(plain) as outer:
         outer.extractall(tmp_path / "x", filter="data")
-    with tarfile.open(tmp_path / "x/volumes/media/files.tar") as inner:
+    with volume_tar(tmp_path / "x/volumes/media") as inner:
         files = sorted(n for n in inner.getnames() if inner.getmember(n).isfile())
     assert files == ["./display/Apfel_f807ab63.webp", "./thumbnails/Apfel_f807ab63.webp", "./uploads/Apfel_f807ab63.png"]
     assert sqlite3.connect(tmp_path / "x/sqlite/db/gallery.db").execute("SELECT id FROM image").fetchall() == [(311,)]
@@ -542,3 +556,45 @@ def test_import_checksum_verification_finds_missing_and_changed_files(tmp_path):
     assert result["media"]["checked"] == 4
     assert result["media"]["different"] == ["uploads/b.png"]
     assert sorted(result["media"]["missing"]) == ["../../etc/passwd", "uploads/c.png"]
+
+
+def test_import_decrypts_as_a_stream_and_refuses_bad_archives(tmp_path):
+    import io
+    import shutil
+    import tarfile
+    import pytest
+    from types import SimpleNamespace
+    from schulplattform import importer
+    from schulplattform.state import StateError
+    if not shutil.which("gpg"):
+        pytest.skip("gpg not installed")
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir(mode=0o700)
+    (secrets_dir / "import-transfer-key").write_text("k" * 48)
+    plain = tmp_path / "plain.tar"
+    with tarfile.open(plain, "w") as tar:
+        for name, data in (("./backup.json", b'{"app": "bildergalerie"}'), ("./volumes/media/files.tar", b"x" * 300000)):
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+    archive = tmp_path / "a.tar.gpg"
+    subprocess.run(["gpg", "--batch", "--quiet", "--homedir", str(tmp_path), "--passphrase-file",
+                    str(secrets_dir / "import-transfer-key"), "--symmetric", "--cipher-algo", "AES256",
+                    "--pinentry-mode", "loopback", "-o", str(archive), str(plain)], check=True)
+    platform = SimpleNamespace(layout=SimpleNamespace(secrets=secrets_dir))
+    work = tmp_path / "w1"
+    work.mkdir(mode=0o700)
+    unpacked = importer.decrypt(platform, archive, work)
+    assert (unpacked / "volumes/media/files.tar").stat().st_size == 300000
+    assert not (work / "archive.tar").exists()                 # no plaintext copy on disk
+    truncated = tmp_path / "cut.tar.gpg"
+    truncated.write_bytes(archive.read_bytes()[: archive.stat().st_size // 2])
+    work = tmp_path / "w2"
+    work.mkdir(mode=0o700)
+    with pytest.raises(StateError):
+        importer.decrypt(platform, truncated, work)
+    (secrets_dir / "import-transfer-key").write_text("f" * 48)
+    work = tmp_path / "w3"
+    work.mkdir(mode=0o700)
+    with pytest.raises(StateError, match="decrypted"):
+        importer.decrypt(platform, archive, work)

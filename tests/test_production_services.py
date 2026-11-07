@@ -196,3 +196,116 @@ def test_restore_accepts_the_printed_archive_name(tmp_path):
         resolve_archive(service, "bildergalerie", "fehlt.spbk")
     with pytest.raises(StateError, match="nicht gefunden"):
         resolve_archive(service, "bildergalerie", "../bildergalerie/fehlt.spbk")
+
+
+def _backup_service(tmp_path):
+    from types import SimpleNamespace
+    from schulplattform.backups import BackupService
+    service = BackupService.__new__(BackupService)
+    service.layout = SimpleNamespace(backups=tmp_path / "backups")
+    service.status_path = service.layout.backups / "status.json"
+    service.platform = SimpleNamespace(config={"backup": {"retention_days": 14}})
+    service.key = lambda: b"k" * 32
+    (service.layout.backups / "bildergalerie").mkdir(parents=True)
+    return service
+
+
+def _archive(service, name, header_extra=None, files=None):
+    import io, json, tarfile
+    from schulplattform.backups import encrypt_stream
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w") as tar:
+        for path, data in (files or {"backup.json": b"{}"}).items():
+            info = tarfile.TarInfo(path)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+    buffer.seek(0)
+    path = service.layout.backups / "bildergalerie" / name
+    with path.open("wb") as out:
+        encrypt_stream(buffer, out, service.key(), {"app": "bildergalerie", **(header_extra or {})})
+    return path
+
+
+def _stamp(days_ago):
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) - timedelta(days=days_ago)).strftime("%Y%m%dT%H%M%SZ")
+
+
+def test_incremental_plan_against_the_last_full_copy(tmp_path):
+    import json
+    service = _backup_service(tmp_path)
+    base = _archive(service, f"bildergalerie-{_stamp(3)}.spbk")
+    listing = {f"uploads/{n}.png": [1000, n] for n in range(10)}
+    service._write_manifest(base, "media", listing)
+    service.status_path.write_text(json.dumps({"bildergalerie": {"volumeBases": {"media": base.name}}}))
+    now = _stamp(0)
+    current = dict(listing)
+    current["uploads/new.png"] = [500, 1]                     # added
+    current["uploads/3.png"] = [1000, 99]                     # changed (mtime)
+    del current["uploads/7.png"]                              # deleted
+    plan = service._incremental_plan("bildergalerie", "media", current, now)
+    assert plan == {"base": base.name, "changed": ["uploads/3.png", "uploads/new.png"], "deleted": ["uploads/7.png"]}
+    # more than half of the bytes changed -> full copy
+    changed = {p: [m[0], m[1] + 1] for p, m in listing.items()}
+    assert service._incremental_plan("bildergalerie", "media", changed, now) is None
+    # full copy older than FULL_COPY_DAYS -> full copy
+    old = _archive(service, f"bildergalerie-{_stamp(30)}.spbk")
+    service._write_manifest(old, "media", listing)
+    service.status_path.write_text(json.dumps({"bildergalerie": {"volumeBases": {"media": old.name}}}))
+    assert service._incremental_plan("bildergalerie", "media", listing, now) is None
+    # missing or foreign manifest -> full copy
+    service.status_path.write_text(json.dumps({"bildergalerie": {"volumeBases": {"media": base.name}}}))
+    base.with_name(f"{base.stem}.media.manifest").write_bytes(b"kaputt")
+    assert service._incremental_plan("bildergalerie", "media", listing, now) is None
+
+
+def test_rotation_keeps_full_copies_that_kept_archives_reference(tmp_path):
+    service = _backup_service(tmp_path)
+    folder = service.layout.backups / "bildergalerie"
+    base = _archive(service, f"bildergalerie-{_stamp(25)}.spbk")
+    service._write_manifest(base, "media", {})
+    stale = _archive(service, f"bildergalerie-{_stamp(20)}.spbk", {"bases": [base.name]})
+    recent = _archive(service, f"bildergalerie-{_stamp(1)}.spbk", {"bases": [base.name]})
+    other_full = _archive(service, f"bildergalerie-{_stamp(40)}.spbk")
+    service._write_manifest(other_full, "media", {})
+    service.rotate("bildergalerie")
+    names = sorted(p.name for p in folder.iterdir())
+    assert names == sorted([base.name, f"{base.stem}.media.manifest", recent.name])
+    assert not stale.exists() and not other_full.exists()
+
+
+def test_streaming_unpack_extracts_and_rejects_tampering(tmp_path):
+    import pytest
+    from schulplattform.state import StateError
+    service = _backup_service(tmp_path)
+    big = bytes(range(256)) * 40000                            # > one 4 MiB chunk
+    archive = _archive(service, f"bildergalerie-{_stamp(0)}.spbk",
+                       files={"backup.json": b"{}", "volumes/media/files.tar": big})
+    header = service.unpack(archive, tmp_path / "out")
+    assert header["app"] == "bildergalerie"
+    assert (tmp_path / "out/volumes/media/files.tar").read_bytes() == big
+    data = bytearray(archive.read_bytes())
+    data[-100] ^= 1                                            # flip a bit in the last chunk
+    archive.write_bytes(bytes(data))
+    with pytest.raises(StateError, match="authentication"):
+        service.unpack(archive, tmp_path / "out2")
+    assert not (tmp_path / "out2").exists()
+
+
+def test_unpack_bases_refuses_missing_and_foreign_references(tmp_path):
+    import json
+    import pytest
+    from schulplattform.state import StateError
+    service = _backup_service(tmp_path)
+    work = tmp_path / "work"
+    work.mkdir()
+    for ref, message in (("bildergalerie-20990101T000000Z.spbk", "Vollkopie"), ("../x.spbk", "Invalid"),
+                         ("schulkasse-20260101T000000Z.spbk", "Invalid")):
+        (work / "backup.json").write_text(json.dumps({"volumeRefs": {"media": {"base": ref, "deleted": [], "changed": 0}}}))
+        with pytest.raises(StateError, match=message):
+            service.unpack_bases("bildergalerie", work)
+    incremental = _archive(service, f"bildergalerie-{_stamp(2)}.spbk",
+                           files={"backup.json": json.dumps({"app": "bildergalerie", "volumeRefs": {"m": {}}}).encode()})
+    (work / "backup.json").write_text(json.dumps({"volumeRefs": {"media": {"base": incremental.name, "deleted": [], "changed": 0}}}))
+    with pytest.raises(StateError, match="no full copy"):
+        service.unpack_bases("bildergalerie", work)

@@ -605,3 +605,16 @@ def test_gallery_ai_key_command_checks_the_file(tmp_path):
     assert calls[-1][0] == "bildergalerie" and "--force-recreate" in calls[-1]
     assert set_gallery_ai_key(platform, None) is False
     assert (layout.runtime / "gallery-ai-key").read_text() == ""
+
+
+def test_relative_paths_count_from_the_operators_directory(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from schulplattform import installer
+    (tmp_path / "archiv.tar.gpg").write_bytes(b"x")
+    monkeypatch.setenv("SP_CALLER_CWD", str(tmp_path))
+    args = SimpleNamespace(action="import", target=["bildergalerie", "archiv.tar.gpg"], bundle=Path("releases/0.3.0"),
+                           trusted_key=None, key_file=None, config=Path("/etc/schulplattform/platform.toml"))
+    installer._resolve_caller_paths(args)
+    assert args.target == ["bildergalerie", str(tmp_path / "archiv.tar.gpg")]
+    assert args.bundle == Path("releases/0.3.0")          # not in the caller's directory: unchanged
+    assert args.config == Path("/etc/schulplattform/platform.toml")

@@ -92,6 +92,9 @@ class App:
     drain: str = ""               # "" | "quiz" | "worksheet"
     # Operator-provided host directories (runtime-relative), created empty and mounted read-only.
     host_dirs: tuple = ()
+    # Large, mostly unchanging volumes (e.g. gallery images): nightly backups store only changed
+    # files against a periodic full copy instead of copying everything every night.
+    incremental_volumes: tuple = ()
 
 
 POSTGRES_INIT = """#!/bin/sh
@@ -558,6 +561,7 @@ secrets:
         secrets=(("gallery-key", "random:gallery-key"), ("gallery-api-token", "random:gallery-api-token"),
                  ("gallery-ai-key", "empty")),
         migrations=(("python", "migrate.py"),),
+        incremental_volumes=("media",),
         checks=(Check("GET", "/upload", 302), Check("GET", "/license", 200),
                 Check("GET", "/media/display/..%2F..%2Fdb%2Fgallery.db", 404)),
         setup=("exec", ("python", "bootstrap.py", "{name}")),

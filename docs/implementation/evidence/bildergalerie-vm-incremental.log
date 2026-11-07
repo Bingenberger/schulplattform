@@ -1,0 +1,18 @@
+VM-Abnahme große Galerie-Bestände (7. November 2026), Ubuntu 24.04 (QEMU), Release 0.3.0, Host-Code mit
+inkrementeller Sicherung, gestreamtem Export/Import und Pfaden relativ zum Aufrufer
+
+Export (lokal, echtes ~/Bildergalerie): nur die verschlüsselte Datei entsteht (212 MB), keine Zwischenkopien;
+  Archivinhalt volumes/media/files/… (266 Dateien), SQLite-Kopie, backup.json mit SHA-256 je Bilddatei
+$ cd /root && ./install.sh import bildergalerie <archiv relativ zu /root> --confirm-replace
+  (vorher: "not found", weil install.sh ins eigene Verzeichnis wechselte; behoben)
+  mode Übernommen, checksums.media: checked 266, missing 0, different 0
+$ ./install.sh backup --app bildergalerie       -> Vollkopie 304 MB + verschlüsseltes Datei-Manifest
+Änderungen im Volume: 2 neue Dateien, 1 geändert, 1 gelöscht
+$ ./install.sh backup --app bildergalerie       -> inkrementell 7,0 MB (base = Vollkopie, changed 3, deleted 1)
+$ ./install.sh restore-probe bildergalerie      -> status ok, Vollkopie mit entpackt und geprüft
+Beschädigt: display/ gelöscht, eine neue Datei gelöscht
+$ ./install.sh restore bildergalerie <inkrementell> --confirm-replace
+  267 Dateien, sha256 identisch mit dem Stand zum Zeitpunkt der inkrementellen Sicherung
+$ ./install.sh restore bildergalerie <vollkopie> --confirm-replace
+  sha256 identisch mit dem ursprünglichen Stand; API total 88, /health/ready 200
+Aufbewahrung (Unit-Test): referenzierte Vollkopien und ihre Manifeste bleiben, ältere ohne Verweis werden gelöscht.

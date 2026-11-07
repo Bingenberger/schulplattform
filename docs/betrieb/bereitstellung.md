@@ -184,5 +184,12 @@ einem Import aus pix.foerster.rocks gelten die übernommenen Konten.
   ```
 
   Bilder gehen dabei zur Analyse an Google. Die Galerie bleibt auch ohne den Dienst voll nutzbar.
-- **Sicherung:** Datenbank und Medien (Originale, Anzeige- und Vorschaubilder) sind Teil der
-  App-Sicherung; Originale können mehrere Gigabyte groß sein, die Größe zeigt `du -sh /var/lib/docker/volumes/sp-bildergalerie_media`.
+- **Sicherung:** Die Datenbank wird jede Nacht vollständig gesichert, die Bilder **inkrementell**:
+  eine Vollkopie höchstens alle 28 Tage (oder wenn sich mehr als die Hälfte geändert hat), dazwischen
+  nur neue und geänderte Bilder sowie eine Liste gelöschter. Bei 20 GB Bildern braucht die Aufbewahrung
+  von 14 Tagen so etwa 20–40 GB statt rund 300 GB. Eine inkrementelle Sicherung verweist auf ihre
+  Vollkopie; diese wird erst gelöscht, wenn keine aufbewahrte Sicherung mehr auf sie verweist.
+  Für einen Restore aus dem externen Ziel müssen **beide** Dateien nach
+  `/var/lib/schulplattform/backups/bildergalerie/` kopiert werden (die Meldung nennt die fehlende).
+  `./install.sh restore-probe bildergalerie` prüft beide. Größe der Bilder:
+  `du -sh /var/lib/docker/volumes/sp-bildergalerie_media`.

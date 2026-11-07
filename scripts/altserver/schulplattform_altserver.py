@@ -551,6 +551,34 @@ def gpg_encrypt(source, destination, key_file):
         raise SystemExit("gpg encryption failed")
 
 
+class VolumeStream:
+    """Adds files of one volume straight into the encrypted outer archive as volumes/<v>/files/…
+    (no intermediate files.tar on the old server; the import accepts both layouts)."""
+
+    def __init__(self, outer, volume):
+        self.outer, self.prefix = outer, f"./volumes/{volume}/files/"
+
+    def add(self, item, arcname, recursive=False):
+        relative = arcname[2:] if arcname.startswith("./") else arcname
+        self.outer.add(item, arcname=self.prefix + relative, recursive=recursive)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def open_encrypted_stream(destination, key_file):
+    """gpg reading a tar stream from a pipe and writing the encrypted archive."""
+    out = open(destination, "wb")
+    process = subprocess.Popen(["gpg", "--batch", "--yes", "--quiet", "--symmetric", "--cipher-algo", "AES256",
+                                "--s2k-digest-algo", "SHA512", "--passphrase-file", str(key_file), "-o", "-"],
+                               stdin=subprocess.PIPE, stdout=out, stderr=subprocess.PIPE)
+    outer = tarfile.open(fileobj=process.stdin, mode="w|")
+    return process, outer, out
+
+
 def export(app, key_file, out_dir, path=None, project=None):
     spec = APPS[app]
     key_file = Path(key_file)
@@ -561,6 +589,9 @@ def export(app, key_file, out_dir, path=None, project=None):
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     work = Path(tempfile.mkdtemp(prefix=f"export-{app}-"))
     os.chmod(work, 0o700)
+    archive = out_dir / f"{app}-{stamp}.altserver.tar.gpg"
+    process, outer, encrypted = open_encrypted_stream(archive, key_file)
+    finished = False
     try:
         info = {"schemaVersion": 1, "app": app, "createdAt": stamp, "legacy": True, "volumes": [], "sqlite": [],
                 "sourceHost": os.uname().nodename, "counts": {}}
@@ -634,7 +665,7 @@ def export(app, key_file, out_dir, path=None, project=None):
                     info["counts"][f"{volume}/{relative}"] = facts.get("tables", {})
                     skipped += [str(relative), str(relative) + "-wal", str(relative) + "-shm",
                                 str(relative) + "-journal"]
-                with tarfile.open(snap / "files.tar", "w") as tar:
+                with VolumeStream(outer, volume) as tar:
                     extras = {target: base / source for source, (vol, target) in spec.get("extra", {}).items()
                               if vol == volume and (base / source).is_file()}
                     unit_files = {}
@@ -678,7 +709,7 @@ def export(app, key_file, out_dir, path=None, project=None):
                 sqlite_dir = work / "sqlite" / volume
                 snap.mkdir(parents=True, exist_ok=True)
                 sqlite_dir.mkdir(parents=True, exist_ok=True)
-                with tarfile.open(snap / "files.tar", "w") as tar:
+                with VolumeStream(outer, volume) as tar:
                     added = set()
                     for kind, path, target, skip in items:
                         files = 1
@@ -775,19 +806,22 @@ def export(app, key_file, out_dir, path=None, project=None):
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=7200)
                 if result.returncode:
                     raise SystemExit(f"Copying {mount} failed")
-                with tarfile.open(snap / "files.tar", "w") as tar:
+                with VolumeStream(outer, volume) as tar:
                     for item in sorted(copied.rglob("*")):
                         if not item.is_symlink():
                             tar.add(item, arcname="./" + str(item.relative_to(copied)), recursive=False)
                 shutil.rmtree(work / "copy")
                 info["volumes"].append(volume)
         (work / "backup.json").write_text(json.dumps(info, indent=2))
-        plain = out_dir / f".{app}-{stamp}.tar"
-        with tarfile.open(plain, "w") as tar:
-            tar.add(work, arcname=".")
-        archive = out_dir / f"{app}-{stamp}.altserver.tar.gpg"
-        gpg_encrypt(plain, archive, key_file)
-        plain.unlink()
+        outer.add(work, arcname=".")          # backup.json, SQLite copies, secrets, compose snapshots
+        outer.close()
+        process.stdin.close()
+        error = process.stderr.read()
+        process.stderr.close()
+        if process.wait(timeout=7200):
+            raise SystemExit("gpg encryption failed: " + " ".join(error.decode(errors="replace").split())[-200:])
+        encrypted.close()
+        finished = True
         os.chmod(archive, 0o600)
         digest = sha256_file(archive)  # streamed: archives with many images are large
         summary = {"app": app, "archive": str(archive), "sha256": digest, "volumes": info["volumes"],
@@ -799,6 +833,19 @@ def export(app, key_file, out_dir, path=None, project=None):
         return summary
     finally:
         shutil.rmtree(work, ignore_errors=True)
+        if not finished:
+            # Never leave a half-written archive behind that could be mistaken for a complete one.
+            process.kill()
+            for close in (outer.close, process.stdin.close):
+                try:
+                    close()
+                except (OSError, ValueError):
+                    pass
+            process.wait()
+            if not process.stderr.closed:
+                process.stderr.close()
+            encrypted.close()
+            archive.unlink(missing_ok=True)
 
 
 def main():

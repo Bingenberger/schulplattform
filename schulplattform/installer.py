@@ -131,6 +131,27 @@ PRODUCTION = ["configure", "plan", "apply", "status", "reconcile", "domain-chang
               "import-key", "import", "restore-platform"]
 
 
+PATH_TARGETS = {"import": (1,), "restore": (1,), "restore-platform": (0,), "gallery-ai-key": (0,)}
+
+
+def _caller_path(value):
+    """Relative paths count from the operator's directory (install.sh changes into its own)."""
+    caller = os.environ.get("SP_CALLER_CWD")
+    path = Path(value)
+    if caller and not path.is_absolute() and (Path(caller) / path).exists():
+        return Path(caller) / path
+    return path
+
+
+def _resolve_caller_paths(args):
+    for name in ("bundle", "trusted_key", "key_file", "config"):
+        if getattr(args, name, None) is not None:
+            setattr(args, name, _caller_path(getattr(args, name)))
+    for index in PATH_TARGETS.get(args.action, ()):
+        if len(args.target) > index:
+            args.target[index] = str(_caller_path(args.target[index]))
+
+
 def _main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("action", choices=["preflight", *PRODUCTION, "pilot-up", "pilot-start", "pilot-stop",
@@ -153,6 +174,7 @@ def _main(argv=None):
     parser.add_argument('--off', action='store_true', help='gallery-ai-key: switch AI metadata off')
     parser.add_argument('--no-host', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    _resolve_caller_paths(args)
     if args.action.startswith("pilot-"):
         from .pilot import Pilot
         selected = tuple(args.apps.split(",")) if args.apps else None

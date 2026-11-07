@@ -78,6 +78,19 @@ Release: `bildergalerie:0.1.1` (Commit `3acd4a0`; der Tag `v0.1.0` auf demselben
 Repository keinen Build ausgelöst). **Offen:** Datenübernahme vom echten pix.foerster.rocks
 (87.106.86.217; Pfad und Unit zeigt das Inventar).
 
+## Große Bestände (rund 20 GB, 20.000 Bilder)
+
+- **Sicherung (Variante 1, Entscheidung 7. November 2026):** `incremental_volumes=("media",)` im Katalog.
+  Vollkopie alle 28 Tage oder bei mehr als 50 % geänderter Bytes, sonst nur Änderungen gegen die letzte
+  Vollkopie (eine Ebene, keine Ketten). Datei-Manifest der Vollkopie verschlüsselt daneben; der
+  Archivkopf nennt die Vollkopie (`bases`), die Aufbewahrung hält referenzierte Vollkopien.
+- **Zeitlimits:** Kopien großer Volumes 2 h, Übertragung ins externe Ziel 6 h.
+- **Entpacken als Datenstrom** (Sicherung und Import): kein Klartext-Archiv mehr auf der Platte.
+- **Export auf dem Altserver als Datenstrom:** Bilddateien gehen direkt aus dem App-Verzeichnis
+  verschlüsselt ins Archiv (`volumes/<v>/files/`); der Import versteht das alte und das neue Format.
+- Nachweis: `bildergalerie-vm-incremental.log` (inkrementell 7 MB statt 304 MB; Restore aus
+  inkrementeller Sicherung und aus der Vollkopie byte-identisch).
+
 ## Entscheidungen des Auftraggebers (7. November 2026)
 
 1. **Öffentlichkeit:** bleibt öffentlich durchsuchbar (Standard).
