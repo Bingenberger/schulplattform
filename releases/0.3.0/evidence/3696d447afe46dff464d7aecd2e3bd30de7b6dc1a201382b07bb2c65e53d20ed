@@ -1,0 +1,12 @@
+{
+  "app": "schulkasse",
+  "artifacts": [],
+  "images": {
+    "schulkasse": "ghcr.io/bingenberger/schulkasse:0.1.0@sha256:8c2deda577036638c67141994c92382474090c8b9e573c017cddf448cb2751ac"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}

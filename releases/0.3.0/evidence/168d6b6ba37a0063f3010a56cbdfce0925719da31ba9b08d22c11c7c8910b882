@@ -1,0 +1,69 @@
+{
+  "scope": "Eight-app local pilot with synthetic school data and verified local CA",
+  "apps": [
+    "gswb",
+    "schulwissen",
+    "zackboing",
+    "schulhelfer",
+    "losverkauf",
+    "grundschultafel",
+    "fahrradausbildung",
+    "leseflux"
+  ],
+  "installationId": "a0adf954-05a4-4af0-b106-4c41cc93a02e",
+  "port": 53717,
+  "imageId": "sha256:00441bd3b9f00362211f26e2cc06c897fc20b9504df09ba9dde0da83226773de",
+  "privateRootlessReadOnlyBackend": true,
+  "domainChange": true,
+  "forcedFailureRollback": true,
+  "originalDomainRestored": true,
+  "twoNoopRuns": true,
+  "containersKeysCheckpointsUnchanged": true,
+  "stopMaintenance503": true,
+  "noRepeatedMigrationOrContentSeed": true,
+  "allBusinessRowsUnchanged": true,
+  "checks": [
+    {
+      "domain": "lesen.localhost",
+      "secureCookie": true,
+      "csrfAndForeignOriginDenied": true,
+      "crossTeacherAndChildAdminDenied": true,
+      "existingOpaqueQrAndPrintedCodePreserved": true
+    },
+    {
+      "domain": "lesen-neu.localhost",
+      "secureCookie": true,
+      "csrfAndForeignOriginDenied": true,
+      "crossTeacherAndChildAdminDenied": true,
+      "existingOpaqueQrAndPrintedCodePreserved": true
+    },
+    {
+      "domain": "lesen-neu.localhost",
+      "secureCookie": true,
+      "csrfAndForeignOriginDenied": true,
+      "crossTeacherAndChildAdminDenied": true,
+      "existingOpaqueQrAndPrintedCodePreserved": true
+    },
+    {
+      "domain": "lesen.localhost",
+      "secureCookie": true,
+      "csrfAndForeignOriginDenied": true,
+      "crossTeacherAndChildAdminDenied": true,
+      "existingOpaqueQrAndPrintedCodePreserved": true
+    },
+    {
+      "domain": "lesen.localhost",
+      "secureCookie": true,
+      "csrfAndForeignOriginDenied": true,
+      "crossTeacherAndChildAdminDenied": true,
+      "existingOpaqueQrAndPrintedCodePreserved": true
+    }
+  ],
+  "limits": [
+    "No public DNS/ACME validation",
+    "No Ubuntu acceptance",
+    "No camera scan or printed QR decoding",
+    "No capacity measurement"
+  ],
+  "stoppedDataRetained": true
+}

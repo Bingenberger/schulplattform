@@ -1,0 +1,36 @@
+{
+  "app": "grundschultafel",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/grundschultafel-image.json",
+      "sha256": "180827cc038a3ab16bcefcaf8315155fb15df66514c0bc873faa02473e845fe5"
+    }
+  ],
+  "images": {
+    "grundschultafel": "ghcr.io/bingenberger/grundschultafel:0.1.4@sha256:daf3d0be604d23c4827a50517ff8cc8fce9460ebacfe6d0f2c379ae1cdabc2f5"
+  },
+  "inspection": {
+    "grundschultafel": {
+      "architecture": "amd64",
+      "attestationPredicates": [
+        "https://slsa.dev/provenance/v1",
+        "https://spdx.dev/Document"
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "fe927dde82982b218b273237d38122891b4cc3ea",
+        "org.opencontainers.image.source": "https://github.com/Bingenberger/grundschultafel",
+        "org.opencontainers.image.version": "0.1.4"
+      },
+      "os": "linux",
+      "user": "10001:10001"
+    }
+  },
+  "item": "amd64Build",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "fe927dde82982b218b273237d38122891b4cc3ea",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "Published linux/amd64 image(s) with revision label, SBOM and provenance.",
+  "testedCommit": "fe927dde82982b218b273237d38122891b4cc3ea"
+}

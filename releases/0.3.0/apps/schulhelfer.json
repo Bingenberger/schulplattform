@@ -1,0 +1,46 @@
+{
+  "acceptance": {
+    "amd64Build": "d42d73bad70976892ad188b1d0f1bf10b5efb86e1d10f1c75931165b403cb536",
+    "domainRollback": "734d6b049db0d4d6ff4ef5c06aef5b54f2a84397a5b13e2c89fb09795223864f",
+    "licenses": "cb33b1062b92ab41d7201b5b6a1ffa1827d72b9be15422e2ab2175af05ee563b",
+    "negativeAccess": "79a8e8c35dc6126d52dd0c3dc492cf8faa147847dbced1fa8b92f3077f806640",
+    "restore": "b1555b8f202681802d80e44dfe92be8c27598fc3347781ab98051d92e8c6cb17",
+    "sbom": "f5746404c845a7630a17680b5d2a481a8450f0d383c3929eb9723a40a8b1a984",
+    "standalone": "2844903d2cb99c87af38dea923e671f1262d5a822ac496c6d3aae9304ec90bed"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/schulhelfer/docker-compose.yml"
+  ],
+  "database": {
+    "account": "schulhelfer",
+    "engine": "sqlite",
+    "name": "schulhelfer"
+  },
+  "domainEnvironment": [
+    "BASE_URL"
+  ],
+  "health": {
+    "live": "/health/live",
+    "ready": "/health/ready"
+  },
+  "id": "schulhelfer",
+  "image": "ghcr.io/bingenberger/schulhelfer:0.1.2@sha256:954306fd57d72e9a63d35861cccbd6218420bcadfc95fef940adcdbc2b13e611",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "data",
+      "mount": "/app/data",
+      "owner": "10001:10001"
+    }
+  ],
+  "port": 8000,
+  "resources": {
+    "cpus": 1.0,
+    "exportSlotsPerProcess": 1,
+    "memoryMiB": 384,
+    "workers": 1
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "c3bfdb7fed1c6547284eee5a245560a922273813"
+}

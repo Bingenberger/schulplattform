@@ -57,3 +57,7 @@ hostname = "kompetenz.schule.test"
 [apps.abgen]
 enabled = true
 hostname = "blaetter.schule.test"
+
+[apps.bildergalerie]
+enabled = true
+hostname = "bilder.schule.test"
