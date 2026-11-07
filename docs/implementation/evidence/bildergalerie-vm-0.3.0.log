@@ -1,0 +1,27 @@
+VM-Abnahme Release 0.3.0 (7. November 2026), Ubuntu 24.04 (QEMU), Test-CA Pebble, Test-DNS *.schule.test
+Konfiguration: gswb, grundschultafel, bildergalerie (übrige Apps aus)
+
+$ ./install.sh configure --check                       -> gültig
+$ ./install.sh apply --bundle /root/release --trusted-key /root/release-trust.pub
+  Installation completed (Release 0.3.0); verwaltung, gswb, grundschultafel, bildergalerie aktiv, Zertifikate bis 2027-02-05
+  Tafel-Umgebung: GALLERY_ORIGIN=https://bilder.schule.test GALLERY_TOKEN_FILE=/run/secrets/gallery-token
+                  WOERTERBUCH_ORIGIN=https://woerterbuch.schule.test
+$ python3 schulplattform_altserver.py export bildergalerie --path ~/Bildergalerie (lokaler Altbestand)
+  db:gallery.db 1, media:uploads 88, media:display 88, media:thumbnails 90 Dateien, SHA-256 je Bilddatei
+$ ./install.sh import bildergalerie ARCHIV --dry-run   -> Trockenlauf, nichts geändert
+$ ./install.sh import bildergalerie ARCHIV --confirm-replace
+  mode Übernommen, countDifferences {}, checksums.media: checked 266, missing 0, different 0
+https://bilder.schule.test/api/v1/images              -> total 88
+https://bilder.schule.test/upload                     -> 302 (Anmeldung)
+https://bilder.schule.test/media/display/..%2F..%2Fdb%2Fgallery.db -> 404
+$ ./install.sh backup --app bildergalerie             -> bildergalerie-20261107T161626Z.spbk (318 MB), offsite ok, healthy
+Medien-Prüfsummen vorher: 266 Dateien (before.sha)
+Absichtlich beschädigt: display/* im Volume gelöscht   -> 178 Dateien
+$ ./install.sh restore bildergalerie bildergalerie-20261107T161626Z.spbk --confirm-replace
+  (erster Versuch mit reinem Dateinamen: unklare Meldung; behoben, restore sucht den Namen jetzt im Sicherungsordner)
+  healthy true; nachher 266 Dateien, sha256 identisch mit before.sha (cmp ohne Abweichung)
+  API total 88, display 200, /health/ready 200
+Tafel -> Galerie über die öffentliche Adresse: Verbindung zustande, TLS-Fehler UNABLE_TO_GET_ISSUER_CERT_LOCALLY
+  (erwartet: Test-CA ist im Tafel-Container nicht vertrauenswürdig; mit Let's Encrypt auf dem Server nicht)
+Bundle: Signatur gültig; geänderter Image-Digest, geänderte Compose-Datei und selbst angepasster Index abgewiesen;
+  zusätzliche unsignierte Datei wird nicht verwendet (nur signierte Byte-Kopien).

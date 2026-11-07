@@ -72,23 +72,19 @@ Adapter `adapters/bildergalerie/platform.yml`.
 | Verbund Tafel + private Galerie (Token) + gswb | `tafel-gallery-woerterbuch.json`, siehe grundschultafel.md |
 | Plattform-Tests | 215 bestanden |
 
-**Offen:** Release-Image aus GitHub Actions (Repository muss angelegt werden), Abnahme mit signiertem
-Bundle in der VM (Restore auf leerem Ziel mit Prüfsummen, manipuliertes Bundle), Datenübernahme vom
-echten pix.foerster.rocks (Pfad, Unit und Codestand dort unbekannt; das Inventar zeigt sie).
+| VM mit signiertem Bundle 0.3.0 (`bildergalerie-vm-0.3.0.log`) | Installation, Export des Altbestands und Import mit 266/266 Prüfsummen, Sicherung, Restore auf beschädigte Volumes: alle 266 Dateien byte-identisch, API und Bilder erreichbar; manipuliertes Bundle bzw. manipulierter Digest abgewiesen |
 
-## Entscheidungen des Auftraggebers
+Release: `bildergalerie:0.1.1` (Commit `3acd4a0`; der Tag `v0.1.0` auf demselben Commit hatte im neuen
+Repository keinen Build ausgelöst). **Offen:** Datenübernahme vom echten pix.foerster.rocks
+(87.106.86.217; Pfad und Unit zeigt das Inventar).
 
-1. **Öffentlichkeit der Galerie:** Standard bleibt öffentlich durchsuchbar. Umstellen mit `public = false`.
-2. **Token-Variante:** umgesetzt, wirkt aber nur bei nicht öffentlicher Galerie; keine Entscheidung nötig,
-   solange die Galerie öffentlich bleibt.
-3. **Lizenztexte:** `/license` beschreibt CC0 1.0 und KI-Herkunft; die API gibt den Kurzhinweis
-   „KI-generiert, CC0 1.0 (gemeinfrei), Namensnennung nicht erforderlich“ aus (änderbar über
-   `GALLERY_LICENSE_NOTE`). Bitte bestätigen, dass alle Bilder (auch künftige Uploads) unter CC0 stehen
-   dürfen; Impressum und Datenschutz verweisen weiterhin auf emrich.in.
-4. **Repository:** `Bingenberger/bildergalerie` anlegen (öffentlich wie die übrigen Apps oder privat mit
-   öffentlichem GHCR-Paket wie schulanmeldung).
-5. **Domain:** Soll die Plattform-Galerie unter `pix.foerster.rocks` laufen (DNS umstellen, alte Links
-   bleiben gültig) oder unter einer neuen Adresse wie `bilder.gsndk.de`?
+## Entscheidungen des Auftraggebers (7. November 2026)
+
+1. **Öffentlichkeit:** bleibt öffentlich durchsuchbar (Standard).
+2. **Token-Variante:** umgesetzt; wirkt erst, wenn die Galerie auf „nur Angemeldete“ gestellt wird.
+3. **Lizenz:** alle Bilder, auch künftige Uploads, stehen unter CC0 (bestätigt).
+4. **Repository:** `Bingenberger/bildergalerie`, öffentlich.
+5. **Domain:** neue Adresse `bilder.gsndk.de`; pix.foerster.rocks bleibt bis zum Umzug der Altdaten bestehen.
 
 ## B4 – Ausblick (nur bewertet)
 

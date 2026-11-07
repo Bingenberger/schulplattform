@@ -393,10 +393,22 @@ class BackupService:
             self.stack.command([self.stack.docker, "rm", "-f", name], check=False)
 
 
+def resolve_archive(service, app_id, archive):
+    """'backup' prints only the file name; accept it and look in the app's backup folder."""
+    archive = Path(archive)
+    if archive.is_file():
+        return archive
+    candidate = service.layout.backups / app_id / archive.name
+    if archive.name == str(archive) and candidate.is_file():
+        return candidate
+    raise StateError(f"Sicherung {archive} nicht gefunden (gesucht auch in {service.layout.backups / app_id})")
+
+
 def restore(service, app_id, archive, key=None, confirm=False):
     """Replace one app's data with a platform backup archive (.spbk). See restore_directory()."""
     if not confirm:
         raise StateError("Restore replaces this app's data; confirmation required")
+    archive = resolve_archive(service, app_id, archive)
     work = Path(tempfile.mkdtemp(prefix=f".restore-{app_id}-", dir=service.layout.backups))
     try:
         header = service.unpack(archive, work, key)

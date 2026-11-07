@@ -178,3 +178,21 @@ def test_backup_waits_until_a_paused_app_is_healthy_again(monkeypatch):
     clock = iter(range(0, 1000, 50))
     monkeypatch.setattr(backups.time, "monotonic", lambda: next(clock))
     assert service._await_health("sl-journal", seconds=150) is False
+
+
+def test_restore_accepts_the_printed_archive_name(tmp_path):
+    from types import SimpleNamespace
+    import pytest
+    from schulplattform.backups import resolve_archive
+    from schulplattform.state import StateError
+    folder = tmp_path / "backups" / "bildergalerie"
+    folder.mkdir(parents=True)
+    archive = folder / "bildergalerie-20261107T161626Z.spbk"
+    archive.write_bytes(b"x")
+    service = SimpleNamespace(layout=SimpleNamespace(backups=tmp_path / "backups"))
+    assert resolve_archive(service, "bildergalerie", "bildergalerie-20261107T161626Z.spbk") == archive
+    assert resolve_archive(service, "bildergalerie", str(archive)) == archive
+    with pytest.raises(StateError, match="nicht gefunden"):
+        resolve_archive(service, "bildergalerie", "fehlt.spbk")
+    with pytest.raises(StateError, match="nicht gefunden"):
+        resolve_archive(service, "bildergalerie", "../bildergalerie/fehlt.spbk")
