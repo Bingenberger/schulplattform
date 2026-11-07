@@ -6,7 +6,7 @@ Production commands (root on Ubuntu 24.04):
   plan    --bundle B --trusted-key K
   apply   --bundle B --trusted-key K [--reconfigure]
   status | reconcile [--app X] | domain-change APP HOST | start APP | stop APP
-  admin-setup | app-setup APP | smtp-password | youtube-key | backup [--app X|--all] | restore-probe APP
+  admin-setup | app-setup APP | smtp-password | youtube-key | gallery-ai-key [FILE|--off] | backup [--app X|--all] | restore-probe APP
 The local pilot commands (pilot-*) remain for development.
 """
 import argparse
@@ -126,7 +126,8 @@ def warnings(host):
 
 
 PRODUCTION = ["configure", "plan", "apply", "status", "reconcile", "domain-change", "start", "stop",
-              "admin-setup", "app-setup", "smtp-password", "youtube-key", "backup", "restore-probe", "restore",
+              "admin-setup", "app-setup", "smtp-password", "youtube-key", "gallery-ai-key", "backup", "restore-probe",
+              "restore",
               "import-key", "import", "restore-platform"]
 
 
@@ -149,6 +150,7 @@ def _main(argv=None):
     parser.add_argument('--confirm-replace', action='store_true', help="restore/import: replace this app's data")
     parser.add_argument('--dry-run', action='store_true', help='import: decrypt and report only')
     parser.add_argument('--key-file', type=Path, help='restore-platform: backup key from a file instead of the terminal')
+    parser.add_argument('--off', action='store_true', help='gallery-ai-key: switch AI metadata off')
     parser.add_argument('--no-host', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.action.startswith("pilot-"):
@@ -275,6 +277,12 @@ def _main(argv=None):
         from .appsetup import set_youtube_key
         enabled = set_youtube_key(platform_)
         print('Videosuche der Tafel ' + ('eingeschaltet.' if enabled else 'ausgeschaltet.'))
+    elif args.action == 'gallery-ai-key':
+        from .appsetup import set_gallery_ai_key
+        if args.off == bool(target):
+            parser.exit(2, 'Aufruf: ./install.sh gallery-ai-key /pfad/service-account.json  (oder --off)\n')
+        enabled = set_gallery_ai_key(platform_, None if args.off else Path(target[0]))
+        print('KI-Metadaten der Bildergalerie ' + ('eingeschaltet.' if enabled else 'ausgeschaltet.'))
     elif args.action == 'backup':
         from .backups import BackupService
         service = BackupService(platform_)

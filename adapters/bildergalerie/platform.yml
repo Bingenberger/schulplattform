@@ -1,0 +1,21 @@
+# Plattform-Override der Bildergalerie (Referenz; erzeugt wird die Datei aus schulplattform/catalogue.py).
+services:
+  app:
+    image: ${BILDERGALERIE_IMAGE:?version and digest required by release validator}
+    ports: !reset []
+    environment:
+      BASE_URL: ${BILDERGALERIE_PUBLIC_URL:?canonical runtime origin required}
+      GALLERY_PUBLIC: ${BILDERGALERIE_PUBLIC:-true}
+      GALLERY_API_TOKEN_FILE: /run/secrets/api-token
+      GALLERY_AI_KEY_FILE: ${BILDERGALERIE_AI_KEY_FILE:-}
+    volumes:
+      - ${BILDERGALERIE_API_TOKEN:?platform-generated token file}:/run/secrets/api-token:ro
+      - ${BILDERGALERIE_AI_KEY:?empty unless AI metadata is enabled}:/run/secrets/ai-key:ro
+    networks:
+      default: {}
+      proxy:
+        aliases: [bildergalerie]
+networks:
+  proxy:
+    external: true
+    name: sp-bildergalerie-proxy

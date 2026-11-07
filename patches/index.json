@@ -14,7 +14,7 @@
   {
     "app": "gswb",
     "baseCommit": "7c2875b0439395487431ffaf543b0bbb3f37a8bf",
-    "implementationCommit": "7514a580ed6140ef2a9973deec698720f628abe7",
+    "implementationCommit": "7c46741a56918f9c8dfd90d45ccc992734f87e45",
     "patch": "patches/gswb/changes.patch"
   },
   {
@@ -44,7 +44,7 @@
   {
     "app": "grundschultafel",
     "baseCommit": "496466cac7cc2b3e48a6acd2940ebc91029c145f",
-    "implementationCommit": "b1f5c6a0ab055834a9a573a2109facbb5a0bec98",
+    "implementationCommit": "fe927dde82982b218b273237d38122891b4cc3ea",
     "patch": "patches/grundschultafel/changes.patch"
   },
   {
@@ -88,5 +88,11 @@
     "baseCommit": "9dd44a584c7b9a35e28c6a362f97c8c9babb4d98",
     "implementationCommit": "424bd10cdf1dceaa21b03d5ce3979c2b6283c634",
     "patch": "patches/sl-journal/changes.patch"
+  },
+  {
+    "app": "bildergalerie",
+    "baseCommit": "f13c912b5c7e0e41cca161f870d1466abff04155",
+    "implementationCommit": "4b1fe55a259a2e0f0dd00c49839937fe8dfe02fc",
+    "patch": "patches/bildergalerie/changes.patch"
   }
 ]

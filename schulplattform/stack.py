@@ -216,6 +216,39 @@ class Stack:
         path = self.layout.runtime / "tafel-youtube-key"
         return path.is_file() and not path.is_symlink() and bool(path.read_text().strip())
 
+    def projection_set(self, name):
+        path = self.layout.runtime / name
+        return path.is_file() and not path.is_symlink() and bool(path.read_text().strip())
+
+    def gallery_public(self):
+        return self.config["apps"].get("bildergalerie", {}).get("public", True)
+
+    def _own_gallery_origin(self):
+        gallery = self.config["apps"].get("bildergalerie", {})
+        return origin(gallery["hostname"]) if gallery.get("enabled") else ""
+
+    def gallery_origin(self, app_id):
+        """Explicit gallery_origin ("" = off), else the platform's own bildergalerie when enabled."""
+        configured = self.config["apps"].get(app_id, {}).get("gallery_origin")
+        return configured if configured is not None else self._own_gallery_origin()
+
+    def own_gallery(self, app_id):
+        """The API token goes only to the platform's own gallery, never to an external origin."""
+        own = self._own_gallery_origin()
+        return bool(own) and self.gallery_origin(app_id) == own
+
+    def woerterbuch_origin(self, app_id):
+        """Explicit woerterbuch_origin ("" = off), else the public origin of this platform's gswb.
+
+        The board fetches the public read-only API over the public domain like any other client;
+        app proxy networks stay isolated (no shared network between grundschultafel and gswb)."""
+        apps = self.config["apps"]
+        configured = apps.get(app_id, {}).get("woerterbuch_origin")
+        if configured is not None:
+            return configured
+        gswb = apps.get("gswb", {})
+        return origin(gswb["hostname"]) if gswb.get("enabled") else ""
+
     def context(self, app_id, hostname):
         app = APPS[app_id]
         values = {
@@ -226,9 +259,14 @@ class Stack:
             "runtime": str(self.layout.runtime),
             "postgres16": catalogue.INFRASTRUCTURE["postgres16"],
             "postgres18": catalogue.INFRASTRUCTURE["postgres18"],
-            # Optional external features (grundschultafel); off unless configured.
-            "gallery_origin": json.dumps(self.config["apps"].get(app_id, {}).get("gallery_origin", "")),
+            # Optional features of grundschultafel (gallery, YouTube search, dictionary).
+            "gallery_origin": json.dumps(self.gallery_origin(app_id)),
+            "gallery_token_file": json.dumps("/run/secrets/gallery-token" if self.own_gallery(app_id) else ""),
+            # bildergalerie: publicly searchable unless switched off in platform.toml
+            "gallery_public": json.dumps("true" if self.gallery_public() else "false"),
+            "gallery_ai_key_file": json.dumps("/run/secrets/ai-key" if self.projection_set("gallery-ai-key") else ""),
             "youtube_enabled": json.dumps("1" if self.youtube_key_set() else "0"),
+            "woerterbuch_origin": json.dumps(self.woerterbuch_origin(app_id)),
         }
         for service, image in app.images.items():
             values["image_" + service] = self.release.image(image)
@@ -601,7 +639,8 @@ class Stack:
         entries = {}
         for app_id in self.apps:
             entries[app_id] = {"name": DISPLAY.get(app_id, app_id), "description": DESCRIPTION.get(app_id, ""),
-                               "url": origin(domains[app_id]), "public": app_id == "gswb"}
+                               "url": origin(domains[app_id]),
+                               "public": app_id == "gswb" or (app_id == "bildergalerie" and self.gallery_public())}
         path = self.layout.management / "apps.json"
         self._write(path, json.dumps(entries, ensure_ascii=False, indent=2), 0o644)
 
@@ -610,7 +649,7 @@ DISPLAY = {"gswb": "Wörterbuch", "schulwissen": "Schulwissen", "zackboing": "Za
            "losverkauf": "Losverkauf", "grundschultafel": "Grundschultafel",
            "fahrradausbildung": "Fahrradausbildung", "leseflux": "Leseflux",
            "kompetenz-manager": "Kompetenz-Manager", "abgen": "Arbeitsblätter", "fundkiste": "Fundkiste", "schuleva": "Schulbefragung", "schulkasse": "Schulkasse", "schulanmeldung": "Schulanmeldung",
-           "sl-journal": "Schulleitungsjournal"}
+           "sl-journal": "Schulleitungsjournal", "bildergalerie": "Bildergalerie"}
 DESCRIPTION = {"gswb": "Öffentliche Wörterbuchsuche", "schulwissen": "Schulinterne Inhalte",
                "zackboing": "Quiz und Spiele", "schulhelfer": "Helferlisten", "losverkauf": "Losverkauf",
                "grundschultafel": "Persönliche Lehrertafel", "fahrradausbildung": "Radfahrausbildung und Posten",
@@ -619,7 +658,8 @@ DESCRIPTION = {"gswb": "Öffentliche Wörterbuchsuche", "schulwissen": "Schulint
                "schuleva": "Anonyme Eltern- und Schülerbefragung",
                "schulkasse": "Beiträge und Kassenbuch",
                "schulanmeldung": "Einschulung und Elternportal",
-               "sl-journal": "Journal der Schulleitung (verschlüsselt)"}
+               "sl-journal": "Journal der Schulleitung (verschlüsselt)",
+               "bildergalerie": "KI-Bilder (CC0) für Unterricht und Tafel"}
 
 
 def catalogue_helper():

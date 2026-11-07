@@ -115,25 +115,74 @@ Eigene Schriften (`.ttf`/`.otf`) gehören auf dem Host nach:
 
 Das Verzeichnis wird schreibgeschützt nach `/usr/local/share/fonts` in den App-Container eingebunden. Neue Dateien gelten ab dem nächsten Export, ein Neustart ist nicht nötig. Die Dateien müssen für alle lesbar sein (`chmod 644`). Sie sind nicht Teil der App-Sicherung; bewahren Sie die Originale auf, und achten Sie auf die Lizenz der Schrift.
 
-## Bildergalerie und YouTube-Suche (grundschultafel)
+## Bildergalerie, Wörterbuch und YouTube-Suche (grundschultafel)
 
-Beide Funktionen rufen externe Dienste auf und sind deshalb ausgeschaltet, bis sie ausdrücklich eingerichtet werden. Ein direkt eingefügter YouTube-Link funktioniert immer; das Video lädt dann der Browser selbst von YouTube.
+Die Tafel holt Bilder, Wörter und Suchergebnisse **serverseitig** ab; die Browser der Kinder sprechen
+weder Galerie noch Wörterbuch direkt an. Alle Anfragen gehen über die öffentliche Adresse der jeweiligen
+App, wie bei jedem anderen Client. Die Netze der Apps bleiben getrennt: Die Tafel hat kein gemeinsames
+Netz mit gswb oder der Galerie. Die APIs von Wörterbuch und (öffentlicher) Galerie sind ohnehin öffentlich,
+ein internes Netz brächte keinen Schutz, würde aber die Trennung der App-Netze aufweichen.
 
-**Bildergalerie:** In `/etc/schulplattform/platform.toml` beim Abschnitt der Tafel die Adresse der Galerie eintragen (nur `https://` und Hostname, ohne Pfad):
+| Einstellung in `[apps.grundschultafel]` | fehlt (Standard) | `""` | `"https://…"` |
+| --- | --- | --- | --- |
+| `gallery_origin` | eigene **bildergalerie**, wenn installiert, sonst aus | aus | diese Galerie (z. B. eine externe) |
+| `woerterbuch_origin` | eigenes **gswb**, wenn installiert, sonst aus | aus | dieses Wörterbuch |
+
+Nur `https://` und ein Hostname sind erlaubt, ohne Pfad. `./install.sh configure` fragt beides ab
+(leer = Standard, `aus` = keins). Danach `./install.sh apply --reconfigure` (mit `--bundle` und
+`--trusted-key` wie oben).
 
 ```toml
 [apps.grundschultafel]
 enabled = true
 hostname = "tafel.schule.example"
-gallery_origin = "https://pix.example.org"
+# gallery_origin = "https://pix.example.org"     # nur für eine fremde Galerie nötig
+# woerterbuch_origin = ""                         # Wörterbuch-Knopf ausblenden
 ```
 
-Danach `./install.sh apply --reconfigure` (mit `--bundle` und `--trusted-key` wie oben). `./install.sh configure` fragt die Adresse ebenfalls ab. Die Tafel holt Suchergebnisse und Bilder serverseitig nur von genau dieser Adresse, ohne Weiterleitungen.
+- **Bildergalerie:** Die Tafel nutzt die JSON-API v1 der Galerie (kein Auslesen von HTML mehr). Für die
+  eigene Galerie erzeugt die Plattform ein API-Token (`runtime/gallery-api-token`) und gibt es Tafel und
+  Galerie als Datei; an eine fremde Galerie geht es nie. Eine externe Galerie muss die API v1 sprechen;
+  das alte pix.foerster.rocks kann das nicht, bis es durch die Plattform-Galerie ersetzt ist.
+- **Wörterbuch:** Blitzlesen und Silbenrutsche bieten „Aus dem Wörterbuch …“ an (Wortlisten, Bild beim
+  Auflösen, Ton). Ohne Wörterbuch fehlt der Knopf, die Tafel bleibt gesund.
+- Prüfen auf dem Server: `docker exec sp-grundschultafel-app-1 node -e "fetch(process.env.WOERTERBUCH_ORIGIN+'/api/word-filters').then(r=>console.log(r.status))"` muss `200` zeigen.
 
-**YouTube-Suche:** braucht einen Schlüssel für die YouTube Data API v3 aus der Google Cloud Console. Ist der Schlüssel dort auf IP-Adressen beschränkt, die öffentliche IPv4 dieses Servers freigeben.
+**YouTube-Suche:** ruft Google auf und ist deshalb aus, bis ein Schlüssel für die YouTube Data API v3
+eingerichtet ist (Google Cloud Console; bei IP-Beschränkung die öffentliche IPv4 dieses Servers freigeben).
+Ein direkt eingefügter YouTube-Link funktioniert immer; das Video lädt dann der Browser selbst.
 
 ```sh
 ./install.sh youtube-key
 ```
 
 Der Schlüssel wird unsichtbar eingegeben, unter `/var/lib/schulplattform/runtime/tafel-youtube-key` abgelegt (Teil der Plattform-Sicherung) und die Tafel neu gestartet. Erneuter Aufruf ersetzt den Schlüssel; leere Eingabe schaltet die Suche wieder aus. Suchbegriffe gehen dabei an Google.
+
+## Bildergalerie (App `bildergalerie`)
+
+KI-generierte Bilder (CC0) mit Schlagworten, Suche, Sammelsuche für Wortlisten, Bildwünschen und einer
+lesenden JSON-API für die Tafel. Erstzugang wie bei den anderen Apps:
+
+```sh
+./install.sh app-setup bildergalerie     # Name abfragen; Einmal-Passwort erscheint nur im Terminal (15 min)
+```
+
+Es gibt kein Standardkonto. Der Erstzugang wird nur angelegt, solange es noch kein Konto gibt; nach
+einem Import aus pix.foerster.rocks gelten die übernommenen Konten.
+
+- **Öffentlichkeit:** Standard wie bisher: ohne Anmeldung durchsuchbar, die Kachel erscheint öffentlich
+  im Dashboard. Mit `public = false` unter `[apps.bildergalerie]` sind Oberfläche, API und Bilder nur für
+  Angemeldete; die Tafel kommt dann über das API-Token weiter an die Bilder. `/license` bleibt öffentlich.
+  Eine Änderung ist eine Entscheidung der Schule (siehe docs/implementation/bildergalerie.md).
+- **KI-Metadaten (Gemini/Vertex AI):** aus. Einschalten mit einem Service-Account-Schlüssel, den Sie
+  vorher auf den Server kopiert haben; die Quelldatei danach löschen:
+
+  ```sh
+  ./install.sh gallery-ai-key /root/service-account.json
+  shred -u /root/service-account.json
+  ./install.sh gallery-ai-key --off       # wieder ausschalten
+  ```
+
+  Bilder gehen dabei zur Analyse an Google. Die Galerie bleibt auch ohne den Dienst voll nutzbar.
+- **Sicherung:** Datenbank und Medien (Originale, Anzeige- und Vorschaubilder) sind Teil der
+  App-Sicherung; Originale können mehrere Gigabyte groß sein, die Größe zeigt `du -sh /var/lib/docker/volumes/sp-bildergalerie_media`.

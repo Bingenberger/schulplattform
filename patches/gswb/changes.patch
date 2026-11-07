@@ -1,7 +1,7 @@
 From eebb0d6fb20eba632ae0a395b8957fb9d085ee23 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Mon, 2 Nov 2026 11:23:36 +0100
-Subject: [PATCH 1/3] Close editor access and add isolated standalone container
+Subject: [PATCH 1/5] Close editor access and add isolated standalone container
 
 ---
  .dockerignore                         |  13 +
@@ -1377,7 +1377,7 @@ index 8fcd7d3..3077808 100644
 From aa0ea29f8209a4af575dfcac001e512fcbcd789d Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 08:19:22 +0100
-Subject: [PATCH 2/3] Publish versioned amd64 release images to GHCR on version
+Subject: [PATCH 2/5] Publish versioned amd64 release images to GHCR on version
  tags
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -1455,7 +1455,7 @@ index 0000000..5f94d28
 From 7514a580ed6140ef2a9973deec698720f628abe7 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 12:06:52 +0100
-Subject: [PATCH 3/3] README: Installation im Rahmen der Schulplattform und
+Subject: [PATCH 3/5] README: Installation im Rahmen der Schulplattform und
  Standalone; veraltete Angaben korrigiert
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -1563,6 +1563,463 @@ index 8e9f844..7f1b2d6 100644
  Die folgende Anleitung richtet sich an einen Ubuntu/Debian-Server mit nginx. Als WSGI-Server wird Gunicorn verwendet (in `requirements.txt` enthalten).
  
  ### 1. Voraussetzungen installieren
+-- 
+2.43.0
+
+
+From 72363740b7912f4e159449533bb34ef72d57c15d Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Florian=20F=C3=B6rster?= <florian@foerster.rocks>
+Date: Sat, 7 Nov 2026 14:30:27 +0100
+Subject: [PATCH 4/5] =?UTF-8?q?Wortlisten-API=20f=C3=BCr=20Lese=C3=BCbunge?=
+ =?UTF-8?q?n=20(/api/words,=20/api/word-filters)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- GET /api/words filtert nach Rechtschreibkategorie, Wortart, Silbenzahl,
+  bekannten Buchstaben, enthaltener Buchstabengruppe und Länge; optional
+  nur Wörter mit tatsächlich vorhandenem Bild bzw. Ton, zufällige
+  Auswahl, höchstens 200 Wörter. Liefert Silben sowie Bild-/Tonpfade.
+- GET /api/word-filters liefert Kategorien und Wortarten mit Anzahl.
+- Öffentlich lesbar mit CORS wie die übrigen Lese-APIs; Mediendateien
+  werden über die konfigurierten Medienordner geprüft (mit Cache).
+- Dokumentation in API.md, Tests in tests/test_api_words.py.
+
+Gedacht für Blitzlesen und Silbenrutsche der Grundschultafel.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ API.md                                        |  61 ++++++++++
+ grundschul_woerterbuch/__init__.py            |   4 +
+ grundschul_woerterbuch/routes.py              |  44 ++++++-
+ .../services/word_list_service.py             | 114 ++++++++++++++++++
+ tests/test_api_words.py                       |  88 ++++++++++++++
+ 5 files changed, 310 insertions(+), 1 deletion(-)
+ create mode 100644 grundschul_woerterbuch/services/word_list_service.py
+ create mode 100644 tests/test_api_words.py
+
+diff --git a/API.md b/API.md
+index 91e04ad..cb7ca6f 100644
+--- a/API.md
++++ b/API.md
+@@ -126,6 +126,67 @@ GET /api/autocomplete?q=Hun
+ 
+ ---
+ 
++## GET /api/words
++
++Wortlisten für Leseübungen, z. B. Blitzlesen und Silbenrutsche der Grundschultafel.
++Alle Filter sind optional und lassen sich kombinieren.
++
++### Parameter
++
++| Parameter | Beschreibung |
++|---|---|
++| `kategorie` | Rechtschreibkategorie, z. B. `Mitsprechwort`; mehrfach oder kommagetrennt (eine davon muss passen) |
++| `wortart` | z. B. `Nomen`, `Verb`, `Adjektiv` |
++| `silben` | genaue Silbenzahl; alternativ `silben_min` / `silben_max` |
++| `buchstaben` | nur Wörter, die ausschließlich aus diesen Buchstaben bestehen, z. B. `maloi` (Groß-/Kleinschreibung egal) |
++| `enthaelt` | Buchstabengruppe, die vorkommen muss, z. B. `au` |
++| `max_laenge` | höchstens so viele Zeichen |
++| `mit_bild`, `mit_ton` | `1` = nur Wörter, deren Bild- bzw. Tondatei tatsächlich vorhanden ist |
++| `anzahl` | Anzahl der gelieferten Wörter (Standard 20, höchstens 200) |
++| `zufall` | `1` = zufällige Auswahl statt alphabetisch |
++
++### Beispielaufruf
++
++```
++GET /api/words?kategorie=Mitsprechwort&silben=2&mit_bild=1&zufall=1&anzahl=10
++```
++
++### Antwort (200 OK)
++
++```json
++{
++  "total": 447,
++  "words": [
++    {
++      "lemma": "Gabel",
++      "syllables": ["Ga", "bel"],
++      "part_of_speech": "Nomen",
++      "spelling_categories": ["Mitsprechwort"],
++      "image": "/static/images/Gabel.webp",
++      "audio": "/static/audio/Gabel.mp3"
++    }
++  ]
++}
++```
++
++`total` ist die Zahl aller Treffer, `words` enthält höchstens `anzahl` davon. `image` und
++`audio` sind Pfade auf diesem Server oder `null`, wenn die Datei fehlt.
++
++---
++
++## GET /api/word-filters
++
++Verfügbare Rechtschreibkategorien und Wortarten mit Anzahl, z. B. für Auswahlmenüs.
++
++```json
++{
++  "categories": [{ "category": "Bausteinwort", "count": 2031 }],
++  "parts_of_speech": [{ "part_of_speech": "Nomen", "count": 3120 }]
++}
++```
++
++---
++
+ ## JavaScript-Beispiel
+ 
+ ```js
+diff --git a/grundschul_woerterbuch/__init__.py b/grundschul_woerterbuch/__init__.py
+index d0f6107..52324e8 100644
+--- a/grundschul_woerterbuch/__init__.py
++++ b/grundschul_woerterbuch/__init__.py
+@@ -16,6 +16,7 @@ def create_app(test_config=None):
+     from .services.handwriting_service import build_handwriting_service
+     from .services.json_review_service import JsonReviewService
+     from .services.search_service import SearchService
++    from .services.word_list_service import WordListService
+ 
+     package_dir = Path(__file__).resolve().parent
+     base_dir = package_dir.parent
+@@ -71,6 +72,9 @@ def create_app(test_config=None):
+ 
+     app.extensions["word_repository"] = repository
+     app.extensions["search_service"] = search_service
++    app.extensions["word_list_service"] = WordListService(
++        app.config["DATABASE"], app.config["MEDIA_IMAGE_DIR"], app.config["MEDIA_AUDIO_DIR"]
++    )
+     app.extensions["handwriting_service"] = handwriting_service
+     app.extensions["json_review_service"] = json_review_service
+ 
+diff --git a/grundschul_woerterbuch/routes.py b/grundschul_woerterbuch/routes.py
+index 6476adb..2d03ff4 100644
+--- a/grundschul_woerterbuch/routes.py
++++ b/grundschul_woerterbuch/routes.py
+@@ -12,7 +12,7 @@ bp = Blueprint("main", __name__)
+ 
+ @bp.after_request
+ def add_api_cors_headers(response):
+-    if request.endpoint in ("main.api_autocomplete", "main.api_word") and request.method in ("GET", "HEAD", "OPTIONS"):
++    if request.endpoint in ("main.api_autocomplete", "main.api_word", "main.api_words", "main.api_word_filters") and request.method in ("GET", "HEAD", "OPTIONS"):
+         response.headers["Access-Control-Allow-Origin"] = "*"
+         response.headers["Access-Control-Allow-Methods"] = "GET"
+     return response
+@@ -196,6 +196,48 @@ def api_word(lemma):
+     return jsonify(_public_word_payload(word))
+ 
+ 
++def _int_arg(name, minimum, maximum):
++    value = request.args.get(name, "").strip()
++    if not value:
++        return None
++    try:
++        number = int(value)
++    except ValueError:
++        return None
++    return max(minimum, min(maximum, number))
++
++
++def _flag(name):
++    return request.args.get(name, "").strip().lower() in ("1", "true", "ja", "yes")
++
++
++@bp.route("/api/words")
++def api_words():
++    """Word lists for reading tools, e.g. /api/words?kategorie=Mitsprechwort&silben=2&mit_bild=1"""
++    syllables = _int_arg("silben", 1, 12)
++    result = current_app.extensions["word_list_service"].find(
++        categories=[c.strip() for value in request.args.getlist("kategorie") for c in value.split(",") if c.strip()],
++        part_of_speech=request.args.get("wortart", "").strip() or None,
++        syllables_min=syllables if syllables is not None else _int_arg("silben_min", 1, 12),
++        syllables_max=syllables if syllables is not None else _int_arg("silben_max", 1, 12),
++        letters=request.args.get("buchstaben", "").strip()[:60] or None,
++        contains=request.args.get("enthaelt", "").strip()[:20] or None,
++        max_length=_int_arg("max_laenge", 1, 40),
++        with_image=_flag("mit_bild"),
++        with_audio=_flag("mit_ton"),
++        limit=_int_arg("anzahl", 1, 200) or 20,
++        shuffle=_flag("zufall"),
++    )
++    return jsonify(result)
++
++
++@bp.route("/api/word-filters")
++def api_word_filters():
++    """Available spelling categories and parts of speech (for filter menus)."""
++    service = current_app.extensions["word_list_service"]
++    return jsonify({"categories": service.categories(), "parts_of_speech": service.parts_of_speech()})
++
++
+ SPELLING_CATEGORY_ICONS = {
+     "Bausteinwort":               "rs_icons/Symbol Baustein.svg",
+     "Mitsprechwort":              "rs_icons/Symbol Mitsprechwort.svg",
+diff --git a/grundschul_woerterbuch/services/word_list_service.py b/grundschul_woerterbuch/services/word_list_service.py
+new file mode 100644
+index 0000000..4c14ce5
+--- /dev/null
++++ b/grundschul_woerterbuch/services/word_list_service.py
+@@ -0,0 +1,114 @@
++"""Word lists for reading tools (e.g. Blitzlesen and Silbenrutsche of the Grundschultafel).
++
++Filters the dictionary by spelling category, part of speech, number of syllables,
++letters the children already know, a contained letter group and the availability of
++a picture or recording. Only media files that really exist are reported.
++"""
++
++import random
++import time
++import unicodedata
++from pathlib import Path
++
++from ..db import get_connection
++
++MEDIA_CACHE_SECONDS = 300
++MAX_LIMIT = 200
++
++
++def _letters(text):
++    """Lower-case letters of a word (umlauts and ß stay letters of their own)."""
++    return {ch for ch in unicodedata.normalize("NFC", text.lower()) if ch.isalpha()}
++
++
++class WordListService:
++    def __init__(self, database_path, image_dir, audio_dir):
++        self.database_path = database_path
++        self.image_dir = Path(image_dir)
++        self.audio_dir = Path(audio_dir)
++        self._media = None
++        self._media_loaded_at = 0.0
++
++    # Existing media files, read once and refreshed every few minutes (thousands of files,
++    # so checking each word on every request would be needlessly slow)
++    def _existing_media(self):
++        now = time.monotonic()
++        if self._media is None or now - self._media_loaded_at > MEDIA_CACHE_SECONDS:
++            def names(directory):
++                try:
++                    return {p.name for p in directory.iterdir() if p.is_file()}
++                except OSError:
++                    return set()
++            self._media = (names(self.image_dir), names(self.audio_dir))
++            self._media_loaded_at = now
++        return self._media
++
++    def _rows(self):
++        query = """
++            SELECT w.lemma, w.syllables, w.part_of_speech, w.image_filename, w.audio_filename,
++                   GROUP_CONCAT(sc.category, '|') AS categories
++            FROM words w
++            LEFT JOIN spelling_categories sc ON sc.word_id = w.id
++            GROUP BY w.id
++            ORDER BY w.lemma COLLATE NOCASE
++        """
++        with get_connection(self.database_path) as connection:
++            return [dict(row) for row in connection.execute(query).fetchall()]
++
++    def categories(self):
++        query = """
++            SELECT category, COUNT(*) AS count FROM spelling_categories
++            GROUP BY category ORDER BY count DESC, category
++        """
++        with get_connection(self.database_path) as connection:
++            return [dict(row) for row in connection.execute(query).fetchall()]
++
++    def parts_of_speech(self):
++        query = "SELECT part_of_speech, COUNT(*) AS count FROM words GROUP BY part_of_speech ORDER BY count DESC"
++        with get_connection(self.database_path) as connection:
++            return [dict(row) for row in connection.execute(query).fetchall()]
++
++    def find(self, *, categories=(), part_of_speech=None, syllables_min=None, syllables_max=None,
++             letters=None, contains=None, max_length=None, with_image=False, with_audio=False,
++             limit=20, shuffle=False):
++        images, audios = self._existing_media()
++        allowed = _letters(letters) if letters else None
++        contains = contains.lower() if contains else None
++        wanted_categories = set(categories)
++        matches = []
++        for row in self._rows():
++            lemma = row["lemma"]
++            parts = [p.strip() for p in (row["syllables"] or lemma).split("-") if p.strip()]
++            row_categories = row["categories"].split("|") if row["categories"] else []
++            image = row["image_filename"] if row["image_filename"] in images else None
++            audio = row["audio_filename"] if row["audio_filename"] in audios else None
++            if wanted_categories and not wanted_categories.intersection(row_categories):
++                continue
++            if part_of_speech and row["part_of_speech"] != part_of_speech:
++                continue
++            if syllables_min is not None and len(parts) < syllables_min:
++                continue
++            if syllables_max is not None and len(parts) > syllables_max:
++                continue
++            if allowed is not None and not _letters(lemma) <= allowed:
++                continue
++            if contains and contains not in lemma.lower():
++                continue
++            if max_length is not None and len(lemma) > max_length:
++                continue
++            if with_image and not image:
++                continue
++            if with_audio and not audio:
++                continue
++            matches.append({
++                "lemma": lemma,
++                "syllables": parts,
++                "part_of_speech": row["part_of_speech"],
++                "spelling_categories": row_categories,
++                "image": f"/static/images/{image}" if image else None,
++                "audio": f"/static/audio/{audio}" if audio else None,
++            })
++        total = len(matches)
++        if shuffle:
++            random.shuffle(matches)
++        return {"total": total, "words": matches[: max(1, min(limit, MAX_LIMIT))]}
+diff --git a/tests/test_api_words.py b/tests/test_api_words.py
+new file mode 100644
+index 0000000..a055e76
+--- /dev/null
++++ b/tests/test_api_words.py
+@@ -0,0 +1,88 @@
++"""Tests for /api/words and /api/word-filters (run: python -m unittest discover tests)."""
++import sqlite3
++import tempfile
++import unittest
++from pathlib import Path
++
++from grundschul_woerterbuch import create_app
++from grundschul_woerterbuch.db import init_db
++
++WORDS = [
++    # lemma, syllables, part of speech, categories, image exists, audio exists
++    ("Lama", "La-ma", "Nomen", ["Mitsprechwort"], True, True),
++    ("Mama", "Ma-ma", "Nomen", ["Mitsprechwort"], False, True),
++    ("Banane", "Ba-na-ne", "Nomen", ["Mitsprechwort"], True, False),
++    ("Auge", "Au-ge", "Nomen", ["Verlängerungswort"], True, True),
++    ("laufen", "lau-fen", "Verb", ["Mitsprechwort"], False, False),
++]
++
++
++class ApiWordsTest(unittest.TestCase):
++    def setUp(self):
++        self.tmp = tempfile.TemporaryDirectory()
++        base = Path(self.tmp.name)
++        db = base / "test.sqlite3"
++        images, audio = base / "images", base / "audio"
++        images.mkdir()
++        audio.mkdir()
++        init_db(str(db))
++        connection = sqlite3.connect(db)
++        for lemma, syllables, pos, categories, has_image, has_audio in WORDS:
++            cursor = connection.execute(
++                "INSERT INTO words (lemma, normalized_lemma, part_of_speech, syllables, image_filename, audio_filename)"
++                " VALUES (?, ?, ?, ?, ?, ?)",
++                (lemma, lemma.lower(), pos, syllables, f"{lemma}.webp", f"{lemma}.mp3"),
++            )
++            for category in categories:
++                connection.execute("INSERT INTO spelling_categories (word_id, category) VALUES (?, ?)", (cursor.lastrowid, category))
++            if has_image:
++                (images / f"{lemma}.webp").write_bytes(b"x")
++            if has_audio:
++                (audio / f"{lemma}.mp3").write_bytes(b"x")
++        connection.commit()
++        connection.close()
++        app = create_app({
++            "TESTING": True, "SECRET_KEY": "x" * 40, "DATABASE": str(db), "IMPORT_DIR": str(base / "import"),
++            "MEDIA_IMAGE_DIR": str(images), "MEDIA_AUDIO_DIR": str(audio), "HANDWRITING_UPLOAD_DIR": str(base / "uploads"),
++            "HANDWRITING_MODE": "mock",
++        })
++        self.client = app.test_client()
++
++    def tearDown(self):
++        self.tmp.cleanup()
++
++    def lemmas(self, query):
++        response = self.client.get("/api/words" + query)
++        self.assertEqual(response.status_code, 200)
++        return [w["lemma"] for w in response.get_json()["words"]]
++
++    def test_known_letters(self):
++        self.assertEqual(self.lemmas("?buchstaben=MAL"), ["Lama", "Mama"])
++
++    def test_syllables_category_and_media(self):
++        self.assertEqual(self.lemmas("?silben=3"), ["Banane"])
++        self.assertEqual(self.lemmas("?kategorie=Mitsprechwort&mit_bild=1"), ["Banane", "Lama"])
++        self.assertEqual(self.lemmas("?mit_ton=1&wortart=Nomen"), ["Auge", "Lama", "Mama"])
++        self.assertEqual(self.lemmas("?enthaelt=au"), ["Auge", "laufen"])
++
++    def test_payload_and_cors(self):
++        response = self.client.get("/api/words?buchstaben=lam&anzahl=1")
++        data = response.get_json()
++        self.assertEqual(data["total"], 2)
++        self.assertEqual(data["words"][0], {
++            "lemma": "Lama", "syllables": ["La", "ma"], "part_of_speech": "Nomen",
++            "spelling_categories": ["Mitsprechwort"], "image": "/static/images/Lama.webp", "audio": "/static/audio/Lama.mp3",
++        })
++        self.assertEqual(response.headers["Access-Control-Allow-Origin"], "*")
++        self.assertEqual(self.client.get("/api/words?buchstaben=mam").get_json()["words"][0]["image"], None)
++
++    def test_invalid_numbers_are_ignored_and_limited(self):
++        self.assertEqual(len(self.lemmas("?silben=abc&anzahl=99999")), 5)
++
++    def test_filters(self):
++        data = self.client.get("/api/word-filters").get_json()
++        self.assertEqual(data["categories"][0], {"category": "Mitsprechwort", "count": 4})
++
++
++if __name__ == "__main__":
++    unittest.main()
+-- 
+2.43.0
+
+
+From 7c46741a56918f9c8dfd90d45ccc992734f87e45 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Sat, 7 Nov 2026 15:09:41 +0100
+Subject: [PATCH 5/5] WebP und MP3 mit korrektem Content-Type ausliefern
+
+Im Slim-Image fehlt /etc/mime.types; .webp kam als application/octet-stream
+und die Grundschultafel wies die Bilder ab.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ grundschul_woerterbuch/__init__.py | 6 ++++++
+ tests/test_api_words.py            | 9 +++++++++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/grundschul_woerterbuch/__init__.py b/grundschul_woerterbuch/__init__.py
+index 52324e8..6299f11 100644
+--- a/grundschul_woerterbuch/__init__.py
++++ b/grundschul_woerterbuch/__init__.py
+@@ -1,6 +1,12 @@
++import mimetypes
+ import os
+ from pathlib import Path
+ 
++# The slim Python image has no /etc/mime.types; without this, .webp pictures are served as
++# application/octet-stream and clients that check the type (e.g. the Grundschultafel) reject them.
++mimetypes.add_type("image/webp", ".webp")
++mimetypes.add_type("audio/mpeg", ".mp3")
++
+ 
+ def secret(name):
+     filename = os.environ.get(name + "_FILE")
+diff --git a/tests/test_api_words.py b/tests/test_api_words.py
+index a055e76..fd4def7 100644
+--- a/tests/test_api_words.py
++++ b/tests/test_api_words.py
+@@ -86,3 +86,12 @@ class ApiWordsTest(unittest.TestCase):
+ 
+ if __name__ == "__main__":
+     unittest.main()
++
++
++class MediaTypeTest(unittest.TestCase):
++    def test_webp_and_mp3_have_correct_content_types(self):
++        import mimetypes
++        import grundschul_woerterbuch  # noqa: F401  (registers the types)
++        self.assertEqual(mimetypes.guess_type("Lama.webp")[0], "image/webp")
++        self.assertEqual(mimetypes.guess_type("Lama.mp3")[0], "audio/mpeg")
++
 -- 
 2.43.0
 

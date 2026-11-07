@@ -151,3 +151,37 @@ YouTube geprüft: Seite mit `no-referrer` ohne Attribut → Fehler 153, mit Attr
 - Login-Schutz: Prüfen und Zählen eines Versuchs passieren in einem gesperrten Schritt. Auf einem Gerät, auf dem sich das Konto schon angemeldet hat, gibt es einen eigenen Fehlerzähler. Grundlage ist das signierte Cookie `tafel_known` (365 Tage, enthält kein Sitzungsrecht, weil `decrypt` eine `sid` verlangt). Wer fremde PINs rät, sperrt die Lehrkraft dadurch nicht aus.
 
 Tests im Test-Image (read-only, ohne Netz): 10/10. `prove_grundschultafel_standalone.py` mit dem neuen Runtime-Image ist grün, auch die Sperre nach fünf Fehlversuchen über einen Neustart hinweg.
+
+## Release 0.1.4 (7. November 2026): Wörterbuch und Galerie-API v1
+
+Enthält die Commits des Nutzers `8f7e01d`..`a3fa220` (Autosave, Vorlagen der Schule, Klassenlisten,
+Mathe-Material, Blitzlesen und Silbenrutsche, Wörterbuch-Anbindung) und `fe927dd`:
+
+- **Wörterbuch (B1):** `WOERTERBUCH_ORIGIN` kommt von der Plattform: eigenes gswb, wenn installiert,
+  sonst leer; `woerterbuch_origin` in `[apps.grundschultafel]` überschreibt (`""` = aus). Die Tafel ruft
+  gswb über dessen **öffentliche Adresse** auf; die App-Netze bleiben getrennt (kein gemeinsames Netz),
+  die gswb-Lese-APIs sind ohnehin öffentlich. Medienpfade ohne kodierte oder gepunktete Segmente.
+  Dabei gefunden: gswb lieferte `.webp` als `application/octet-stream` (Python-Slim ohne
+  `/etc/mime.types`), die Tafel wies die Bilder mit 415 ab; behoben in gswb `7c46741` (0.1.1).
+- **Galerie (B3):** `src/lib/gallery-client.cjs` nutzt nur noch `/api/v1/images` und `/api/v1/tags`
+  (kein HTML-Auslesen, auch nicht als Rückfall), Bearer-Token aus `GALLERY_TOKEN_FILE`, nur die
+  konfigurierte Origin, keine Redirects, 6 s, Größenlimits, Antworten geprüft. Der Bild-Proxy erlaubt nur
+  `/media/thumbnails/…` und `/media/display/…` mit geprüftem Content-Type. Alle Galerie-Routen verlangen
+  jetzt eine Anmeldung (vorher konnte jeder die Tafel als Proxy zur Galerie benutzen). Das Galerie-Fenster
+  zeigt Schlagworte (als Filter), den Lizenzhinweis und blättert über `total_pages`. Bestehende Hefte mit
+  Data-URLs bleiben unverändert gültig.
+
+**Achtung beim Update des echten Servers:** Dort steht `gallery_origin = "https://pix.foerster.rocks"`.
+Die alte Galerie hat keine API v1; mit Tafel 0.1.4 meldet die Galeriesuche dann „nicht erreichbar“, bis
+pix.foerster.rocks durch die Plattform-Galerie ersetzt ist (Zeile entfernen = eigene Galerie).
+
+Nachweise (lokal):
+
+| Prüfung | Ergebnis |
+| --- | --- |
+| `node scripts/test-runtime.cjs` (auch im `tests`-Image, read-only, ohne Netz) | 11/11, neu: Galerie-Client mit Token, Paging, Feldprüfung, Redirect, HTML statt JSON, Übergröße, Proxy-Pfade, SVG, ohne Token |
+| `tsc --noEmit`, `next build` | fehlerfrei |
+| `prove_grundschultafel_standalone.py` (Anmeldung, Hefte, Handy-Upload, PIN-Sperre, Abmelden) | alle bestanden, kein Rückschritt |
+| Verbund Tafel + private Galerie (Token, 88 Bilder) + gswb (5.814 Wörter) als Container, Browser per Playwright: `tafel-gallery-woerterbuch.json` | Wörterbuch: Filter, 2-Silben-Liste mit Bild, Bild `image/webp`, Ton `audio/mpeg`, anonym 401, Traversal 400; im Browser „Aus dem Wörterbuch …“ sichtbar und Liste geladen. Galerie: Suche, Blättern, Schlagworte, Vorschaubilder (36/36 geladen), Lizenzhinweis, Filter per Schlagwort; Proxy weist `/static/…`, `../`, `/media/uploads/…` und fremde Hosts ab; Galerie direkt ohne/mit falschem Token 401. Bild eingefügt, Autosave: Heft enthält `data:image/…`, keine Galerie-URL. Ohne Galerie/Wörterbuch: 503, Knopf fehlt, Readiness 200 |
+
+Nicht geprüft: YouTube-Suche mit echtem Schlüssel (unverändert), Abnahme auf dem echten Server.

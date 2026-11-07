@@ -475,3 +475,70 @@ def test_compose_app_is_not_reported_from_another_apps_database_container(monkey
     report = altserver.inventory({}, {})["apps"]
     assert report["schulwissen"]["present"] is False and "another app" in report["schulwissen"]["note"]
     assert report["fahrradausbildung"]["present"] is True
+
+
+def test_bildergalerie_export_moves_static_images_with_checksums(tmp_path, monkeypatch):
+    import hashlib
+    import shutil
+    import sqlite3
+    import tarfile
+    if not shutil.which("gpg"):
+        import pytest
+        pytest.skip("gpg not installed")
+    base = tmp_path / "opt/bildergalerie"
+    (base / "instance").mkdir(parents=True)
+    sqlite3.connect(base / "instance/gallery.db").executescript(
+        "CREATE TABLE image(id INTEGER PRIMARY KEY, filename TEXT); INSERT INTO image VALUES(311,'Apfel_f807ab63.png');")
+    for kind, name, data in (("uploads", "Apfel_f807ab63.png", b"png"), ("display", "Apfel_f807ab63.webp", b"d"),
+                             ("thumbnails", "Apfel_f807ab63.webp", b"t")):
+        (base / "static" / kind).mkdir(parents=True)
+        (base / "static" / kind / name).write_bytes(data)
+    (base / "static/style.css").write_text("css")                # code assets stay behind
+    (base / ".env").write_text("DATABASE_URL=sqlite:///gallery.db\nSECRET_KEY=geheim\n")
+    (base / "key3.json").write_text("{}")
+    monkeypatch.setattr(altserver, "unit_for", lambda base, preferred=None: "bildergalerie.service")
+    monkeypatch.setattr(altserver, "unit_values", lambda unit: {})
+    key = tmp_path / "transfer.key"
+    key.write_text("k" * 48)
+    summary = altserver.export("bildergalerie", key, tmp_path / "out", path=str(base))
+    assert summary["volumes"] == ["db", "media"]
+    plain = tmp_path / "plain.tar"
+    subprocess.run(["gpg", "--batch", "--quiet", "--passphrase-file", str(key), "-o", str(plain), "-d",
+                    summary["archive"]], check=True, env={"GNUPGHOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
+    with tarfile.open(plain) as outer:
+        outer.extractall(tmp_path / "x", filter="data")
+    with tarfile.open(tmp_path / "x/volumes/media/files.tar") as inner:
+        files = sorted(n for n in inner.getnames() if inner.getmember(n).isfile())
+    assert files == ["./display/Apfel_f807ab63.webp", "./thumbnails/Apfel_f807ab63.webp", "./uploads/Apfel_f807ab63.png"]
+    assert sqlite3.connect(tmp_path / "x/sqlite/db/gallery.db").execute("SELECT id FROM image").fetchall() == [(311,)]
+    info = json.loads((tmp_path / "x/backup.json").read_text())
+    assert info["checksums"]["media"]["uploads/Apfel_f807ab63.png"] == hashlib.sha256(b"png").hexdigest()
+    assert len(info["checksums"]["media"]) == 3
+    assert not info.get("secrets")                               # session key and AI key stay behind
+    assert summary["sha256"] == hashlib.sha256(Path(summary["archive"]).read_bytes()).hexdigest()
+
+
+def test_import_checksum_verification_finds_missing_and_changed_files(tmp_path):
+    import hashlib
+    import sys
+    from types import SimpleNamespace
+    from schulplattform import importer
+    volume = tmp_path / "volume"
+    (volume / "uploads").mkdir(parents=True)
+    (volume / "uploads/a.png").write_bytes(b"a")
+    (volume / "uploads/b.png").write_bytes(b"changed")
+    files = {"uploads/a.png": hashlib.sha256(b"a").hexdigest(), "uploads/b.png": hashlib.sha256(b"b").hexdigest(),
+             "uploads/c.png": hashlib.sha256(b"c").hexdigest(), "../../etc/passwd": "0" * 64}
+
+    def command(argv, timeout=None):
+        # run the helper's script locally against the temporary "volume"
+        manifest = next(a.split(":")[0] for a in argv if a.endswith(":/manifest.json:ro"))
+        script = argv[-1].replace("'/manifest.json'", repr(manifest)).replace("'/data'", repr(str(volume))) \
+            .replace("'/data/'", repr(str(volume) + "/"))
+        return subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, check=True).stdout
+
+    service = SimpleNamespace(stack=SimpleNamespace(docker="docker", command=command))
+    result = importer.verify_checksums(service, "bildergalerie", {"checksums": {"media": files}}, tmp_path)
+    assert result["media"]["checked"] == 4
+    assert result["media"]["different"] == ["uploads/b.png"]
+    assert sorted(result["media"]["missing"]) == ["../../etc/passwd", "uploads/c.png"]

@@ -5,6 +5,7 @@ Values are read from the controlling terminal; passwords never appear as
 arguments, in logs or in shell history.
 """
 import getpass
+import json
 import os
 import re
 
@@ -107,3 +108,32 @@ def set_youtube_key(platform):
     platform.stack.compose("grundschultafel", "up", "-d", "--pull", "never", "--no-build", "--force-recreate",
                            "--wait", *APPS["grundschultafel"].services)
     return bool(key)
+
+
+GALLERY_AI_KEY = "gallery-ai-key"
+
+
+def set_gallery_ai_key(platform, source):
+    """Service-account JSON for the gallery's optional AI metadata (Gemini/Vertex AI); None switches it off.
+
+    The key is read from a file the operator copied to the server (it is multi-line JSON, not typed
+    in), checked for shape, stored as a read-only projection and the source should be deleted."""
+    if "bildergalerie" not in platform.stack.apps:
+        raise StateError("bildergalerie is not installed")
+    value = ""
+    if source is not None:
+        if not source.is_file() or source.is_symlink() or source.stat().st_size > 16384:
+            raise StateError(f"{source}: keine reguläre Datei (höchstens 16 KiB); nichts geändert")
+        try:
+            data = json.loads(source.read_text())
+        except (ValueError, UnicodeDecodeError):
+            raise StateError("Die Datei ist kein JSON; nichts geändert") from None
+        if not isinstance(data, dict) or data.get("type") != "service_account" or not data.get("project_id") \
+                or not data.get("private_key"):
+            raise StateError("Das ist kein Google-Service-Account-Schlüssel; nichts geändert")
+        value = json.dumps(data)
+    _replace_projection(platform.layout.runtime / GALLERY_AI_KEY, value)
+    platform.stack.render(platform.current_domains())
+    platform.stack.compose("bildergalerie", "up", "-d", "--pull", "never", "--no-build", "--force-recreate",
+                           "--wait", *APPS["bildergalerie"].services)
+    return bool(value)

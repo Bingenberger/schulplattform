@@ -1,0 +1,29 @@
+{
+  "operations": [
+    {
+      "command": "up -d --no-build",
+      "exitCode": 0
+    },
+    {
+      "command": "ps -q app",
+      "exitCode": 0
+    },
+    {
+      "command": "run --rm --no-deps -T",
+      "exitCode": 0
+    }
+  ],
+  "readyBeforeMigration": 503,
+  "migration": [
+    "Bestehende Datenbank wird übernommen (0 ältere Spalten ergänzt).",
+    "Schema auf Version 2 gebracht.",
+    "Bildmaße für 88 Bilder nachgetragen.",
+    "Migration abgeschlossen."
+  ],
+  "legacyApiTotal": 88,
+  "legacyMedia": [
+    200,
+    200
+  ],
+  "bootstrapWithExistingAccounts": 1
+}

@@ -46,6 +46,9 @@ ADOPTION = {
                       "Uploads und Unterschrift ziehen mit; Eltern-Zugangslinks bleiben gültig.",
     "sl-journal": "Verschlüsselte Datenbank wird unverändert übernommen; der Original-Datenbankschlüssel "
                   "kommt als Secret mit. Passwort und Authenticator bleiben, Sitzungen und App-Geräte nicht.",
+    "bildergalerie": "Altdatenbank wird nach Strukturprüfung übernommen (IDs, Dateinamen und Konten bleiben); "
+                     "Originale, Anzeige- und Vorschaubilder ziehen mit und werden per SHA-256 geprüft; "
+                     "alle melden sich neu an.",
 }
 
 
@@ -136,6 +139,38 @@ def sqlite_counts(service, app_id, volume, relative):
     return json.loads(output or "{}")
 
 
+CHECKSUM_SCRIPT = (
+    "import hashlib,json,os,sys\n"
+    "files=json.load(open('/manifest.json'))\n"
+    "missing,different=[],[]\n"
+    "for name,expected in sorted(files.items()):\n"
+    "    path=os.path.normpath(os.path.join('/data',name))\n"
+    "    if not path.startswith('/data/') or not os.path.isfile(path):\n"
+    "        missing.append(name);continue\n"
+    "    h=hashlib.sha256()\n"
+    "    with open(path,'rb') as f:\n"
+    "        for b in iter(lambda:f.read(1<<20),b''):h.update(b)\n"
+    "    if h.hexdigest()!=expected:different.append(name)\n"
+    "print(json.dumps({'checked':len(files),'missing':missing[:20],'different':different[:20],"
+    "'missingCount':len(missing),'differentCount':len(different)}))\n")
+
+
+def verify_checksums(service, app_id, info, work):
+    """Compare every file recorded with SHA-256 in the export against the imported volume."""
+    from .backups import APP_UID, HELPER
+    results = {}
+    for volume, files in info.get("checksums", {}).items():
+        manifest = Path(work) / f"checksums-{volume}.json"
+        manifest.write_text(json.dumps(files))
+        os.chmod(manifest, 0o644)
+        output = service.stack.command([service.stack.docker, "run", "--rm", "--network", "none", "--read-only",
+                                        "--user", APP_UID, "--cap-drop", "ALL",
+                                        "-v", f"sp-{app_id}_{volume}:/data:ro", "-v", f"{manifest}:/manifest.json:ro",
+                                        HELPER, "python", "-c", CHECKSUM_SCRIPT], timeout=7200)
+        results[volume] = json.loads(output or "{}")
+    return results
+
+
 def run_import(platform, app_id, archive, confirm=False):
     if app_id not in platform.stack.apps:
         raise StateError("App is not installed on this server")
@@ -158,7 +193,12 @@ def run_import(platform, app_id, archive, confirm=False):
         facts = restore_directory(service, app_id, unpacked, legacy=True)
         summary["result"] = facts
         summary["countDifferences"] = compare_counts(platform, app_id, info, facts)
-        summary["mode"] = "Übernommen" if not summary["countDifferences"] else "Übernommen mit Abweichungen"
+        deviations = bool(summary["countDifferences"])
+        if info.get("checksums"):
+            summary["checksums"] = verify_checksums(service, app_id, info, work)
+            deviations |= any(r.get("missingCount") or r.get("differentCount") or r.get("checked") is None
+                              for r in summary["checksums"].values())
+        summary["mode"] = "Übernommen" if not deviations else "Übernommen mit Abweichungen"
         return summary
     finally:
         shutil.rmtree(work, ignore_errors=True)

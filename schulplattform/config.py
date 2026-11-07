@@ -20,8 +20,12 @@ from .terminal import open_tty
 SCHEMA = Path(__file__).resolve().parents[1] / "schemas/platform-config-v1.schema.json"
 DEFAULT_PATH = Path("/etc/schulplattform/platform.toml")
 DEFAULT_NETWORK_BASE = "10.231.0.0/16"
-# Apps that may fetch images from an operator-chosen external gallery (server side).
+# Apps that fetch images from a gallery (server side). Absent = the platform's own bildergalerie
+# when it is enabled; "" = off; otherwise the given https origin (e.g. an external gallery).
 GALLERY_APPS = ("grundschultafel",)
+# Apps that fetch word lists, pictures and recordings from a Grundschul-Wörterbuch (server side).
+# Absent = the platform's own gswb when it is enabled; "" = off; otherwise the given https origin.
+WOERTERBUCH_APPS = ("grundschultafel",)
 
 
 class ConfigError(ValueError):
@@ -44,6 +48,10 @@ def validate(data):
         seen[entry["hostname"]] = app
         if "gallery_origin" in entry and app not in GALLERY_APPS:
             raise ConfigError(f"gallery_origin is only supported for {', '.join(GALLERY_APPS)}")
+        if "public" in entry and app != "bildergalerie":
+            raise ConfigError("public is only supported for bildergalerie")
+        if "woerterbuch_origin" in entry and app not in WOERTERBUCH_APPS:
+            raise ConfigError(f"woerterbuch_origin is only supported for {', '.join(WOERTERBUCH_APPS)}")
     if not any(entry["enabled"] for entry in data["apps"].values()):
         raise ConfigError("At least one app must be enabled")
     ipv4 = ipaddress.IPv4Address(platform["public_ipv4"])
@@ -144,7 +152,8 @@ def write(data, path=DEFAULT_PATH):
 SUGGESTED_PREFIX = {"gswb": "woerterbuch", "schulwissen": "wissen", "zackboing": "quiz",
                     "schulhelfer": "helfer", "losverkauf": "lose", "grundschultafel": "tafel",
                     "fahrradausbildung": "rad", "leseflux": "lesen", "kompetenz-manager": "kompetenz",
-                    "abgen": "blaetter", "fundkiste": "fundkiste", "schuleva": "befragung", "schulkasse": "kasse", "schulanmeldung": "anmeldung", "sl-journal": "journal"}
+                    "abgen": "blaetter", "fundkiste": "fundkiste", "schuleva": "befragung", "schulkasse": "kasse", "schulanmeldung": "anmeldung", "sl-journal": "journal",
+                    "bildergalerie": "bilder"}
 
 
 def wizard(path=DEFAULT_PATH, existing=None, tty_path="/dev/tty"):
@@ -186,13 +195,31 @@ def wizard(path=DEFAULT_PATH, existing=None, tty_path="/dev/tty"):
             suggestion = previous.get("hostname") or (f"{SUGGESTED_PREFIX[app]}.{parent}" if parent else None)
             data["apps"][app] = {"enabled": enabled,
                                  "hostname": ask(f"{app}: Hostname", suggestion, r"[a-z0-9.-]+")}
+            if app == "bildergalerie" and enabled:
+                public = ask(f"{app}: ohne Anmeldung durchsuchbar? (j/n)",
+                             "j" if previous.get("public", True) else "n", r"[jn]") == "j"
+                if not public:
+                    data["apps"][app]["public"] = False
             if app in GALLERY_APPS and enabled:
-                gallery = ask(f"{app}: Bildergalerie (https://…, leer = aus)", previous.get("gallery_origin", ""),
-                              r"|https://[a-z0-9.-]+")
-                if gallery:
+                current = previous.get("gallery_origin")
+                gallery = ask(f"{app}: Bildergalerie (https://…; leer = eigene Bildergalerie, falls installiert; "
+                              "aus = keine)", "aus" if current == "" else (current or ""), r"|aus|https://[a-z0-9.-]+")
+                if gallery == "aus":
+                    data["apps"][app]["gallery_origin"] = ""
+                elif gallery:
                     data["apps"][app]["gallery_origin"] = gallery
             elif "gallery_origin" in previous:
                 data["apps"][app]["gallery_origin"] = previous["gallery_origin"]
+            if app in WOERTERBUCH_APPS and enabled:
+                current = previous.get("woerterbuch_origin")
+                answer = ask(f"{app}: Wörterbuch (https://…; leer = eigenes gswb, falls installiert; aus = keins)",
+                             "aus" if current == "" else (current or ""), r"|aus|https://[a-z0-9.-]+")
+                if answer == "aus":
+                    data["apps"][app]["woerterbuch_origin"] = ""
+                elif answer:
+                    data["apps"][app]["woerterbuch_origin"] = answer
+            elif "woerterbuch_origin" in previous:
+                data["apps"][app]["woerterbuch_origin"] = previous["woerterbuch_origin"]
         mode = ask("Mailversand (relay = über Ihren SMTP-Anbieter, none = keiner)",
                    existing.get("smtp", {}).get("mode", "relay"), r"relay|none")
         smtp = {"mode": mode}

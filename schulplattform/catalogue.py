@@ -15,7 +15,7 @@ REGISTRY = "ghcr.io/bingenberger"
 
 APP_IDS = ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel",
            "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen", "fundkiste", "schuleva", "schulkasse",
-           "schulanmeldung", "sl-journal")
+           "schulanmeldung", "sl-journal", "bildergalerie")
 
 # Published image name -> Dockerfile target (None = default/last stage).
 RELEASE_IMAGES = {
@@ -34,6 +34,7 @@ RELEASE_IMAGES = {
     "schulkasse": (("schulkasse", "final"),),
     "schulanmeldung": (("schulanmeldung", "final"),),
     "sl-journal": (("sl-journal", "final"),),
+    "bildergalerie": (("bildergalerie", "final"),),
 }
 
 # Platform infrastructure images (pinned upstream digests, already used in the pilot).
@@ -57,7 +58,7 @@ DOMAIN_VARIABLES = {"gswb": (), "schulwissen": ("SW_ALLOWED_HOSTS", "SW_OEFFENTL
                     "kompetenz-manager": ("APP_BASE_URL",), "abgen": ("WEB_ORIGIN",),
                     "fundkiste": ("FUNDKISTE_BASE_URL",), "schuleva": ("BASE_URL",),
                     "schulkasse": (), "schulanmeldung": ("SL_OFFICE_PUBLIC_BASE_URL",),
-                    "sl-journal": ("JOURNAL_PUBLIC_URL",)}
+                    "sl-journal": ("JOURNAL_PUBLIC_URL",), "bildergalerie": ("BASE_URL",)}
 
 
 @dataclass(frozen=True)
@@ -266,7 +267,9 @@ secrets:
         images={"app": "grundschultafel"},
         compose_env={"TAFEL_SECRET_FILE": "tafel-key"},
         # tafel-youtube-key: empty until './install.sh youtube-key'; search stays off while empty.
-        secrets=(("tafel-key", "random:tafel-key"), ("tafel-youtube-key", "empty")),
+        # gallery-api-token: shared with bildergalerie; sent only to the platform's own gallery.
+        secrets=(("tafel-key", "random:tafel-key"), ("tafel-youtube-key", "empty"),
+                 ("gallery-api-token", "random:gallery-api-token")),
         migrations=(("node", "scripts/migrate.mjs"),),
         checks=(Check("GET", "/api/admin/users", 401),),
         setup=("exec", ("node", "scripts/bootstrap.mjs", "{name}")),
@@ -278,10 +281,13 @@ secrets:
     environment:
       BASE_URL: {origin}
       GALLERY_ORIGIN: {gallery_origin}
+      GALLERY_TOKEN_FILE: {gallery_token_file}
+      WOERTERBUCH_ORIGIN: {woerterbuch_origin}
       TAFEL_YOUTUBE_ENABLED: {youtube_enabled}
       YOUTUBE_API_KEY_FILE: /run/secrets/youtube-key
     volumes:
       - {runtime}/tafel-youtube-key:/run/secrets/youtube-key:ro
+      - {runtime}/gallery-api-token:/run/secrets/gallery-token:ro
     networks:
       default: {{}}
       proxy:
@@ -544,6 +550,34 @@ secrets:
     restart: unless-stopped
     environment:
       JOURNAL_PUBLIC_URL: {origin}
+""" + _PROXY_NETWORK),
+    App("bildergalerie", 16, 8000, "/health/ready", ("app",),
+        images={"app": "bildergalerie"},
+        compose_env={"GALLERY_SECRET_FILE": "gallery-key"},
+        # gallery-ai-key: empty until './install.sh gallery-ai-key FILE'; AI metadata stays off while empty.
+        secrets=(("gallery-key", "random:gallery-key"), ("gallery-api-token", "random:gallery-api-token"),
+                 ("gallery-ai-key", "empty")),
+        migrations=(("python", "migrate.py"),),
+        checks=(Check("GET", "/upload", 302), Check("GET", "/license", 200),
+                Check("GET", "/media/display/..%2F..%2Fdb%2Fgallery.db", 404)),
+        setup=("exec", ("python", "bootstrap.py", "{name}")),
+        override="""services:
+  app:
+    image: {image_app}
+    restart: unless-stopped
+    ports: !reset []
+    environment:
+      BASE_URL: {origin}
+      GALLERY_PUBLIC: {gallery_public}
+      GALLERY_API_TOKEN_FILE: /run/secrets/api-token
+      GALLERY_AI_KEY_FILE: {gallery_ai_key_file}
+    volumes:
+      - {runtime}/gallery-api-token:/run/secrets/api-token:ro
+      - {runtime}/gallery-ai-key:/run/secrets/ai-key:ro
+    networks:
+      default: {{}}
+      proxy:
+        aliases: [bildergalerie]
 """ + _PROXY_NETWORK),
 ]}
 

@@ -73,6 +73,9 @@ FACTS = {
     "sl-journal": dict(database=("sqlite", "sl-journal", "sl-journal"), persistence=[("data", "/data")],
                        domain=["JOURNAL_PUBLIC_URL"], memory=1536, cpus=2.0, workers=1, slots=1,
                        live="/health/live"),
+    "bildergalerie": dict(database=("sqlite", "bildergalerie", "bildergalerie"),
+                          persistence=[("db", "/data/db"), ("media", "/data/media")], domain=["BASE_URL"],
+                          memory=512, cpus=1.0, workers=1, slots=0, live="/health/live"),
 }
 COMPOSE_EXTRA = {"fahrradausbildung": ["docker/init-postgres.sh"], "leseflux": ["docker/init-postgres.sh"],
                  "abgen": ["docker/init-postgres.sh"]}

@@ -94,6 +94,15 @@ APPS = {
                    # separately as a secret. The SQLCipher file is copied as a file (service stopped).
                    "env_sources": {"data": (("dir", "JOURNAL_INSTANCE", "instance", "", ("master.key", "backups")),)},
                    "secret_files": (("JOURNAL_KEY_FILE", "{JOURNAL_INSTANCE}/master.key", "sl-journal/master-key"),)},
+    "bildergalerie": {"kind": "native", "default": "/opt/bildergalerie", "volumes": {"db": None, "media": None},
+                      "unit": "bildergalerie.service", "envfile": ".env",
+                      # Flask-SQLAlchemy 3: sqlite:///gallery.db lies in instance/; the images move from
+                      # static/ into the media volume. Every media file travels with its SHA-256.
+                      "env_sources": {"db": (("sqlite", "DATABASE_URL", "instance/gallery.db", "gallery.db"),),
+                                      "media": (("dir", "", "static/uploads", "uploads"),
+                                                ("dir", "", "static/display", "display"),
+                                                ("dir", "", "static/thumbnails", "thumbnails"))},
+                      "checksums": ("media",)},
     "schulwissen": {"kind": "compose", "db": ("db", "schulwissen", "schulwissen"), "engine": "postgres16",
                     "volumes": {"medien": ("app", "/medien")}},
     "fahrradausbildung": {"kind": "compose", "db": ("db", "fahrrad", "fahrrad"), "engine": "postgres16",
@@ -118,6 +127,14 @@ def run(argv, **kwargs):
         return subprocess.run(argv, capture_output=True, text=True, timeout=600, **kwargs)
     except FileNotFoundError:
         return subprocess.CompletedProcess(argv, 127, "", f"{argv[0]}: not installed")
+
+
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for block in iter(lambda: stream.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def git_commit(path):
@@ -699,6 +716,10 @@ def export(app, key_file, out_dir, path=None, project=None):
                                 tar.add(item, arcname=arcname, recursive=False)
                                 added.add(arcname)
                                 files += 1
+                                if volume in spec.get("checksums", ()):
+                                    # verified file by file after the import (./install.sh import)
+                                    info.setdefault("checksums", {}).setdefault(volume, {})[arcname[2:]] = \
+                                        sha256_file(item)
                         elif kind == "file" and path.is_file():
                             tar.add(path, arcname=f"./{target}", recursive=False)
                         elif kind == "optional-dir":
@@ -768,7 +789,7 @@ def export(app, key_file, out_dir, path=None, project=None):
         gpg_encrypt(plain, archive, key_file)
         plain.unlink()
         os.chmod(archive, 0o600)
-        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        digest = sha256_file(archive)  # streamed: archives with many images are large
         summary = {"app": app, "archive": str(archive), "sha256": digest, "volumes": info["volumes"],
                    "sqliteFiles": len(info["sqlite"]), "engine": info["engine"],
                    "tables": sum(len(v) for v in info["counts"].values())}

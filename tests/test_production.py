@@ -297,7 +297,7 @@ def test_upgrade_adds_new_apps_to_an_existing_installation(tmp_path):
     from schulplattform.production import Platform
     old_apps = APP_IDS[:10]
     new_apps = APP_IDS[10:]
-    assert set(new_apps) == {"fundkiste", "schuleva", "schulkasse", "schulanmeldung", "sl-journal"}
+    assert set(new_apps) == {"fundkiste", "schuleva", "schulkasse", "schulanmeldung", "sl-journal", "bildergalerie"}
     old = sample()
     old["apps"] = {app: old["apps"][app] for app in old_apps}
     path = tmp_path / "platform.toml"
@@ -398,7 +398,7 @@ def test_confirmed_import_counts_as_first_access(tmp_path, monkeypatch, capsys):
 
 
 def test_tafel_gallery_and_video_search_stay_off_until_configured(tmp_path):
-    layout, stack, domains = render(tmp_path, sample())
+    layout, stack, domains = render(tmp_path, sample(**{"apps.bildergalerie.enabled": False}))
     override = yaml.load((layout.generated / "grundschultafel.yml").read_text(), Loader=_TagLoader)
     app = override["services"]["app"]
     assert app["environment"]["GALLERY_ORIGIN"] == "" and app["environment"]["TAFEL_YOUTUBE_ENABLED"] == "0"
@@ -442,3 +442,166 @@ def test_gallery_origin_survives_toml_roundtrip(tmp_path):
     path = tmp_path / "platform.toml"
     cfg.write(data, path)
     assert cfg.load(path)["apps"]["grundschultafel"]["gallery_origin"] == "https://pix.example.org"
+
+
+def _tafel_env(tmp_path, data):
+    layout, _, _ = render(tmp_path, data)
+    override = yaml.load((layout.generated / "grundschultafel.yml").read_text(), Loader=_TagLoader)
+    return override["services"]["app"]["environment"], layout
+
+
+def test_tafel_uses_the_platforms_own_woerterbuch_by_default(tmp_path):
+    env, layout = _tafel_env(tmp_path, sample())
+    assert env["WOERTERBUCH_ORIGIN"] == "https://gswb.schule.example"
+    assert "WOERTERBUCH_ORIGIN" not in (layout.generated / "gswb.yml").read_text()
+    # No shared network: the board reaches gswb over its public origin only.
+    networks = yaml.load((layout.generated / "grundschultafel.yml").read_text(), Loader=_TagLoader)["networks"]
+    assert [n["name"] for n in networks.values()] == ["sp-grundschultafel-proxy"]
+
+
+def test_woerterbuch_stays_off_without_gswb(tmp_path):
+    env, _ = _tafel_env(tmp_path / "a", sample(**{"apps.gswb.enabled": False}))
+    assert env["WOERTERBUCH_ORIGIN"] == ""
+
+
+@pytest.mark.parametrize("value,expected", [("", ""), ("https://woerterbuch.example.org", "https://woerterbuch.example.org")])
+def test_explicit_woerterbuch_origin_overrides_the_default(tmp_path, value, expected):
+    data = sample(**{"apps.grundschultafel.woerterbuch_origin": value})
+    cfg.validate(data)
+    env, _ = _tafel_env(tmp_path, data)
+    assert env["WOERTERBUCH_ORIGIN"] == expected
+    path = tmp_path / "platform.toml"
+    cfg.write(data, path)
+    assert cfg.load(path)["apps"]["grundschultafel"]["woerterbuch_origin"] == value
+
+
+@pytest.mark.parametrize("app,origin,message", [
+    ("grundschultafel", "http://woerterbuch.example.org", "woerterbuch_origin"),
+    ("grundschultafel", "https://woerterbuch.example.org/api", "woerterbuch_origin"),
+    ("grundschultafel", "https://user@woerterbuch.example.org", "woerterbuch_origin"),
+    ("schulhelfer", "https://woerterbuch.example.org", "only supported"),
+])
+def test_woerterbuch_origin_is_validated(app, origin, message):
+    with pytest.raises(cfg.ConfigError, match=message):
+        cfg.validate(sample(**{f"apps.{app}.woerterbuch_origin": origin}))
+
+
+def _run_wizard(tmp_path, existing, answers):
+    import os, pty, threading
+    master, slave = pty.openpty()
+    out = []
+    reader = threading.Thread(target=lambda: _drain(master, out), daemon=True)
+    reader.start()
+    os.write(master, "".join(a + "\n" for a in answers).encode())
+    try:
+        return cfg.wizard(tmp_path / "platform.toml", existing, os.ttyname(slave))
+    finally:
+        os.close(slave)
+
+
+def _drain(fd, out):
+    import os
+    try:
+        while chunk := os.read(fd, 4096):
+            out.append(chunk)
+    except OSError:
+        pass
+
+
+@pytest.mark.parametrize("stored,typed,expected", [
+    (None, "", None),                                         # default: own gswb
+    ("", "", ""),                                             # "aus" is kept
+    (None, "aus", ""),
+    (None, "https://woerterbuch.example.org", "https://woerterbuch.example.org"),
+])
+def test_wizard_asks_for_the_woerterbuch(tmp_path, stored, typed, expected):
+    existing = sample()
+    if stored is not None:
+        existing["apps"]["grundschultafel"]["woerterbuch_origin"] = stored
+    # 6 platform questions, then per app: install + hostname (+ gallery, woerterbuch for the board)
+    answers = [""] * 6
+    for app in APP_IDS:
+        answers += ["", ""]
+        if app == "grundschultafel":
+            answers += ["", typed]
+    answers += [""] * 12
+    data = _run_wizard(tmp_path, existing, answers)
+    assert data["apps"]["grundschultafel"].get("woerterbuch_origin") == expected
+
+
+def test_tafel_uses_the_platforms_own_gallery_with_token(tmp_path):
+    env, layout = _tafel_env(tmp_path, sample())
+    assert env["GALLERY_ORIGIN"] == "https://bildergalerie.schule.example"
+    assert env["GALLERY_TOKEN_FILE"] == "/run/secrets/gallery-token"
+    tafel = yaml.load((layout.generated / "grundschultafel.yml").read_text(), Loader=_TagLoader)["services"]["app"]
+    gallery = yaml.load((layout.generated / "bildergalerie.yml").read_text(), Loader=_TagLoader)["services"]["app"]
+    token = layout.runtime / "gallery-api-token"
+    assert f"{token}:/run/secrets/gallery-token:ro" in tafel["volumes"]
+    assert f"{token}:/run/secrets/api-token:ro" in gallery["volumes"]
+    assert len(token.read_text()) >= 32 and oct(token.stat().st_mode & 0o777) == "0o444"
+    assert gallery["environment"]["GALLERY_PUBLIC"] == "true"
+    assert gallery["environment"]["GALLERY_AI_KEY_FILE"] == ""                    # AI metadata off by default
+    assert (layout.runtime / "gallery-ai-key").read_text() == ""
+    networks = yaml.load((layout.generated / "bildergalerie.yml").read_text(), Loader=_TagLoader)["networks"]
+    assert [n["name"] for n in networks.values()] == ["sp-bildergalerie-proxy"]
+
+
+def test_external_gallery_never_receives_the_platform_token(tmp_path):
+    env, _ = _tafel_env(tmp_path, sample(**{"apps.grundschultafel.gallery_origin": "https://pix.example.org"}))
+    assert env["GALLERY_ORIGIN"] == "https://pix.example.org" and env["GALLERY_TOKEN_FILE"] == ""
+
+
+def test_own_gallery_named_explicitly_still_gets_the_token(tmp_path):
+    data = sample(**{"apps.grundschultafel.gallery_origin": "https://bildergalerie.schule.example"})
+    env, _ = _tafel_env(tmp_path, data)
+    assert env["GALLERY_TOKEN_FILE"] == "/run/secrets/gallery-token"
+
+
+def test_gallery_can_be_switched_off_for_the_board(tmp_path):
+    data = sample(**{"apps.grundschultafel.gallery_origin": ""})
+    cfg.validate(data)
+    env, _ = _tafel_env(tmp_path, data)
+    assert env["GALLERY_ORIGIN"] == "" and env["GALLERY_TOKEN_FILE"] == ""
+
+
+def test_private_gallery_and_dashboard_tile(tmp_path):
+    data = sample(**{"apps.bildergalerie.public": False})
+    cfg.validate(data)
+    layout, _, _ = render(tmp_path, data)
+    gallery = yaml.load((layout.generated / "bildergalerie.yml").read_text(), Loader=_TagLoader)["services"]["app"]
+    assert gallery["environment"]["GALLERY_PUBLIC"] == "false"
+    with pytest.raises(cfg.ConfigError, match="only supported for bildergalerie"):
+        cfg.validate(sample(**{"apps.gswb.public": True}))
+
+
+def test_gallery_ai_key_switches_metadata_on(tmp_path):
+    layout, stack, domains = render(tmp_path, sample())
+    from schulplattform.appsetup import _replace_projection
+    _replace_projection(layout.runtime / "gallery-ai-key", '{"type": "service_account", "project_id": "p"}')
+    stack.render(domains)
+    gallery = yaml.load((layout.generated / "bildergalerie.yml").read_text(), Loader=_TagLoader)["services"]["app"]
+    assert gallery["environment"]["GALLERY_AI_KEY_FILE"] == "/run/secrets/ai-key"
+
+
+def test_gallery_ai_key_command_checks_the_file(tmp_path):
+    import json as _json
+    from types import SimpleNamespace
+    from schulplattform.appsetup import set_gallery_ai_key
+    from schulplattform.state import StateError
+    layout, stack, domains = render(tmp_path / "p", sample())
+    calls = []
+    stack.compose = lambda *argv, **kw: calls.append(argv)
+    platform = SimpleNamespace(stack=stack, layout=layout, current_domains=lambda: domains)
+    bad = tmp_path / "bad.json"
+    for content in ("kein json", _json.dumps({"type": "authorized_user"}), _json.dumps([1])):
+        bad.write_text(content)
+        with pytest.raises(StateError):
+            set_gallery_ai_key(platform, bad)
+    assert (layout.runtime / "gallery-ai-key").read_text() == "" and not calls
+    good = tmp_path / "key.json"
+    good.write_text(_json.dumps({"type": "service_account", "project_id": "p", "private_key": "-----BEGIN-----"}))
+    assert set_gallery_ai_key(platform, good) is True
+    assert _json.loads((layout.runtime / "gallery-ai-key").read_text())["project_id"] == "p"
+    assert calls[-1][0] == "bildergalerie" and "--force-recreate" in calls[-1]
+    assert set_gallery_ai_key(platform, None) is False
+    assert (layout.runtime / "gallery-ai-key").read_text() == ""

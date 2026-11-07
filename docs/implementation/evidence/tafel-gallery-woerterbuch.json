@@ -1,0 +1,101 @@
+{
+  "woerterbuchAnonymous": 401,
+  "woerterbuch": {
+    "filters": {
+      "categories": 12,
+      "partsOfSpeech": 11
+    },
+    "wordsTotal": 1284,
+    "returned": 10,
+    "allTwoSyllables": true,
+    "allWithImage": true,
+    "image": {
+      "status": 200,
+      "type": "image/webp"
+    },
+    "audio": {
+      "status": 200,
+      "type": "audio/mpeg"
+    },
+    "traversal": 400
+  },
+  "galleryAnonymous": 401,
+  "gallery": {
+    "search": {
+      "total": 10,
+      "items": 10,
+      "fields": [
+        "description",
+        "displayUrl",
+        "height",
+        "id",
+        "license",
+        "style",
+        "tags",
+        "thumbnailUrl",
+        "width"
+      ]
+    },
+    "paging": {
+      "page": 2,
+      "totalPages": 8,
+      "items": 12
+    },
+    "tags": [
+      {
+        "name": "fahrrad",
+        "count": 1
+      },
+      {
+        "name": "farbe",
+        "count": 1
+      },
+      {
+        "name": "farn",
+        "count": 1
+      }
+    ],
+    "thumbnail": {
+      "status": 200,
+      "type": "image/webp"
+    },
+    "proxyRejects": {
+      "/static/display/x.webp": 400,
+      "/media/display/../../db/gallery.db": 400,
+      "/media/uploads/x.png": 400,
+      "http://evil.example/media/display/x.webp": 400
+    }
+  },
+  "galleryDirectWithoutToken": [
+    "401",
+    "401"
+  ],
+  "browser": {
+    "mode": "enabled",
+    "dictionaryButton": 1,
+    "dictionaryOption": 1,
+    "galleryItems": 36,
+    "licenseShown": 1,
+    "thumbnailsBroken": 0,
+    "firstTag": "farbe",
+    "filteredItems": 1,
+    "canvasObjects": true,
+    "problems": []
+  },
+  "notebook": {
+    "containsDataImage": true,
+    "containsGalleryUrl": false
+  },
+  "disabled": {
+    "woerterbuch": 503,
+    "gallery": 503,
+    "ready": 200
+  },
+  "browserDisabled": {
+    "mode": "disabled",
+    "dictionaryButton": 0,
+    "problems": [
+      "503 /api/woerterbuch/filters"
+    ]
+  }
+}

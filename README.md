@@ -27,6 +27,7 @@ Jede App bleibt ein eigenes Repository mit eigener `docker-compose.yml` und läs
 | schulkasse | Klassen- und Schulkassen | [schulkasse](https://github.com/Bingenberger/schulkasse) | `ghcr.io/bingenberger/schulkasse` |
 | schulanmeldung | Schulanmeldung und Sekretariat (SL-Office) | privat | `ghcr.io/bingenberger/schulanmeldung` |
 | sl-journal | Schulleitungsjournal (verschlüsselt) | [SL-Journal](https://github.com/Bingenberger/SL-Journal) | `ghcr.io/bingenberger/sl-journal` |
+| bildergalerie | KI-Bilder (CC0) mit Suche und JSON-API für die Tafel | [bildergalerie](https://github.com/Bingenberger/bildergalerie) | `ghcr.io/bingenberger/bildergalerie` |
 
 Infrastruktur auf dem Server:
 - Caddy als Proxy mit ACME
@@ -108,7 +109,8 @@ Ausführliche Checkliste: [docs/betrieb/bereitstellung.md](docs/betrieb/bereitst
 | `./install.sh restore-probe APP` | Sicherung isoliert prüfen |
 | `./install.sh restore APP ARCHIV --confirm-replace` | App-Daten wiederherstellen |
 | `./install.sh restore-platform ARCHIV --confirm-replace` | Server nach Totalausfall neu aufbauen (vor `apply`) |
-| `./install.sh youtube-key` | YouTube-Suche der Tafel ein-/ausschalten ([Galerie und YouTube](docs/betrieb/bereitstellung.md#bildergalerie-und-youtube-suche-grundschultafel)) |
+| `./install.sh youtube-key` | YouTube-Suche der Tafel ein-/ausschalten ([Galerie, Wörterbuch und YouTube](docs/betrieb/bereitstellung.md#bildergalerie-wörterbuch-und-youtube-suche-grundschultafel)) |
+| `./install.sh gallery-ai-key DATEI\|--off` | KI-Metadaten der Bildergalerie ein-/ausschalten ([Bildergalerie](docs/betrieb/bereitstellung.md#bildergalerie-app-bildergalerie)) |
 
 Das Dashboard unter der Verwaltungsdomain zeigt dasselbe und erlaubt Domains, Mail, Sicherungen und Lebenszyklus (ausblenden, stoppen, deinstallieren, Daten löschen) über fest definierte Aktionen.
 
@@ -131,7 +133,7 @@ Runbook: [docs/betrieb/umzug.md](docs/betrieb/umzug.md)
 
 Release 0.1.0 ist in lokalen Ubuntu-24.04-VMs mit Test-CA und Test-DNS abgenommen. 0.1.1 korrigiert nur die interaktiven Konsolenabfragen (`configure`, `admin-setup`, `app-setup`, `smtp-password`); App-Images sind unverändert: [docs/implementation/nachauftrag-status.md](docs/implementation/nachauftrag-status.md).
 
-0.2.0 (5. November 2026) ergänzt fünf Apps: fundkiste, schuleva, schulkasse, schulanmeldung und sl-journal. Die zehn bisherigen App-Images sind unverändert. Die neuen Apps sind lokal mit Docker Compose und der Plattform-Konfiguration geprüft, aber noch nicht auf dem Server. Aktualisieren: [docs/betrieb/bereitstellung.md](docs/betrieb/bereitstellung.md#aktualisieren-auf-ein-neues-release). 0.2.1 korrigiert die Admin-Anmeldung von losverkauf (403 im Browser, losverkauf 0.1.1). 0.2.2 bringt schulhelfer 0.1.1, das die mit `create_all` angelegte Altdatenbank nach Strukturprüfung übernimmt. 0.2.3 bringt grundschultafel 0.1.1: Bildergalerie und YouTube-Suche lassen sich einschalten ([Anleitung](docs/betrieb/bereitstellung.md#bildergalerie-und-youtube-suche-grundschultafel)); außerdem Korrekturen an Sicherung und Altserver-Export aus den Umzügen. 0.2.5 bringt grundschultafel 0.1.2: eingebettete YouTube-Videos zeigen nicht mehr „Fehler 153“.
+0.2.0 (5. November 2026) ergänzt fünf Apps: fundkiste, schuleva, schulkasse, schulanmeldung und sl-journal. Die zehn bisherigen App-Images sind unverändert. Die neuen Apps sind lokal mit Docker Compose und der Plattform-Konfiguration geprüft, aber noch nicht auf dem Server. Aktualisieren: [docs/betrieb/bereitstellung.md](docs/betrieb/bereitstellung.md#aktualisieren-auf-ein-neues-release). 0.2.1 korrigiert die Admin-Anmeldung von losverkauf (403 im Browser, losverkauf 0.1.1). 0.2.2 bringt schulhelfer 0.1.1, das die mit `create_all` angelegte Altdatenbank nach Strukturprüfung übernimmt. 0.2.3 bringt grundschultafel 0.1.1: Bildergalerie und YouTube-Suche lassen sich einschalten ([Anleitung](docs/betrieb/bereitstellung.md#bildergalerie-wörterbuch-und-youtube-suche-grundschultafel)); außerdem Korrekturen an Sicherung und Altserver-Export aus den Umzügen. 0.2.4 bringt grundschultafel 0.1.2: eingebettete YouTube-Videos zeigen nicht mehr „Fehler 153“. 0.2.5 bringt grundschultafel 0.1.3 (Login-Schutz je Gerät, robusteres Speichern) und schulhelfer 0.1.2 (neue Optik, keine CDN-Abrufe).
 
 Offen sind:
 - die Abnahme auf dem echten Server (Let's Encrypt, Erreichbarkeit, SMTP-Anbieter, Lastmessungen)
