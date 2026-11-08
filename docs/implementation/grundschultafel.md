@@ -185,3 +185,24 @@ Nachweise (lokal):
 | Verbund Tafel + private Galerie (Token, 88 Bilder) + gswb (5.814 Wörter) als Container, Browser per Playwright: `tafel-gallery-woerterbuch.json` | Wörterbuch: Filter, 2-Silben-Liste mit Bild, Bild `image/webp`, Ton `audio/mpeg`, anonym 401, Traversal 400; im Browser „Aus dem Wörterbuch …“ sichtbar und Liste geladen. Galerie: Suche, Blättern, Schlagworte, Vorschaubilder (36/36 geladen), Lizenzhinweis, Filter per Schlagwort; Proxy weist `/static/…`, `../`, `/media/uploads/…` und fremde Hosts ab; Galerie direkt ohne/mit falschem Token 401. Bild eingefügt, Autosave: Heft enthält `data:image/…`, keine Galerie-URL. Ohne Galerie/Wörterbuch: 503, Knopf fehlt, Readiness 200 |
 
 Nicht geprüft: YouTube-Suche mit echtem Schlüssel (unverändert), Abnahme auf dem echten Server.
+
+## Release 0.1.5 (8. November 2026)
+
+Übernimmt zwei Commits vom Nutzer (`454ecd4`, `5f4aa76`):
+- Eigenes Favicon, Apple-Icon und der Seitentitel „Grundschultafel“. Die Icons sind auch auf der Login-Seite ohne Anmeldung erreichbar (Middleware).
+- Journal: Die Bildauswahl zeigt die Karten in Ordnern, mit Kartenanzahl, Suche über alles und Favoriten je Lehrkraft (`/api/journal/favorites`, gespeichert in `settings/journal-favorites.json`). Mitgeliefert werden 242 Karten als WebP (768 px, q80, zusammen 13 MB). Ältere Hefte verweisen auf `NAME.png`. Gibt es nur die WebP-Datei, liefert der Asset-Endpunkt diese aus.
+
+Eigener Fix `74d0cf7`: Das Asset-Verzeichnis ist ein Volume, und `.dockerignore` schloss `public/assets` aus. Die Karten wären deshalb nie auf dem Server angekommen. Jetzt landen die WebP-Karten im Image unter `/app/seed/journal`. `scripts/migrate.mjs` läuft bei jedem `apply` und kopiert fehlende Karten nach `TAFEL_ASSET_DIR/journal`. Vorhandene Dateien, ob importiert oder von der Schule selbst ergänzt, bleiben unangetastet. Auch die `tests`-Stage bekommt die Karten, weil `test-journal.cjs` sie liest.
+
+Der Patch `patches/grundschultafel/changes.patch` enthält die Karten binär und ist deshalb rund 20 MB groß.
+
+| Prüfung | Ergebnis |
+| --- | --- |
+| `test-journal.cjs`, `test-runtime.cjs`, `test-users.cjs` im `tests`-Image | alle bestanden |
+| `migrate.mjs` im Runtime-Image gegen leeres Volume mit vorhandener `DEUTSCH.webp` | 241 Karten ergänzt, vorhandene Datei unverändert, zweiter Lauf ändert nichts |
+| `prove_grundschultafel_standalone.py` mit `ghcr.io/bingenberger/grundschultafel:0.1.5` | alle bestanden |
+| GHCR-Image `seed/journal` | 242 Dateien, nur WebP, 13 MB |
+
+| VM-Update 0.3.0 → 0.3.1 (`evidence/grundschultafel-vm-0.3.1.log`) | 242 Karten ergänzt, Altdatei unverändert, Icons ohne Anmeldung 200 |
+
+Nicht geprüft: Bildauswahl und Favoriten im Browser, Abnahme auf dem echten Server.

@@ -1,0 +1,46 @@
+{
+  "app": "abgen",
+  "artifacts": [],
+  "images": {
+    "abgen": "ghcr.io/bingenberger/abgen:0.1.0@sha256:dc311a34b044d7cb00bc71ac7db6ad2ca442bf875ec27265706da04b2df814fa",
+    "abgen-pdf": "ghcr.io/bingenberger/abgen-pdf:0.1.0@sha256:d6418abaa3ab29fac5ad5cd9f96814523c38abd72ab62057bd8159db9812827c"
+  },
+  "inspection": {
+    "abgen": {
+      "architecture": "amd64",
+      "attestationPredicates": [
+        "https://slsa.dev/provenance/v1",
+        "https://spdx.dev/Document"
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "0e72023ebfbef3bede8c06de35ac5d7836e88829",
+        "org.opencontainers.image.source": "https://github.com/Bingenberger/abgen",
+        "org.opencontainers.image.version": "0.1.0"
+      },
+      "os": "linux",
+      "user": "10001:10001"
+    },
+    "abgen-pdf": {
+      "architecture": "amd64",
+      "attestationPredicates": [
+        "https://slsa.dev/provenance/v1",
+        "https://spdx.dev/Document"
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "0e72023ebfbef3bede8c06de35ac5d7836e88829",
+        "org.opencontainers.image.source": "https://github.com/Bingenberger/abgen",
+        "org.opencontainers.image.version": "0.1.0"
+      },
+      "os": "linux",
+      "user": "10001:10001"
+    }
+  },
+  "item": "amd64Build",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "0e72023ebfbef3bede8c06de35ac5d7836e88829",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "Published linux/amd64 image(s) with revision label, SBOM and provenance.",
+  "testedCommit": "0248358f54e78f6f7bdc00a7a5e93cd0e12cde90"
+}

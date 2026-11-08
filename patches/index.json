@@ -44,7 +44,7 @@
   {
     "app": "grundschultafel",
     "baseCommit": "496466cac7cc2b3e48a6acd2940ebc91029c145f",
-    "implementationCommit": "fe927dde82982b218b273237d38122891b4cc3ea",
+    "implementationCommit": "74d0cf7ba1968fe151f00c31beffd0244694156a",
     "patch": "patches/grundschultafel/changes.patch"
   },
   {
@@ -62,13 +62,13 @@
   {
     "app": "fundkiste",
     "baseCommit": "c93781b3eb22b1724ee96ae9a3b3a25bd7a25c81",
-    "implementationCommit": "4d90f2eba946f2d7be2993c754eca1dbaea19674",
+    "implementationCommit": "08d222d288a17a4c68280b91dc84e94311396608",
     "patch": "patches/fundkiste/changes.patch"
   },
   {
     "app": "schuleva",
     "baseCommit": "71c4917ad71880eec7f2cdb415453284e3b70ee5",
-    "implementationCommit": "a5c4608a8ccf0517fe0e7a719b093e0acff98375",
+    "implementationCommit": "69e5cc0b0707246176e6c9e4936a1df533187d6a",
     "patch": "patches/schuleva/changes.patch"
   },
   {
@@ -80,19 +80,19 @@
   {
     "app": "schulanmeldung",
     "baseCommit": "b6b6c3d98573a0131a401f04eafab48b61f9b42e",
-    "implementationCommit": "5dcc86a0d5323abbb3e62389ca2638f3deb973f4",
+    "implementationCommit": "28d9652a293e188a3dbecc320cc982c614f1cb48",
     "patch": "patches/schulanmeldung/changes.patch"
   },
   {
     "app": "sl-journal",
     "baseCommit": "9dd44a584c7b9a35e28c6a362f97c8c9babb4d98",
-    "implementationCommit": "424bd10cdf1dceaa21b03d5ce3979c2b6283c634",
+    "implementationCommit": "25e7090de33e0c701719be16d157fb110f1667eb",
     "patch": "patches/sl-journal/changes.patch"
   },
   {
     "app": "bildergalerie",
     "baseCommit": "f13c912b5c7e0e41cca161f870d1466abff04155",
-    "implementationCommit": "4b1fe55a259a2e0f0dd00c49839937fe8dfe02fc",
+    "implementationCommit": "3acd4a0388bc257e3ea662920b749935649c544e",
     "patch": "patches/bildergalerie/changes.patch"
   }
 ]

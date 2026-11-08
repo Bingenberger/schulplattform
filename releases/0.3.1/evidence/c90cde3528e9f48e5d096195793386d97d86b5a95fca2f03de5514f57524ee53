@@ -1,0 +1,67 @@
+{
+  "scope": "six-app local pilot, synthetic accounts, verified local CA",
+  "apps": [
+    "gswb",
+    "schulwissen",
+    "zackboing",
+    "schulhelfer",
+    "losverkauf",
+    "grundschultafel"
+  ],
+  "installationId": "9acc7cc2-6542-4753-8e28-0008c21333e6",
+  "port": 44811,
+  "imageId": "sha256:20f852b86a50239fea35610e67696d1bcf63d37a5482368a952c8f771a986667",
+  "privateRootlessReadOnlyBackend": true,
+  "domainChange": true,
+  "forcedFailureRollback": true,
+  "originalDomainRestored": true,
+  "twoNoopRuns": true,
+  "containersKeysCheckpointsUnchanged": true,
+  "stopMaintenance503": true,
+  "noRepeatedMigrationOrBootstrap": true,
+  "checks": [
+    {
+      "domain": "tafel.localhost",
+      "teacherIdAndNotebookPreserved": true,
+      "canonicalQrOrigin": true,
+      "foreignOriginDenied": true,
+      "anonymousAdminDenied": true
+    },
+    {
+      "domain": "tafel-neu.localhost",
+      "teacherIdAndNotebookPreserved": true,
+      "canonicalQrOrigin": true,
+      "foreignOriginDenied": true,
+      "anonymousAdminDenied": true
+    },
+    {
+      "domain": "tafel-neu.localhost",
+      "teacherIdAndNotebookPreserved": true,
+      "canonicalQrOrigin": true,
+      "foreignOriginDenied": true,
+      "anonymousAdminDenied": true
+    },
+    {
+      "domain": "tafel.localhost",
+      "teacherIdAndNotebookPreserved": true,
+      "canonicalQrOrigin": true,
+      "foreignOriginDenied": true,
+      "anonymousAdminDenied": true
+    },
+    {
+      "domain": "tafel.localhost",
+      "teacherIdAndNotebookPreserved": true,
+      "canonicalQrOrigin": true,
+      "foreignOriginDenied": true,
+      "anonymousAdminDenied": true
+    }
+  ],
+  "limits": [
+    "No public DNS/ACME ownership validation",
+    "No QR camera/browser automation",
+    "No hardware-bound device key",
+    "No Ubuntu provisioning acceptance",
+    "No encrypted offsite backup"
+  ],
+  "stoppedDataRetained": true
+}

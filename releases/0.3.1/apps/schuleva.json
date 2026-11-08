@@ -1,0 +1,46 @@
+{
+  "acceptance": {
+    "amd64Build": "d5607f9eb0f50d6edc8b770683998a25eea3a6c5b0262d1d0c98f515d84852dd",
+    "domainRollback": "8b607d975e7bf075deec14b4d7dd813905560648a0baa561b190afcf26e591d0",
+    "licenses": "41d3523e01ca5184fdabbfaef4691fc87f7204165bb9d40a686bc1f0f8107b1c",
+    "negativeAccess": "b6aedbb8e34e57fe506e5723b7c7e18833c29d66a7e443db8ce4af2ebc54e8b5",
+    "restore": "f2d381341f0bb91c052139316fbc9d66c0b28e5f0c2103209c813fd0cce865c7",
+    "sbom": "775401e2a6838e166d7b06d39b2ce28501a10d652fd7aea8c70499ed1543efde",
+    "standalone": "e3f2f5e11dd5db78dd44b5b196b7f6c3471342d8fe5760079e8c75a38c3f6e31"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/schuleva/docker-compose.yml"
+  ],
+  "database": {
+    "account": "schuleva",
+    "engine": "sqlite",
+    "name": "schuleva"
+  },
+  "domainEnvironment": [
+    "BASE_URL"
+  ],
+  "health": {
+    "live": "/health/live",
+    "ready": "/health/ready"
+  },
+  "id": "schuleva",
+  "image": "ghcr.io/bingenberger/schuleva:0.1.0@sha256:6d7de4adcac5d0eacf6b2e6faccf72c511e6a58df3ec288ee26e64df95cc25dd",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "data",
+      "mount": "/data",
+      "owner": "10001:10001"
+    }
+  ],
+  "port": 8000,
+  "resources": {
+    "cpus": 1.0,
+    "exportSlotsPerProcess": 1,
+    "memoryMiB": 512,
+    "workers": 1
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "69e5cc0b0707246176e6c9e4936a1df533187d6a"
+}

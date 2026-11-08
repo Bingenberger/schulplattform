@@ -1,0 +1,17 @@
+{
+  "app": "schulhelfer",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/schulhelfer-restore.json",
+      "sha256": "7045a413b71bf0e3c9db54ddf30109e05a8be71adad7f5cd54ddedd1875da869"
+    }
+  ],
+  "item": "restore",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "c3bfdb7fed1c6547284eee5a245560a922273813",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "restore evidence from the local pilot work packages.",
+  "testedCommit": "c3bfdb7fed1c6547284eee5a245560a922273813"
+}

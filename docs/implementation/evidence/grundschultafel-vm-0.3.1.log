@@ -1,0 +1,18 @@
+VM-Abnahme Update 0.3.0 -> 0.3.1 (8. November 2026), Ubuntu 24.04 (QEMU), Test-CA Pebble, Test-DNS *.schule.test
+Konfiguration: nur grundschultafel (übrige Apps aus)
+
+$ ./install.sh apply --bundle /root/release --trusted-key /root/release-trust.pub        (0.3.0)
+  Installation completed (Release 0.3.0); verwaltung, grundschultafel aktiv
+Altbestand wie auf dem Server simuliert: assets/journal/DEUTSCH.webp und DEUTSCH.png mit Inhalt "legacy"
+$ ./install.sh plan --bundle /root/release031 ...                                          -> Signatur gültig
+$ ./install.sh apply --bundle /root/release031 ...                                         -> "State invalid or plan changed" (erwartet ohne --reconfigure)
+$ ./install.sh apply --bundle /root/release031 ... --reconfigure                           -> completed (Release 0.3.1), exit 0
+  sp-grundschultafel-app-1 ghcr.io/bingenberger/grundschultafel:0.1.5 healthy
+Volume sp-grundschultafel_data, assets/journal: 243 Dateien (242 WebP + DEUTSCH.png), DEUTSCH.webp weiterhin "legacy",
+  Unterordner (faecher, ...) angelegt, Dateien 10001:10001, Modus 0600
+https://tafel.schule.test/health/ready   200
+https://tafel.schule.test/icon.svg       200 image/svg+xml   (0.1.4: 307 zur Anmeldung)
+https://tafel.schule.test/apple-icon.png 200 image/png
+https://tafel.schule.test/favicon.ico    200 image/x-icon
+https://tafel.schule.test/api/journal    401 ohne Anmeldung
+Nicht geprüft: Bildauswahl/Favoriten im Browser mit angemeldeter Lehrkraft.

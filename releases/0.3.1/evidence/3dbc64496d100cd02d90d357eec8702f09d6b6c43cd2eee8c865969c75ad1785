@@ -1,0 +1,36 @@
+{
+  "app": "leseflux",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/leseflux-image.json",
+      "sha256": "2e878fba636e18205cc1d9e926f99d2d2514387bc49ecb3363b3ad8e97342b3d"
+    }
+  ],
+  "images": {
+    "leseflux": "ghcr.io/bingenberger/leseflux:0.1.0@sha256:65cf31a8b2d501599be682655f136feaf6cce44c71b984f735fa1fbd8ebf5887"
+  },
+  "inspection": {
+    "leseflux": {
+      "architecture": "amd64",
+      "attestationPredicates": [
+        "https://slsa.dev/provenance/v1",
+        "https://spdx.dev/Document"
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "3862d194588e5f4d03f0cc8bc763650e4b528b73",
+        "org.opencontainers.image.source": "https://github.com/Bingenberger/leseflux",
+        "org.opencontainers.image.version": "0.1.0"
+      },
+      "os": "linux",
+      "user": "10001:10001"
+    }
+  },
+  "item": "amd64Build",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "3862d194588e5f4d03f0cc8bc763650e4b528b73",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "Published linux/amd64 image(s) with revision label, SBOM and provenance.",
+  "testedCommit": "d129a2e6da550344ac4ede14851aff789c33ccb8"
+}
