@@ -4,11 +4,11 @@
     "engine": "postgres",
     "database": "fahrrad",
     "account": "fahrrad",
-    "sha256": "94fbda926ef7f84fe0527f80b80ebc4e7da58dbd068eca2f0c8339a45c03be72",
-    "bytes": 42954
+    "sha256": "d77ecc84478ab39a41811657c58f19ffc9b79e7f62a8edde9cbc6e23009c80b0",
+    "bytes": 43095
   },
   "templateSha256": "5bac029be38c702cfa29c5c46c5dd035f6fd3278efd0483022805917f6f93624",
-  "schema": "0008",
+  "schema": "0009",
   "allFixtureRowsIdsRolesTokensAndEventsMatch": true,
   "unprivilegedAppRole": true,
   "foreignKeysValidated": true,

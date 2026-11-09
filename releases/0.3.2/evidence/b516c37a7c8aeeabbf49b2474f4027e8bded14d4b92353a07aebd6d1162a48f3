@@ -1,0 +1,28 @@
+{
+  "scope": "stopped app writers; fresh separate PG cluster and template volume; same supplied DB credentials",
+  "database": {
+    "engine": "postgres",
+    "database": "fahrrad",
+    "account": "fahrrad",
+    "sha256": "d77ecc84478ab39a41811657c58f19ffc9b79e7f62a8edde9cbc6e23009c80b0",
+    "bytes": 43095
+  },
+  "templateSha256": "5bac029be38c702cfa29c5c46c5dd035f6fd3278efd0483022805917f6f93624",
+  "schema": "0009",
+  "allFixtureRowsIdsRolesTokensAndEventsMatch": true,
+  "unprivilegedAppRole": true,
+  "foreignKeysValidated": true,
+  "eventTriggerEnabled": true,
+  "nonemptyTargetRejected": true,
+  "templateBytesOwnerAndPrivateMode": true,
+  "stationTokenAndPwaAccessPreserved": true,
+  "pdfAfterRestore": true,
+  "anonymousAndCrossSchoolDenied": true,
+  "persistentLoginLockPreserved": true,
+  "noMigrationOrSeedOnRestore": true,
+  "limits": [
+    "No encrypted offsite backup",
+    "No unsynced browser IndexedDB data in server backup"
+  ],
+  "stoppedDataRetained": true
+}

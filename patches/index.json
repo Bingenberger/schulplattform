@@ -38,7 +38,7 @@
   {
     "app": "fahrradausbildung",
     "baseCommit": "d9a9a6c8e02dd7fd5a14a5e2151948d7ec32c207",
-    "implementationCommit": "19c91fa7e1f3addf79d61525dc1534a673ca49bb",
+    "implementationCommit": "5b44977b20d5b2a6230755ac0594a89a97dde026",
     "patch": "patches/fahrradausbildung/changes.patch"
   },
   {

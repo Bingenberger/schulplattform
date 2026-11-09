@@ -32,11 +32,13 @@ begrenzte Eingaben/Exportgrößen und Kartenantworten. Die Grenzen sind konfigur
 nicht als Kapazität gemessen. Zusätzliche Appcontainer hätten weitere PDF-Slots.
 
 Expliziter transaktional gesperrter Alembic-Job; Revision 0008 ergänzt lediglich
-betriebliche Limitdaten. Keine Migration, Seeds oder Standardkonten beim Start.
+betriebliche Limitdaten, Revision 0009 (ab App-Version 0.2.0) die optionale
+Spalte `schule.posten_pin`. Keine Migration, Seeds oder Standardkonten beim Start.
 Unversionierte Daten werden nicht still adoptiert. Lokale persönliche
 Erstadministration verlangt ein kontrollierendes Terminal.
 
-Readiness prüft eigene Datenbank und Revision 0008; Liveness benötigt keine
+Readiness prüft eigene Datenbank und genau die erwartete Revision
+(`app.migrate.SCHEMA_REVISION`, ab 0.2.0: 0009); Liveness benötigt keine
 Datenbank, Karten oder SMTP. DB-Healthchecks nutzen TCP. Serverseitige Karten
 standardmäßig aus; interaktive Browserkarten können weiterhin bestehende externe
 Anbieter nutzen. Kein Maildienst ergänzt, weil die App keinen SMTP-Versand benötigt.
@@ -144,3 +146,17 @@ Docker-Subnetze freizugeben; keine fremden Dienste oder Bestandsvolumes gelösch
 Drei weitere Appintegrationen und die vollständige Produktionsabnahme bleiben offen.
 
 Plattform-Quellpaket: 85585f7; [Commit-Rohbeleg](evidence/fahrrad-work-package-commit.log).
+
+## Release 0.2.0 (9. November 2026, Plattform-Release 0.3.2)
+
+Übernimmt den Nutzer-Commit `5b44977`: Der Schuladmin kann unter Verwaltung → Konto eine optionale vierstellige PIN setzen. Die Posten-App fragt sie beim Öffnen und nach mehr als zwei Minuten im Hintergrund ab, auch offline. Nach fünf Fehlversuchen gibt es 30 s Wartezeit. Die Konfigurations-API liefert die PIN mit (`pin`, standardmäßig `null`). Die iPads übernehmen eine Änderung beim nächsten Öffnen der App im WLAN. Migration 0009 ergänzt nur die leere Spalte `schule.posten_pin`. Readiness verlangt jetzt Revision 0009.
+
+| Prüfung | Ergebnis |
+| --- | --- |
+| App-Tests lokal gegen PostgreSQL 16 (inkl. Playwright Chromium/WebKit) | 778 bestanden, 4 übersprungen (PDF-Vorlagen) |
+| `verify_fahrradausbildung_standalone.py` mit `ghcr.io/bingenberger/fahrradausbildung:0.2.0` | bestanden (`evidence/fahrrad-standalone.json`) |
+| `verify_fahrradausbildung_restore.py` (Schema 0009) | bestanden (`evidence/fahrrad-restore.json`) |
+| Plattform-Tests | 222 bestanden |
+| VM-Update 0.3.1 → 0.3.2 mit Bestand (`evidence/fahrradausbildung-vm-0.3.2.log`) | 0008 → 0009, alle Zeilen unverändert, PIN setzen/abweisen/entfernen, Mandantentrennung |
+
+Nicht geprüft: PIN-Abfrage auf einem echten iPad, Abnahme auf dem echten Server.

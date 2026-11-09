@@ -26,7 +26,7 @@ TRANSFER_KEY = "import-transfer-key"
 # Known adoption situations per app (from the apps' migration code and UPGRADE.md).
 ADOPTION = {
     "schulhelfer": "Unversionierte create_all-Datenbank wird nur über einen geprüften Adoptionspfad übernommen.",
-    "fahrradausbildung": "Alembic-Revisionen bis 0007 werden auf 0008 angehoben; unversionierte Datenbanken werden abgewiesen.",
+    "fahrradausbildung": "Alembic-Revisionen bis 0008 werden auf 0009 angehoben; unversionierte Datenbanken werden abgewiesen.",
     "abgen": "Drizzle-Journal muss zur bekannten Historie passen; unbekannte Historie wird abgewiesen.",
     "kompetenz-manager": "Nur ein vollständiger, zur Baseline passender Ausgangsstand wird übernommen.",
     "losverkauf": "Bekannte Legacy-Felder werden umgewandelt; IDs und edit_tokens bleiben erhalten; "

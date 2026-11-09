@@ -1,0 +1,65 @@
+x-runtime: &runtime
+  SL_OFFICE_SECRET_KEY_FILE: /run/secrets/secret-key
+  SL_OFFICE_PUBLIC_BASE_URL: ${SL_OFFICE_PUBLIC_BASE_URL:-http://localhost:5016}
+  SL_OFFICE_PROXY_IPS: ${SL_OFFICE_PROXY_IPS:-}
+  SL_OFFICE_MAIL_SERVER: ${SL_OFFICE_MAIL_SERVER:-localhost}
+  SL_OFFICE_MAIL_PORT: ${SL_OFFICE_MAIL_PORT:-25}
+  SL_OFFICE_MAIL_USE_TLS: ${SL_OFFICE_MAIL_USE_TLS:-0}
+  SL_OFFICE_MAIL_FROM: ${SL_OFFICE_MAIL_FROM:-noreply@example.invalid}
+x-logging: &logging
+  driver: json-file
+  options: {max-size: 10m, max-file: "3"}
+services:
+  app:
+    build: {context: ., target: final}
+    image: schulanmeldung:0.1.0-dev
+    user: "10001:10001"
+    init: true
+    stop_grace_period: 40s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=128m,mode=1777"]
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 128
+    environment: *runtime
+    volumes:
+      - data:/data
+      - ${SL_OFFICE_SECRET_FILE:?Datei mit mindestens 32 zufälligen Zeichen angeben}:/run/secrets/secret-key:ro
+    ports: ["127.0.0.1:${SL_OFFICE_PORT:-5016}:8000"]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    logging: *logging
+  worker:
+    image: schulanmeldung:0.1.0-dev
+    command: [python, sl_worker.py]
+    user: "10001:10001"
+    init: true
+    stop_grace_period: 20s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    mem_limit: 384m
+    cpus: 0.5
+    pids_limit: 64
+    environment: *runtime
+    volumes:
+      - data:/data
+      - ${SL_OFFICE_SECRET_FILE:?Datei mit mindestens 32 zufälligen Zeichen angeben}:/run/secrets/secret-key:ro
+    depends_on:
+      app: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import os,time,sys; sys.exit(0 if time.time()-os.path.getmtime('/tmp/sl-worker.alive') < 300 else 1)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging: *logging
+volumes:
+  data:

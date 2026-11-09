@@ -3,7 +3,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "up",
@@ -16,7 +16,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "run",
@@ -33,7 +33,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "exec",
@@ -48,7 +48,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "exec",
@@ -63,7 +63,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "ps",
@@ -76,7 +76,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "ps",
@@ -89,7 +89,7 @@
     "command": [
       "docker",
       "inspect",
-      "7305cb0e4d799b0f4618cc8d3072aff3295aa4dc964817e19ae61d71ce25356c"
+      "a89424506bde7e0956d9888eb2efd37939f73d76f044683ba724e4f8f75e7b73"
     ],
     "exitCode": 0
   },
@@ -102,7 +102,7 @@
       "none",
       "--read-only",
       "-v",
-      "sp-fahrrad-standalone-73c5b103ef_vorlagen:/vorlagen",
+      "sp-fahrrad-standalone-193ec9887b_vorlagen:/vorlagen",
       "fahrradausbildung:0.1.0-dev",
       "python",
       "-c",
@@ -115,7 +115,7 @@
       "docker",
       "exec",
       "-d",
-      "7305cb0e4d799b0f4618cc8d3072aff3295aa4dc964817e19ae61d71ce25356c",
+      "a89424506bde7e0956d9888eb2efd37939f73d76f044683ba724e4f8f75e7b73",
       "python",
       "-c",
       "import time;from app.betrieb import pdf_slot\nwith pdf_slot():\n open('/tmp/slot-held','w').close();time.sleep(30)"
@@ -126,7 +126,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "exec",
@@ -141,7 +141,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "exec",
@@ -156,7 +156,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "exec",
@@ -171,7 +171,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "exec",
@@ -186,7 +186,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "exec",
@@ -201,7 +201,7 @@
     "command": [
       "docker",
       "exec",
-      "7305cb0e4d799b0f4618cc8d3072aff3295aa4dc964817e19ae61d71ce25356c",
+      "a89424506bde7e0956d9888eb2efd37939f73d76f044683ba724e4f8f75e7b73",
       "python",
       "-c",
       "import os,signal\nfrom pathlib import Path\nfor p in Path('/proc').iterdir():\n if p.name.isdigit():\n  try:\n   if b\"time.sleep(30)\" in (p/'cmdline').read_bytes() and int(p.name)!=os.getpid():os.kill(int(p.name),signal.SIGTERM)\n  except (OSError,ProcessLookupError):pass"
@@ -212,7 +212,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "exec",
@@ -227,7 +227,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "restart",
@@ -239,7 +239,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "stop",
@@ -251,7 +251,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "up",
@@ -265,7 +265,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "exec",
@@ -280,7 +280,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "exec",
@@ -295,7 +295,7 @@
     "command": [
       "/home/emrichschule/schulplattform/.work/docker-compose",
       "-p",
-      "sp-fahrrad-standalone-73c5b103ef",
+      "sp-fahrrad-standalone-193ec9887b",
       "-f",
       "/home/emrichschule/schulplattform/.work/apps/fahrradausbildung/docker-compose.yml",
       "stop"

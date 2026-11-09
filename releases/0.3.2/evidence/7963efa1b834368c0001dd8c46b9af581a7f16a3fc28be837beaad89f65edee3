@@ -1,0 +1,17 @@
+{
+  "app": "fahrradausbildung",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/fahrrad-platform.json",
+      "sha256": "80598b6168419b4843dcaad8da1c123202ed3497eb106b05408ca441ac61b71b"
+    }
+  ],
+  "item": "negativeAccess",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "5b44977b20d5b2a6230755ac0594a89a97dde026",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "negativeAccess evidence from the local pilot work packages.",
+  "testedCommit": "5b44977b20d5b2a6230755ac0594a89a97dde026"
+}

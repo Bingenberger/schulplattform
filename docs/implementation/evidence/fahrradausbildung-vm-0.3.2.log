@@ -1,0 +1,28 @@
+VM-Abnahme Update 0.3.1 -> 0.3.2 (9. November 2026), Ubuntu 24.04 (QEMU), Test-CA Pebble, Test-DNS *.schule.test
+Konfiguration: nur fahrradausbildung (übrige Apps aus)
+
+$ ./install.sh apply --bundle /root/release --trusted-key /root/release-trust.pub        (0.3.1)
+  Installation completed (Release 0.3.1); verwaltung, fahrradausbildung aktiv
+  sp-fahrradausbildung-app-1 ghcr.io/bingenberger/fahrradausbildung:0.1.0 healthy
+Bestand angelegt (scripts/fahrrad_fixture.py SEED): zwei Schulen, je Schuladmin, Strecke, Posten, Gruppe, Lauf, Posten-Token
+  Ereignis über Posten-API (HTTPS) gespeichert: 200
+  config 0.1.0 Felder: datum, items, lauf_id, posten, startnummern, weitere_laeufe
+  alembic: 0008
+$ ./install.sh plan --bundle /root/0.3.2 ...                                   -> signature-and-manifests-verified
+  fahrradausbildung: ghcr.io/bingenberger/fahrradausbildung:0.2.0@sha256:e8a5773eb60652d647525aabee550b750c356fdf96d596d616fee3181d113036
+$ ./install.sh apply --bundle /root/0.3.2 ... --reconfigure                    -> completed (Release 0.3.2), exit 0
+  sp-fahrradausbildung-app-1 ghcr.io/bingenberger/fahrradausbildung:0.2.0 healthy
+alembic: 0009
+Alle Bestandszeilen (10 Tabellen, inkl. Ereignis und Posten-Token) unverändert: True
+posten_pin nach Migration: {None}
+Ereignisse: 1
+/health/ready: 200
+config mit Bestandstoken: (200, pin=None, startnummern=[7])
+/p/assets/js/sperre.js: 200
+Anmeldung Schuladmin: 200
+Konto-Seite mit PIN-Abschnitt: vorhanden, "Die PIN-Abfrage ist ausgeschaltet."
+Ungültige PIN 12a4 abgewiesen: Spalte bleibt leer
+PIN 4711 gesetzt: Konto zeigt "Aktuelle PIN: 4711", config liefert "4711"
+andere Schule unberührt: pin None
+PIN entfernt: config liefert None
+Nicht geprüft: PIN-Abfrage auf einem echten iPad (Safari/Home-Bildschirm); die Browserfälle laufen in den App-Tests (Playwright Chromium/WebKit).

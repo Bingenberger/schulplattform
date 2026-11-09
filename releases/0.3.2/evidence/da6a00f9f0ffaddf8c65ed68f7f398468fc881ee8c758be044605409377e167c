@@ -1,0 +1,17 @@
+{
+  "app": "fahrradausbildung",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/fahrrad-standalone.json",
+      "sha256": "34a1d26752957bea9013c844c6ad42a4d7409c46669aa3d31d4847a7b7347da8"
+    }
+  ],
+  "item": "standalone",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "5b44977b20d5b2a6230755ac0594a89a97dde026",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "standalone evidence from the local pilot work packages.",
+  "testedCommit": "5b44977b20d5b2a6230755ac0594a89a97dde026"
+}

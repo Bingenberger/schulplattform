@@ -1,0 +1,53 @@
+{
+  "acceptance": {
+    "amd64Build": "0e7437d7ed7c1b8183a829379b4e48d95402d95fce5d82aa8aa96c15c410ec56",
+    "domainRollback": "9f28113f73c1457001ec8802bce79bb3cc839e08c9efff6fb1913d884e3446f3",
+    "licenses": "1f8241357dd9c17af04c5cb89c574814b3dbae1194ee8495dacba426502d4617",
+    "negativeAccess": "7963efa1b834368c0001dd8c46b9af581a7f16a3fc28be837beaad89f65edee3",
+    "restore": "bc181f4be66f63422d546b9b77cb37c22392857a9b9b118401561d673e13e0dd",
+    "sbom": "f038eef3fcafe36b6f347757f3472b695dd6dd5fedfeedb40a192678919ca71c",
+    "standalone": "da6a00f9f0ffaddf8c65ed68f7f398468fc881ee8c758be044605409377e167c"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/fahrradausbildung/docker-compose.yml",
+    "compose/fahrradausbildung/docker/init-postgres.sh"
+  ],
+  "database": {
+    "account": "fahrrad",
+    "engine": "postgres16",
+    "name": "fahrrad"
+  },
+  "domainEnvironment": [
+    "FP_OEFFENTLICHE_URL"
+  ],
+  "health": {
+    "live": "/health/live",
+    "ready": "/health/ready"
+  },
+  "id": "fahrradausbildung",
+  "image": "ghcr.io/bingenberger/fahrradausbildung:0.2.0@sha256:e8a5773eb60652d647525aabee550b750c356fdf96d596d616fee3181d113036",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "pgdata",
+      "mount": "/var/lib/postgresql/data",
+      "owner": "70:70"
+    },
+    {
+      "backup": true,
+      "id": "vorlagen",
+      "mount": "/vorlagen",
+      "owner": "10001:10001"
+    }
+  ],
+  "port": 8000,
+  "resources": {
+    "cpus": 1.0,
+    "exportSlotsPerProcess": 1,
+    "memoryMiB": 768,
+    "workers": 2
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "5b44977b20d5b2a6230755ac0594a89a97dde026"
+}

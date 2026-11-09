@@ -58,7 +58,7 @@ try:
     assert after==fixture["contract"]
     roles=destination.query("SELECT current_user || ':' || rolsuper || ':' || rolcreatedb || ':' || rolcreaterole FROM pg_roles WHERE rolname=current_user")
     assert roles=="fahrrad:false:false:false"
-    assert destination.query("SELECT version_num FROM alembic_version")=="0008"
+    assert destination.query("SELECT version_num FROM alembic_version")=="0009"
     assert destination.query("SELECT count(*) FROM pg_constraint WHERE contype='f' AND NOT convalidated")=="0"
     first,second=fixture["fixtures"];a,b,anonymous=Browser(port),Browser(port),Browser(port)
     anonymous.call("GET","/verwaltung/",expected=303)
@@ -78,7 +78,7 @@ try:
     assert permissions=={"text":"Synthetic template fixture","uid":10001,"gid":10001,"mode":384}
     assert int(destination.query("SELECT count(*) FROM pg_trigger WHERE tgrelid='ereignis'::regclass AND NOT tgisinternal AND tgenabled='O'"))>=1
     report={"scope":"stopped app writers; fresh separate PG cluster and template volume; same supplied DB credentials",
-        "database":metadata,"templateSha256":template_digest,"schema":"0008","allFixtureRowsIdsRolesTokensAndEventsMatch":True,
+        "database":metadata,"templateSha256":template_digest,"schema":"0009","allFixtureRowsIdsRolesTokensAndEventsMatch":True,
         "unprivilegedAppRole":True,"foreignKeysValidated":True,"eventTriggerEnabled":True,"nonemptyTargetRejected":True,
         "templateBytesOwnerAndPrivateMode":True,"stationTokenAndPwaAccessPreserved":True,"pdfAfterRestore":True,
         "anonymousAndCrossSchoolDenied":True,"persistentLoginLockPreserved":True,"noMigrationOrSeedOnRestore":True,
