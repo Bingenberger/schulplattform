@@ -191,6 +191,26 @@ Geheimnis, `nextcloud_issuer` oder `nextcloud_client_id` fehlen, bleibt die Anme
 Schulwissen startet normal. Weil sich `platform.toml` geändert hat, braucht das nächste `apply`
 `--reconfigure`. Konten verbinden: siehe `PHASE4.md` im Schulwissen-Repo, Abschnitt „Konten verbinden“.
 
+## Kartenbilder im PDF (App `fahrradausbildung`)
+
+Streckenplan und Posten-Blätter können Kartenausschnitte mit Strecke und Posten enthalten. Die Bilder
+setzt der Server aus OpenStreetMap-Kacheln (`tile.openstreetmap.de`) zusammen. Dabei gehen die
+Kartenausschnitte rund um die Posten an diesen Server. Deshalb sind die Kartenbilder ausgeschaltet; im Streckenplan
+steht dann „Kartenbilder sind auf diesem Server abgeschaltet“. Einschalten in
+`/etc/schulplattform/platform.toml`:
+
+```toml
+[apps.fahrradausbildung]
+enabled = true
+hostname = "rad.schule.example"
+karten = true
+```
+
+Danach `./install.sh apply --reconfigure …` und das PDF neu exportieren. Der Server braucht ausgehenden
+HTTPS-Zugang zu `tile.openstreetmap.de`. Ist der Kachelserver nicht erreichbar, entsteht das PDF ohne Karte.
+`karten = false` oder Zeile löschen schaltet wieder aus. Die interaktive Kartenseite der App ist davon nicht
+betroffen; sie lädt die Karten im Browser.
+
 ## Bildergalerie (App `bildergalerie`)
 
 KI-generierte Bilder (CC0) mit Schlagworten, Suche, Sammelsuche für Wortlisten, Bildwünschen und einer

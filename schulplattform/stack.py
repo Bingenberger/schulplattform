@@ -249,6 +249,10 @@ class Stack:
         gswb = apps.get("gswb", {})
         return origin(gswb["hostname"]) if gswb.get("enabled") else ""
 
+    def karten_kacheln(self, app_id):
+        """Tile URL for fahrradausbildung's PDF maps, only with karten = true (tiles reveal post locations)."""
+        return catalogue.KARTEN_KACHELN if self.config["apps"].get(app_id, {}).get("karten") else ""
+
     def oidc_block(self, app_id):
         """SW_OIDC_* lines for schulwissen's env file, only when issuer, client id and secret are all set.
 
@@ -283,6 +287,8 @@ class Stack:
             "gallery_ai_key_file": json.dumps("/run/secrets/ai-key" if self.projection_set("gallery-ai-key") else ""),
             "youtube_enabled": json.dumps("1" if self.youtube_key_set() else "0"),
             "woerterbuch_origin": json.dumps(self.woerterbuch_origin(app_id)),
+            # fahrradausbildung: server-side map images in PDFs, off unless karten = true
+            "karten_kacheln": json.dumps(self.karten_kacheln(app_id)),
             # schulwissen: optional Nextcloud login (env-file lines, not YAML)
             "oidc_block": self.oidc_block(app_id),
         }

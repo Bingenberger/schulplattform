@@ -52,6 +52,8 @@ def validate(data):
         seen[entry["hostname"]] = app
         if "gallery_origin" in entry and app not in GALLERY_APPS:
             raise ConfigError(f"gallery_origin is only supported for {', '.join(GALLERY_APPS)}")
+        if "karten" in entry and app != "fahrradausbildung":
+            raise ConfigError("karten is only supported for fahrradausbildung")
         if "public" in entry and app != "bildergalerie":
             raise ConfigError("public is only supported for bildergalerie")
         if "woerterbuch_origin" in entry and app not in WOERTERBUCH_APPS:
@@ -232,7 +234,7 @@ def wizard(path=DEFAULT_PATH, existing=None, tty_path="/dev/tty"):
                     data["apps"][app]["woerterbuch_origin"] = answer
             elif "woerterbuch_origin" in previous:
                 data["apps"][app]["woerterbuch_origin"] = previous["woerterbuch_origin"]
-            for key in OIDC_KEYS:  # not asked by the wizard; kept as written by hand
+            for key in (*OIDC_KEYS, "karten"):  # not asked by the wizard; kept as written by hand
                 if key in previous:
                     data["apps"][app][key] = previous[key]
         mode = ask("Mailversand (relay = über Ihren SMTP-Anbieter, none = keiner)",

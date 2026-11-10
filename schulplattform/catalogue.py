@@ -48,6 +48,9 @@ INFRASTRUCTURE = {
 # Platform-owned images published from this repository.
 PLATFORM_IMAGES = ("schulplattform-dashboard", "schulplattform-relay")
 
+# Tile server for fahrradausbildung's PDF map images ([apps.fahrradausbildung] karten = true).
+KARTEN_KACHELN = "https://tile.openstreetmap.de/{z}/{x}/{y}.png"
+
 MAIL_PORT = 1025  # both the relay and the sink listen here on the app proxy networks
 
 # Variables whose value is derived from the hostname (shown in the domain change preview).
@@ -319,7 +322,7 @@ secrets:
     environment:
       FP_OEFFENTLICHE_URL: {origin}
       FP_COOKIE_SECURE: "true"
-      FP_KARTEN_KACHELN: ""
+      FP_KARTEN_KACHELN: {karten_kacheln}
       FP_PROXY_IPS: {proxy_ip}
     networks:
       default: {{}}

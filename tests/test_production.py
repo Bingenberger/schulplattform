@@ -703,3 +703,29 @@ def test_nextcloud_oidc_command(tmp_path, monkeypatch):
     answers[:] = [""]
     assert appsetup.set_nextcloud_oidc(platform) is False
     assert not any(key.startswith("SW_OIDC") for key in _wissen_env(layout))
+
+
+def test_fahrrad_map_images_off_by_default_and_switchable(tmp_path):
+    def kacheln(data):
+        layout, _, _ = render(tmp_path / str(len(list(tmp_path.iterdir()))), data)
+        doc = yaml.load((layout.generated / "fahrradausbildung.yml").read_text(), Loader=_TagLoader)
+        return doc["services"]["app"]["environment"]["FP_KARTEN_KACHELN"]
+    assert kacheln(sample()) == ""
+    on = sample(**{"apps.fahrradausbildung.karten": True})
+    cfg.validate(on)
+    assert kacheln(on) == "https://tile.openstreetmap.de/{z}/{x}/{y}.png"
+    assert kacheln(sample(**{"apps.fahrradausbildung.karten": False})) == ""
+    with pytest.raises(cfg.ConfigError, match="only supported for fahrradausbildung"):
+        cfg.validate(sample(**{"apps.gswb.karten": True}))
+
+
+def test_wizard_keeps_hand_written_karten(tmp_path):
+    existing = sample(**{"apps.fahrradausbildung.karten": True})
+    answers = [""] * 6
+    for app in APP_IDS:
+        answers += ["", ""]
+        if app == "grundschultafel":
+            answers += ["", ""]
+    answers += [""] * 12
+    data = _run_wizard(tmp_path, existing, answers)
+    assert data["apps"]["fahrradausbildung"]["karten"] is True
