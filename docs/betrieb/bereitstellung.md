@@ -158,6 +158,39 @@ Ein direkt eingefügter YouTube-Link funktioniert immer; das Video lädt dann de
 
 Der Schlüssel wird unsichtbar eingegeben, unter `/var/lib/schulplattform/runtime/tafel-youtube-key` abgelegt (Teil der Plattform-Sicherung) und die Tafel neu gestartet. Erneuter Aufruf ersetzt den Schlüssel; leere Eingabe schaltet die Suche wieder aus. Suchbegriffe gehen dabei an Google.
 
+## Nextcloud-Anmeldung (App `schulwissen`)
+
+Schulwissen kann Nextcloud als OpenID-Connect-Anbieter nutzen (Schaltfläche **Mit Nextcloud anmelden**).
+Unter der Plattform gilt **nicht** die `.env` aus dem Schulwissen-Repo bzw. `PHASE4.md`: die
+Umgebungsdatei `/var/lib/schulplattform/runtime/wissen.env` wird bei jedem `apply` neu erzeugt.
+
+1. In der Nextcloud (App „OpenID Connect Provider“) einen vertraulichen Client anlegen:
+   Authorization Code Flow, PKCE S256, ID-Token RS256, Scopes `openid profile email`,
+   Redirect-URI `https://SCHULWISSEN-HOSTNAME/anmelden/nextcloud/callback`.
+2. Anbieterkennung und Client-ID in `/etc/schulplattform/platform.toml` eintragen (keine Geheimnisse):
+
+   ```toml
+   [apps.schulwissen]
+   enabled = true
+   hostname = "wissen.schule.example"
+   nextcloud_issuer = "https://cloud.schule.example"   # exakt der "issuer" aus der Discovery
+   nextcloud_client_id = "CLIENT-ID"
+   # nur nötig, wenn die Discovery nicht unter ISSUER/.well-known/openid-configuration liegt:
+   nextcloud_discovery_url = "https://cloud.schule.example/index.php/apps/oidc/openid-configuration"
+   ```
+
+3. Das Client-Geheimnis unsichtbar eingeben; Schulwissen wird danach neu gestartet:
+
+   ```sh
+   ./install.sh nextcloud-oidc
+   ```
+
+Das Geheimnis liegt unter `/var/lib/schulplattform/runtime/wissen-oidc` (Teil der Plattform-Sicherung).
+Erneuter Aufruf ersetzt es; leere Eingabe schaltet die Nextcloud-Anmeldung wieder aus. Solange
+Geheimnis, `nextcloud_issuer` oder `nextcloud_client_id` fehlen, bleibt die Anmeldung aus und
+Schulwissen startet normal. Weil sich `platform.toml` geändert hat, braucht das nächste `apply`
+`--reconfigure`. Konten verbinden: siehe `PHASE4.md` im Schulwissen-Repo, Abschnitt „Konten verbinden“.
+
 ## Bildergalerie (App `bildergalerie`)
 
 KI-generierte Bilder (CC0) mit Schlagworten, Suche, Sammelsuche für Wortlisten, Bildwünschen und einer

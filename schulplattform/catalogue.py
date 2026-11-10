@@ -140,7 +140,9 @@ APPS = {app.id: app for app in [
         compose_env={"POSTGRES_PASSWORD": "!unused"},
         secrets=(("postgres-admin", "random:postgres-admin"), ("postgres-app", "random:postgres-app"),
                  ("wissen-key", "random:wissen-key"),
-                 ("wissen-db", "url:postgresql://schulwissen:{postgres-app}@db:5432/schulwissen")),
+                 ("wissen-db", "url:postgresql://schulwissen:{postgres-app}@db:5432/schulwissen"),
+                 # wissen-oidc: empty until './install.sh nextcloud-oidc'; Nextcloud login stays off while empty.
+                 ("wissen-oidc", "empty")),
         migrations=(("python", "manage.py", "platform_migrate"),),
         mail=True,
         checks=(Check("GET", "/", 302),),
@@ -150,7 +152,8 @@ APPS = {app.id: app for app in [
                                     "SW_DATABASE_URL_FILE=/run/secrets/database_url\n"
                                     "SW_ALLOWED_HOSTS={host},localhost\n"
                                     "SW_OEFFENTLICHE_URL={origin}\n"
-                                    "SW_SMTP_HOST={mail_host}\nSW_SMTP_PORT={mail_port}\nSW_SMTP_TLS=false\n")},
+                                    "SW_SMTP_HOST={mail_host}\nSW_SMTP_PORT={mail_port}\nSW_SMTP_TLS=false\n"
+                                    "{oidc_block}")},
         override="""services:
   db:
     image: {postgres16}
@@ -175,7 +178,7 @@ APPS = {app.id: app for app in [
       SW_WORKER: "2"
       FORWARDED_ALLOW_IPS: {proxy_ip}
       SW_PROXY_IPS: {proxy_ip}
-    secrets: [session_key, database_url]
+    secrets: [session_key, database_url, oidc_client_secret]
     networks:
       default: {{}}
       proxy:
@@ -194,6 +197,8 @@ secrets:
     file: {runtime}/wissen-key
   database_url:
     file: {runtime}/wissen-db
+  oidc_client_secret:
+    file: {runtime}/wissen-oidc
 """ + _PROXY_NETWORK),
     App("zackboing", 3, 3000, "/health/ready", ("app",),
         images={"app": "zackboing"},

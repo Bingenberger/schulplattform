@@ -249,6 +249,22 @@ class Stack:
         gswb = apps.get("gswb", {})
         return origin(gswb["hostname"]) if gswb.get("enabled") else ""
 
+    def oidc_block(self, app_id):
+        """SW_OIDC_* lines for schulwissen's env file, only when issuer, client id and secret are all set.
+
+        The _FILE variable must not point to an empty file (the app refuses to start), so an
+        incomplete setup renders nothing and the Nextcloud login simply stays off."""
+        entry = self.config["apps"].get(app_id, {})
+        if not (entry.get("nextcloud_issuer") and entry.get("nextcloud_client_id")
+                and self.projection_set("wissen-oidc")):
+            return ""
+        lines = [f"SW_OIDC_ISSUER={entry['nextcloud_issuer']}"]
+        if entry.get("nextcloud_discovery_url"):
+            lines.append(f"SW_OIDC_DISCOVERY_URL={entry['nextcloud_discovery_url']}")
+        lines += [f"SW_OIDC_CLIENT_ID={entry['nextcloud_client_id']}",
+                  "SW_OIDC_CLIENT_SECRET_FILE=/run/secrets/oidc_client_secret"]
+        return "".join(line + "\n" for line in lines)
+
     def context(self, app_id, hostname):
         app = APPS[app_id]
         values = {
@@ -267,6 +283,8 @@ class Stack:
             "gallery_ai_key_file": json.dumps("/run/secrets/ai-key" if self.projection_set("gallery-ai-key") else ""),
             "youtube_enabled": json.dumps("1" if self.youtube_key_set() else "0"),
             "woerterbuch_origin": json.dumps(self.woerterbuch_origin(app_id)),
+            # schulwissen: optional Nextcloud login (env-file lines, not YAML)
+            "oidc_block": self.oidc_block(app_id),
         }
         for service, image in app.images.items():
             values["image_" + service] = self.release.image(image)

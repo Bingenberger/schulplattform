@@ -111,6 +111,7 @@ Ausführliche Checkliste: [docs/betrieb/bereitstellung.md](docs/betrieb/bereitst
 | `./install.sh restore-platform ARCHIV --confirm-replace` | Server nach Totalausfall neu aufbauen (vor `apply`) |
 | `./install.sh youtube-key` | YouTube-Suche der Tafel ein-/ausschalten ([Galerie, Wörterbuch und YouTube](docs/betrieb/bereitstellung.md#bildergalerie-wörterbuch-und-youtube-suche-grundschultafel)) |
 | `./install.sh gallery-ai-key DATEI\|--off` | KI-Metadaten der Bildergalerie ein-/ausschalten ([Bildergalerie](docs/betrieb/bereitstellung.md#bildergalerie-app-bildergalerie)) |
+| `./install.sh nextcloud-oidc` | Nextcloud-Anmeldung in Schulwissen ein-/ausschalten ([Nextcloud-Anmeldung](docs/betrieb/bereitstellung.md#nextcloud-anmeldung-app-schulwissen)) |
 
 Das Dashboard unter der Verwaltungsdomain zeigt dasselbe und erlaubt Domains, Mail, Sicherungen und Lebenszyklus (ausblenden, stoppen, deinstallieren, Daten löschen) über fest definierte Aktionen.
 

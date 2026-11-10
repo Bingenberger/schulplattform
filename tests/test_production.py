@@ -618,3 +618,88 @@ def test_relative_paths_count_from_the_operators_directory(tmp_path, monkeypatch
     assert args.target == ["bildergalerie", str(tmp_path / "archiv.tar.gpg")]
     assert args.bundle == Path("releases/0.3.0")          # not in the caller's directory: unchanged
     assert args.config == Path("/etc/schulplattform/platform.toml")
+
+
+def _wissen_env(layout):
+    lines = (layout.runtime / "wissen.env").read_text().splitlines()
+    return dict(line.split("=", 1) for line in lines if line)
+
+
+OIDC = {"apps.schulwissen.nextcloud_issuer": "https://cloud.schule.example",
+        "apps.schulwissen.nextcloud_discovery_url": "https://cloud.schule.example/index.php/apps/oidc/openid-configuration",
+        "apps.schulwissen.nextcloud_client_id": "AbC123xyz"}
+
+
+def test_nextcloud_oidc_stays_off_until_the_secret_is_set(tmp_path):
+    data = sample(**OIDC)
+    cfg.validate(data)
+    layout, stack, domains = render(tmp_path, data)
+    assert (layout.runtime / "wissen-oidc").read_text() == ""
+    assert not any(key.startswith("SW_OIDC") for key in _wissen_env(layout))   # empty _FILE would stop the app
+    app = yaml.load((layout.generated / "schulwissen.yml").read_text(), Loader=_TagLoader)
+    assert "oidc_client_secret" in app["services"]["app"]["secrets"]
+    assert app["secrets"]["oidc_client_secret"]["file"] == str(layout.runtime / "wissen-oidc")
+    from schulplattform.appsetup import _replace_projection
+    _replace_projection(layout.runtime / "wissen-oidc", "geheim-123456")
+    stack.render(domains)
+    env = _wissen_env(layout)
+    assert env["SW_OIDC_ISSUER"] == "https://cloud.schule.example"
+    assert env["SW_OIDC_DISCOVERY_URL"].endswith("/apps/oidc/openid-configuration")
+    assert env["SW_OIDC_CLIENT_ID"] == "AbC123xyz"
+    assert env["SW_OIDC_CLIENT_SECRET_FILE"] == "/run/secrets/oidc_client_secret"
+    assert "geheim" not in (layout.runtime / "wissen.env").read_text()
+
+
+def test_nextcloud_oidc_without_toml_keys_ignores_the_secret(tmp_path):
+    layout, stack, domains = render(tmp_path, sample())
+    from schulplattform.appsetup import _replace_projection
+    _replace_projection(layout.runtime / "wissen-oidc", "geheim-123456")
+    stack.render(domains)
+    assert not any(key.startswith("SW_OIDC") for key in _wissen_env(layout))
+
+
+def test_nextcloud_oidc_config_is_checked():
+    with pytest.raises(cfg.ConfigError, match="only supported for schulwissen"):
+        cfg.validate(sample(**{"apps.gswb.nextcloud_issuer": "https://cloud.schule.example",
+                               "apps.gswb.nextcloud_client_id": "x"}))
+    with pytest.raises(cfg.ConfigError, match="belong together"):
+        cfg.validate(sample(**{"apps.schulwissen.nextcloud_issuer": "https://cloud.schule.example"}))
+    for bad in ("http://cloud.schule.example", "https://cloud.schule.example/a b", "https://x/\nSW_DEBUG=1", "https://cloud.schule.example\n"):
+        with pytest.raises(cfg.ConfigError):
+            cfg.validate(sample(**{**OIDC, "apps.schulwissen.nextcloud_issuer": bad}))
+    with pytest.raises(cfg.ConfigError):
+        cfg.validate(sample(**{**OIDC, "apps.schulwissen.nextcloud_client_id": "a\nSW_DEBUG=1"}))
+    with pytest.raises(cfg.ConfigError, match="whitespace"):
+        cfg.validate(sample(**{**OIDC, "apps.schulwissen.nextcloud_client_id": "abc\n"}))
+    cfg.validate(sample(**{k: v for k, v in OIDC.items() if "discovery" not in k}))   # discovery is optional
+
+
+def test_nextcloud_oidc_command(tmp_path, monkeypatch):
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+    from schulplattform import appsetup
+    from schulplattform.state import StateError
+    calls = []
+    layout, stack, domains = render(tmp_path / "a", sample())
+    stack.compose = lambda *argv, **kw: calls.append(argv)
+    platform = SimpleNamespace(stack=stack, layout=layout, current_domains=lambda: domains)
+    monkeypatch.setattr(appsetup, "open_tty", lambda: nullcontext(None))
+    answers = []
+    monkeypatch.setattr(appsetup.getpass, "getpass", lambda *a, **kw: answers.pop(0))
+    with pytest.raises(StateError, match="platform.toml"):
+        appsetup.set_nextcloud_oidc(platform)                      # issuer/client id missing
+    layout, stack, domains = render(tmp_path / "b", sample(**OIDC))
+    stack.compose = lambda *argv, **kw: calls.append(argv)
+    platform = SimpleNamespace(stack=stack, layout=layout, current_domains=lambda: domains)
+    answers[:] = ["kurz"]
+    with pytest.raises(StateError):
+        appsetup.set_nextcloud_oidc(platform)
+    assert (layout.runtime / "wissen-oidc").read_text() == "" and not calls
+    answers[:] = ["  geheim-123456  "]
+    assert appsetup.set_nextcloud_oidc(platform) is True
+    assert (layout.runtime / "wissen-oidc").read_text() == "geheim-123456"
+    assert "SW_OIDC_CLIENT_SECRET_FILE" in _wissen_env(layout)
+    assert calls[-1][0] == "schulwissen" and "--force-recreate" in calls[-1]
+    answers[:] = [""]
+    assert appsetup.set_nextcloud_oidc(platform) is False
+    assert not any(key.startswith("SW_OIDC") for key in _wissen_env(layout))

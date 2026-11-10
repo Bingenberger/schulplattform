@@ -26,6 +26,10 @@ GALLERY_APPS = ("grundschultafel",)
 # Apps that fetch word lists, pictures and recordings from a Grundschul-Wörterbuch (server side).
 # Absent = the platform's own gswb when it is enabled; "" = off; otherwise the given https origin.
 WOERTERBUCH_APPS = ("grundschultafel",)
+# Nextcloud as OpenID Connect provider (schulwissen only). Issuer and client id live here; the
+# client secret is entered with './install.sh nextcloud-oidc' and never written to platform.toml.
+OIDC_APPS = ("schulwissen",)
+OIDC_KEYS = ("nextcloud_issuer", "nextcloud_discovery_url", "nextcloud_client_id")
 
 
 class ConfigError(ValueError):
@@ -52,6 +56,14 @@ def validate(data):
             raise ConfigError("public is only supported for bildergalerie")
         if "woerterbuch_origin" in entry and app not in WOERTERBUCH_APPS:
             raise ConfigError(f"woerterbuch_origin is only supported for {', '.join(WOERTERBUCH_APPS)}")
+        oidc = [key for key in OIDC_KEYS if key in entry]
+        if oidc and app not in OIDC_APPS:
+            raise ConfigError(f"{oidc[0]} is only supported for {', '.join(OIDC_APPS)}")
+        if oidc and not ("nextcloud_issuer" in entry and "nextcloud_client_id" in entry):
+            raise ConfigError(f"apps.{app}: nextcloud_issuer and nextcloud_client_id belong together")
+        for key in oidc:  # rendered into an env file: no line breaks (JSON-Schema "$" lets a final \n through)
+            if any(c.isspace() for c in entry[key]):
+                raise ConfigError(f"apps.{app}.{key} must not contain whitespace")
     if not any(entry["enabled"] for entry in data["apps"].values()):
         raise ConfigError("At least one app must be enabled")
     ipv4 = ipaddress.IPv4Address(platform["public_ipv4"])
@@ -220,6 +232,9 @@ def wizard(path=DEFAULT_PATH, existing=None, tty_path="/dev/tty"):
                     data["apps"][app]["woerterbuch_origin"] = answer
             elif "woerterbuch_origin" in previous:
                 data["apps"][app]["woerterbuch_origin"] = previous["woerterbuch_origin"]
+            for key in OIDC_KEYS:  # not asked by the wizard; kept as written by hand
+                if key in previous:
+                    data["apps"][app][key] = previous[key]
         mode = ask("Mailversand (relay = über Ihren SMTP-Anbieter, none = keiner)",
                    existing.get("smtp", {}).get("mode", "relay"), r"relay|none")
         smtp = {"mode": mode}

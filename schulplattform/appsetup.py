@@ -137,3 +137,29 @@ def set_gallery_ai_key(platform, source):
     platform.stack.compose("bildergalerie", "up", "-d", "--pull", "never", "--no-build", "--force-recreate",
                            "--wait", *APPS["bildergalerie"].services)
     return bool(value)
+
+
+WISSEN_OIDC = "wissen-oidc"
+
+
+def set_nextcloud_oidc(platform):
+    """Client secret for schulwissen's Nextcloud login; empty input switches the login off.
+
+    Issuer and client id come from platform.toml (apps.schulwissen.nextcloud_issuer /
+    nextcloud_client_id); the secret is typed in invisibly and kept as a read-only projection."""
+    if "schulwissen" not in platform.stack.apps:
+        raise StateError("schulwissen is not installed")
+    entry = platform.stack.config["apps"]["schulwissen"]
+    if not (entry.get("nextcloud_issuer") and entry.get("nextcloud_client_id")):
+        raise StateError("Zuerst nextcloud_issuer und nextcloud_client_id unter [apps.schulwissen] in "
+                         "platform.toml eintragen; nichts geändert")
+    with open_tty() as tty:
+        secret = getpass.getpass("Client-Geheimnis aus Nextcloud (unsichtbar, leer = Nextcloud-Anmeldung aus): ",
+                                 stream=tty).strip()
+    if secret and not re.fullmatch(r"[\x21-\x7e]{8,500}", secret):
+        raise StateError("Das sieht nicht nach einem Client-Geheimnis aus; nichts geändert")
+    _replace_projection(platform.layout.runtime / WISSEN_OIDC, secret)
+    platform.stack.render(platform.current_domains())
+    platform.stack.compose("schulwissen", "up", "-d", "--pull", "never", "--no-build", "--force-recreate",
+                           "--wait", *APPS["schulwissen"].services)
+    return bool(secret)
