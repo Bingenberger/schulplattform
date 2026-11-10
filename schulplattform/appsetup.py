@@ -163,3 +163,28 @@ def set_nextcloud_oidc(platform):
     platform.stack.compose("schulwissen", "up", "-d", "--pull", "never", "--no-build", "--force-recreate",
                            "--wait", *APPS["schulwissen"].services)
     return bool(secret)
+
+
+WISSEN_NEXTCLOUD = "wissen-nextcloud"
+
+
+def set_nextcloud_files(platform):
+    """App password of schulwissen's technical Nextcloud account; empty input switches the file picker off.
+
+    URL and user come from platform.toml (apps.schulwissen.nextcloud_files_url / nextcloud_files_user)."""
+    if "schulwissen" not in platform.stack.apps:
+        raise StateError("schulwissen is not installed")
+    entry = platform.stack.config["apps"]["schulwissen"]
+    if not (entry.get("nextcloud_files_url") and entry.get("nextcloud_files_user")):
+        raise StateError("Zuerst nextcloud_files_url und nextcloud_files_user unter [apps.schulwissen] in "
+                         "platform.toml eintragen; nichts geändert")
+    with open_tty() as tty:
+        secret = getpass.getpass(f"App-Passwort des Nextcloud-Kontos {entry['nextcloud_files_user']} "
+                                 "(unsichtbar, leer = Dateiauswahl aus): ", stream=tty).strip()
+    if secret and not re.fullmatch(r"[\x21-\x7e]{8,500}", secret):
+        raise StateError("Das sieht nicht nach einem App-Passwort aus; nichts geändert")
+    _replace_projection(platform.layout.runtime / WISSEN_NEXTCLOUD, secret)
+    platform.stack.render(platform.current_domains())
+    platform.stack.compose("schulwissen", "up", "-d", "--pull", "never", "--no-build", "--force-recreate",
+                           "--wait", *APPS["schulwissen"].services)
+    return bool(secret)

@@ -269,6 +269,17 @@ class Stack:
                   "SW_OIDC_CLIENT_SECRET_FILE=/run/secrets/oidc_client_secret"]
         return "".join(line + "\n" for line in lines)
 
+    def files_block(self, app_id):
+        """SW_NEXTCLOUD_* lines (technical account for the file picker), only when URL, user and app
+        password are all set; like oidc_block, an empty _FILE would stop schulwissen."""
+        entry = self.config["apps"].get(app_id, {})
+        if not (entry.get("nextcloud_files_url") and entry.get("nextcloud_files_user")
+                and self.projection_set("wissen-nextcloud")):
+            return ""
+        return (f"SW_NEXTCLOUD_URL={entry['nextcloud_files_url']}\n"
+                f"SW_NEXTCLOUD_NUTZER={entry['nextcloud_files_user']}\n"
+                "SW_NEXTCLOUD_PASSWORT_FILE=/run/secrets/nextcloud_password\n")
+
     def context(self, app_id, hostname):
         app = APPS[app_id]
         values = {
@@ -291,6 +302,8 @@ class Stack:
             "karten_kacheln": json.dumps(self.karten_kacheln(app_id)),
             # schulwissen: optional Nextcloud login (env-file lines, not YAML)
             "oidc_block": self.oidc_block(app_id),
+            # schulwissen: optional Nextcloud file picker (technical account)
+            "files_block": self.files_block(app_id),
         }
         for service, image in app.images.items():
             values["image_" + service] = self.release.image(image)

@@ -192,6 +192,16 @@
               "maxLength": 300,
               "pattern": "^https://([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?(:[0-9]{1,5})?/[A-Za-z0-9._~%/-]*$"
             },
+            "nextcloud_files_url": {
+              "type": "string",
+              "maxLength": 300,
+              "pattern": "^https://([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?(:[0-9]{1,5})?(/[A-Za-z0-9._~%/-]*)?$"
+            },
+            "nextcloud_files_user": {
+              "type": "string",
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9._@-]+$"
+            },
             "nextcloud_issuer": {
               "type": "string",
               "maxLength": 300,

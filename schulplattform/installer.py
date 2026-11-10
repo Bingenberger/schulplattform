@@ -6,7 +6,7 @@ Production commands (root on Ubuntu 24.04):
   plan    --bundle B --trusted-key K
   apply   --bundle B --trusted-key K [--reconfigure]
   status | reconcile [--app X] | domain-change APP HOST | start APP | stop APP
-  admin-setup | app-setup APP | smtp-password | youtube-key | gallery-ai-key [FILE|--off] | nextcloud-oidc | backup [--app X|--all] | restore-probe APP
+  admin-setup | app-setup APP | smtp-password | youtube-key | gallery-ai-key [FILE|--off] | nextcloud-oidc | nextcloud-files | backup [--app X|--all] | restore-probe APP
 The local pilot commands (pilot-*) remain for development.
 """
 import argparse
@@ -126,7 +126,7 @@ def warnings(host):
 
 
 PRODUCTION = ["configure", "plan", "apply", "status", "reconcile", "domain-change", "start", "stop",
-              "admin-setup", "app-setup", "smtp-password", "youtube-key", "gallery-ai-key", "nextcloud-oidc", "backup", "restore-probe",
+              "admin-setup", "app-setup", "smtp-password", "youtube-key", "gallery-ai-key", "nextcloud-oidc", "nextcloud-files", "backup", "restore-probe",
               "restore",
               "import-key", "import", "restore-platform"]
 
@@ -309,6 +309,10 @@ def _main(argv=None):
         from .appsetup import set_nextcloud_oidc
         enabled = set_nextcloud_oidc(platform_)
         print('Nextcloud-Anmeldung in Schulwissen ' + ('eingeschaltet.' if enabled else 'ausgeschaltet.'))
+    elif args.action == 'nextcloud-files':
+        from .appsetup import set_nextcloud_files
+        enabled = set_nextcloud_files(platform_)
+        print('Nextcloud-Dateiauswahl in Schulwissen ' + ('eingeschaltet.' if enabled else 'ausgeschaltet.'))
     elif args.action == 'backup':
         from .backups import BackupService
         service = BackupService(platform_)

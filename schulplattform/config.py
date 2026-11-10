@@ -30,6 +30,9 @@ WOERTERBUCH_APPS = ("grundschultafel",)
 # client secret is entered with './install.sh nextcloud-oidc' and never written to platform.toml.
 OIDC_APPS = ("schulwissen",)
 OIDC_KEYS = ("nextcloud_issuer", "nextcloud_discovery_url", "nextcloud_client_id")
+# Technical Nextcloud account for schulwissen's file picker (WebDAV, read-only shares). URL and user
+# live here; the app password is entered with './install.sh nextcloud-files'.
+FILES_KEYS = ("nextcloud_files_url", "nextcloud_files_user")
 
 
 class ConfigError(ValueError):
@@ -63,7 +66,12 @@ def validate(data):
             raise ConfigError(f"{oidc[0]} is only supported for {', '.join(OIDC_APPS)}")
         if oidc and not ("nextcloud_issuer" in entry and "nextcloud_client_id" in entry):
             raise ConfigError(f"apps.{app}: nextcloud_issuer and nextcloud_client_id belong together")
-        for key in oidc:  # rendered into an env file: no line breaks (JSON-Schema "$" lets a final \n through)
+        files = [key for key in FILES_KEYS if key in entry]
+        if files and app not in OIDC_APPS:
+            raise ConfigError(f"{files[0]} is only supported for {', '.join(OIDC_APPS)}")
+        if files and len(files) != len(FILES_KEYS):
+            raise ConfigError(f"apps.{app}: nextcloud_files_url and nextcloud_files_user belong together")
+        for key in oidc + files:  # rendered into an env file: no line breaks (JSON-Schema "$" lets a final \n through)
             if any(c.isspace() for c in entry[key]):
                 raise ConfigError(f"apps.{app}.{key} must not contain whitespace")
     if not any(entry["enabled"] for entry in data["apps"].values()):

@@ -729,3 +729,69 @@ def test_wizard_keeps_hand_written_karten(tmp_path):
     answers += [""] * 12
     data = _run_wizard(tmp_path, existing, answers)
     assert data["apps"]["fahrradausbildung"]["karten"] is True
+
+
+FILES = {"apps.schulwissen.nextcloud_files_url": "https://cloud.schule.example",
+         "apps.schulwissen.nextcloud_files_user": "schulwissen"}
+
+
+def test_nextcloud_files_stay_off_until_the_app_password_is_set(tmp_path):
+    data = sample(**FILES)
+    cfg.validate(data)
+    layout, stack, domains = render(tmp_path, data)
+    assert (layout.runtime / "wissen-nextcloud").read_text() == ""
+    assert not any(key.startswith("SW_NEXTCLOUD") for key in _wissen_env(layout))
+    app = yaml.load((layout.generated / "schulwissen.yml").read_text(), Loader=_TagLoader)
+    assert "nextcloud_password" in app["services"]["app"]["secrets"]
+    assert app["secrets"]["nextcloud_password"]["file"] == str(layout.runtime / "wissen-nextcloud")
+    from schulplattform.appsetup import _replace_projection
+    _replace_projection(layout.runtime / "wissen-nextcloud", "abcde-fghij-klmno")
+    stack.render(domains)
+    env = _wissen_env(layout)
+    assert env["SW_NEXTCLOUD_URL"] == "https://cloud.schule.example"
+    assert env["SW_NEXTCLOUD_NUTZER"] == "schulwissen"
+    assert env["SW_NEXTCLOUD_PASSWORT_FILE"] == "/run/secrets/nextcloud_password"
+    assert "abcde" not in (layout.runtime / "wissen.env").read_text()
+    assert not any(key.startswith("SW_OIDC") for key in env)          # independent of the login
+
+
+def test_nextcloud_files_config_is_checked():
+    with pytest.raises(cfg.ConfigError, match="only supported for schulwissen"):
+        cfg.validate(sample(**{"apps.gswb.nextcloud_files_url": "https://cloud.schule.example",
+                               "apps.gswb.nextcloud_files_user": "x"}))
+    with pytest.raises(cfg.ConfigError, match="belong together"):
+        cfg.validate(sample(**{"apps.schulwissen.nextcloud_files_url": "https://cloud.schule.example"}))
+    for key, bad in (("url", "http://cloud.schule.example"), ("url", "https://cloud.schule.example\n"),
+                     ("user", "schul wissen"), ("user", "a\nSW_DEBUG=1"), ("user", "abc\n")):
+        with pytest.raises(cfg.ConfigError):
+            cfg.validate(sample(**{**FILES, f"apps.schulwissen.nextcloud_files_{key}": bad}))
+
+
+def test_nextcloud_files_command(tmp_path, monkeypatch):
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+    from schulplattform import appsetup
+    from schulplattform.state import StateError
+    calls = []
+    monkeypatch.setattr(appsetup, "open_tty", lambda: nullcontext(None))
+    answers = []
+    monkeypatch.setattr(appsetup.getpass, "getpass", lambda *a, **kw: answers.pop(0))
+    layout, stack, domains = render(tmp_path / "a", sample())
+    platform = SimpleNamespace(stack=stack, layout=layout, current_domains=lambda: domains)
+    with pytest.raises(StateError, match="platform.toml"):
+        appsetup.set_nextcloud_files(platform)
+    layout, stack, domains = render(tmp_path / "b", sample(**FILES))
+    stack.compose = lambda *argv, **kw: calls.append(argv)
+    platform = SimpleNamespace(stack=stack, layout=layout, current_domains=lambda: domains)
+    answers[:] = ["kurz"]
+    with pytest.raises(StateError):
+        appsetup.set_nextcloud_files(platform)
+    assert (layout.runtime / "wissen-nextcloud").read_text() == "" and not calls
+    answers[:] = ["  abcde-fghij-klmno  "]
+    assert appsetup.set_nextcloud_files(platform) is True
+    assert (layout.runtime / "wissen-nextcloud").read_text() == "abcde-fghij-klmno"
+    assert "SW_NEXTCLOUD_PASSWORT_FILE" in _wissen_env(layout)
+    assert calls[-1][0] == "schulwissen" and "--force-recreate" in calls[-1]
+    answers[:] = [""]
+    assert appsetup.set_nextcloud_files(platform) is False
+    assert not any(key.startswith("SW_NEXTCLOUD") for key in _wissen_env(layout))

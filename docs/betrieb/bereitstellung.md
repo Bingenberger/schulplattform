@@ -211,6 +211,35 @@ HTTPS-Zugang zu `tile.openstreetmap.de`. Ist der Kachelserver nicht erreichbar, 
 `karten = false` oder Zeile löschen schaltet wieder aus. Die interaktive Kartenseite der App ist davon nicht
 betroffen; sie lädt die Karten im Browser.
 
+## Nextcloud-Dateien (App `schulwissen`)
+
+Damit das Kollegium Dateien aus der Nextcloud verlinken kann, braucht Schulwissen ein eigenes
+**technisches Nextcloud-Konto** mit App-Passwort. Das ist unabhängig von der Nextcloud-Anmeldung
+oben; beides geht einzeln oder zusammen. Die Werte `SW_NEXTCLOUD_*` aus `DEPLOYMENT.md` im
+Schulwissen-Repo gehören unter der Plattform **nicht** in eine `.env`, sondern so eingetragen:
+
+1. In der Nextcloud ein Konto anlegen, etwa `schulwissen`, und ihm **nur Leserechte** auf die
+   Ordner geben, die verlinkt werden sollen.
+2. Als dieses Konto anmelden → Einstellungen → Sicherheit → **App-Passwort erzeugen**.
+3. Adresse und Benutzer in `/etc/schulplattform/platform.toml` eintragen (kein Passwort):
+
+   ```toml
+   [apps.schulwissen]
+   nextcloud_files_url = "https://cloud.schule.example"
+   nextcloud_files_user = "schulwissen"
+   ```
+
+4. Das App-Passwort unsichtbar eingeben; Schulwissen wird danach neu gestartet:
+
+   ```sh
+   ./install.sh nextcloud-files
+   ```
+
+Das Passwort liegt unter `/var/lib/schulplattform/runtime/wissen-nextcloud` (Teil der
+Plattform-Sicherung). Erneuter Aufruf ersetzt es; leere Eingabe schaltet die Dateiauswahl wieder
+aus. Solange Passwort, `nextcloud_files_url` oder `nextcloud_files_user` fehlen, fehlt nur die
+Dateiauswahl. Nach Änderungen an `platform.toml` braucht das nächste `apply` `--reconfigure`.
+
 ## Bildergalerie (App `bildergalerie`)
 
 KI-generierte Bilder (CC0) mit Schlagworten, Suche, Sammelsuche für Wortlisten, Bildwünschen und einer
