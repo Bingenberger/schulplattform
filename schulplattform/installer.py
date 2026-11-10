@@ -126,7 +126,7 @@ def warnings(host):
 
 
 PRODUCTION = ["configure", "plan", "apply", "status", "reconcile", "domain-change", "start", "stop",
-              "admin-setup", "app-setup", "smtp-password", "youtube-key", "gallery-ai-key", "nextcloud-oidc", "nextcloud-files", "backup", "restore-probe",
+              "admin-setup", "app-setup", "smtp-password", "youtube-key", "gallery-ai-key", "nextcloud-oidc", "nextcloud-files", "nextcloud-index", "backup", "restore-probe",
               "restore",
               "import-key", "import", "restore-platform"]
 
@@ -264,6 +264,22 @@ def _main(argv=None):
                                      wait_seconds=int(os.environ.get('SP_CERT_WAIT', '150')))
         if not args.quiet:
             _print_status(platform_, None)
+    elif args.action == 'nextcloud-index':
+        # Timer job: schulwissen's search folders and linked Nextcloud files. Without the technical
+        # account or while the app is stopped (backup, update) there is nothing to do.
+        if not platform_.stack.files_block('schulwissen'):
+            if not args.quiet:
+                print('Nextcloud-Indexierung übersprungen: technischer Zugang nicht eingerichtet '
+                      '(./install.sh nextcloud-files).')
+            return 0
+        if platform_.stack.service_state('schulwissen', 'app')['health'] != 'healthy':
+            if not args.quiet:
+                print('Nextcloud-Indexierung übersprungen: Schulwissen läuft nicht.')
+            return 0
+        output = platform_.stack.compose('schulwissen', 'exec', '-T', 'app', 'python', 'manage.py',
+                                         'nextcloud_indexieren', '--anzahl', '50', timeout=900, check=False)
+        if not args.quiet and output:
+            print(output.strip())
     elif args.action == 'domain-change':
         if len(target) != 2:
             parser.error('domain-change APP HOSTNAME')

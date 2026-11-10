@@ -1,0 +1,23 @@
+{
+  "imageId": "sha256:3df623b1e19ebfe80d4e396a56c41ca0acbe0ad19e319268e2e3aea82d54f3e9",
+  "scope": "Stopped web and notification writers; fresh empty SQLite/upload/template volumes; separately supplied existing session key",
+  "allBusinessRowsAndIdsMatch": true,
+  "rolesAndClassAssignmentsPreserved": true,
+  "privateUploadsAndLogoRestored": true,
+  "syntheticTemplateBytesPreserved": true,
+  "sqliteIntegrityAndForeignKeys": true,
+  "restoredPrivateOwnerAndMode": true,
+  "nonemptyTargetsRejected": true,
+  "realPdfAfterRestore": true,
+  "anonymousAdminAndCrossClassDenied": true,
+  "noMigrationOrSeedOnRestore": true,
+  "snapshots": {
+    "instance": "6d8ae864c0280158872fcf3bb65fdb853c6628add06e4e5627d1ec52e3924801",
+    "templates": "16291151804866f312822b2e752d8d7968fe4b9983e9636a8bcdac9f7bd93f33"
+  },
+  "limits": [
+    "No encrypted offsite backup",
+    "No real legacy import"
+  ],
+  "stoppedDataRetained": true
+}

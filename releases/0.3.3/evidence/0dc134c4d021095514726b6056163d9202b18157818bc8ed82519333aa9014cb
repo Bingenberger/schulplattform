@@ -1,0 +1,21 @@
+{
+  "app": "schulwissen",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/schulwissen-standalone.json",
+      "sha256": "d39448f8e4ef1b8ec7206ec9d7ebe8b584de4614cf32d3609dd7a671c7c1f11b"
+    },
+    {
+      "path": "docs/implementation/evidence/schulwissen-standalone.log",
+      "sha256": "711b25b8e62f9dcbcf4b0c64dbce79ed39b402b62b84a6c1281937b2d6be642c"
+    }
+  ],
+  "item": "standalone",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "6aed6d7843bc7e1c770e3a4e6091d3d308aa5fb8",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "standalone evidence from the local pilot work packages.",
+  "testedCommit": "6aed6d7843bc7e1c770e3a4e6091d3d308aa5fb8"
+}

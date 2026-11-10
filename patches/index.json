@@ -8,7 +8,7 @@
   {
     "app": "schulwissen",
     "baseCommit": "a9673bc343a3a6eea1c15f533d0e89061e669b32",
-    "implementationCommit": "cf4408a3cdf9982545f628b8f65be907c4af08ee",
+    "implementationCommit": "6aed6d7843bc7e1c770e3a4e6091d3d308aa5fb8",
     "patch": "patches/schulwissen/changes.patch"
   },
   {

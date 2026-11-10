@@ -1,0 +1,17 @@
+{
+  "app": "fahrradausbildung",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/fahrrad-restore.json",
+      "sha256": "b516c37a7c8aeeabbf49b2474f4027e8bded14d4b92353a07aebd6d1162a48f3"
+    }
+  ],
+  "item": "restore",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "5b44977b20d5b2a6230755ac0594a89a97dde026",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "restore evidence from the local pilot work packages.",
+  "testedCommit": "5b44977b20d5b2a6230755ac0594a89a97dde026"
+}

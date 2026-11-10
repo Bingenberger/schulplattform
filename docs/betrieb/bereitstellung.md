@@ -240,6 +240,20 @@ Plattform-Sicherung). Erneuter Aufruf ersetzt es; leere Eingabe schaltet die Dat
 aus. Solange Passwort, `nextcloud_files_url` oder `nextcloud_files_user` fehlen, fehlt nur die
 Dateiauswahl. Nach Änderungen an `platform.toml` braucht das nächste `apply` `--reconfigure`.
 
+**Suchordner und Inhaltssuche** (ab Schulwissen 0.1.1, Migration 0014): Ganze Nextcloud-Ordner
+werden unter **Verwaltung → Nextcloud-Suchordner** eingetragen (Pfad aus Sicht des technischen
+Kontos, z. B. `Kollegium/Konzepte`, Gruppen oder „alle Schulkonten“ freigeben). Das Einlesen
+übernimmt der Timer `schulplattform-nextcloud-index.timer`. Er läuft alle 15 Minuten und
+überspringt sich, solange der technische Zugang fehlt oder Schulwissen gestoppt ist. Den Timer
+legt `apply` an, die Schritte im Schulwissen-Repo (`PHASE4.md`, `schulwissen-nextcloud.timer`)
+entfallen deshalb. Sofort anstoßen und die Ausgabe sehen:
+
+```sh
+./install.sh nextcloud-index
+```
+
+Ein Lauf liest höchstens zehn Suchordner und 50 Dateien. Große Bestände brauchen daher mehrere Läufe.
+
 ## Bildergalerie (App `bildergalerie`)
 
 KI-generierte Bilder (CC0) mit Schlagworten, Suche, Sammelsuche für Wortlisten, Bildwünschen und einer

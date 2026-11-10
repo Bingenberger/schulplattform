@@ -208,6 +208,15 @@ def units(root, platform_dir, socket_path, config_path, bundle_dir, trusted_key)
             "[Unit]\nDescription=Re-check pending DNS entries hourly\n\n"
             "[Timer]\nOnBootSec=5min\nOnUnitActiveSec=1h\nRandomizedDelaySec=5min\n\n"
             "[Install]\nWantedBy=timers.target\n"),
+        # schulwissen: indexes Nextcloud search folders and linked files (skips itself when unconfigured).
+        "schulplattform-nextcloud-index.service": (
+            "[Unit]\nDescription=Schulwissen: index Nextcloud search folders and linked files\n"
+            "After=docker.service\n\n"
+            "[Service]\nType=oneshot\n" + common + f"ExecStart={cli} nextcloud-index --quiet\n"),
+        "schulplattform-nextcloud-index.timer": (
+            "[Unit]\nDescription=Schulwissen: check Nextcloud files every 15 minutes\n\n"
+            "[Timer]\nOnBootSec=5min\nOnUnitActiveSec=15min\n\n"
+            "[Install]\nWantedBy=timers.target\n"),
         "schulplattform-backup.service": (
             "[Unit]\nDescription=Schulplattform daily backup\nAfter=docker.service\n\n"
             "[Service]\nType=oneshot\n" + common + f"ExecStart={cli} backup --all --quiet\n"),

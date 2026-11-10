@@ -1,0 +1,12 @@
+{
+  "app": "bildergalerie",
+  "artifacts": [],
+  "images": {
+    "bildergalerie": "ghcr.io/bingenberger/bildergalerie:0.1.1@sha256:587df7f0720d2ca9f2d71e0edcae1c7ae72ff44ce0dd39adec9a51ac3d2aa20c"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}

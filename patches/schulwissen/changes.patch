@@ -1,7 +1,7 @@
 From 225e4dd144a42c79b7db0855aa850bf54ec7d956 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Mon, 2 Nov 2026 13:17:50 +0100
-Subject: [PATCH 1/3] Add explicit migrations, readiness, proxy trust and
+Subject: [PATCH 1/6] Add explicit migrations, readiness, proxy trust and
  bounded PDF exports
 
 ---
@@ -386,7 +386,7 @@ index aa4b1fc..ff71455 100644
 From ce697abe0b64a6b7867f5cc1bf97c038d529ecd3 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 08:19:22 +0100
-Subject: [PATCH 2/3] Publish versioned amd64 release images to GHCR on version
+Subject: [PATCH 2/6] Publish versioned amd64 release images to GHCR on version
  tags
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -464,7 +464,7 @@ index 0000000..1e25a91
 From cf4408a3cdf9982545f628b8f65be907c4af08ee Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 12:07:52 +0100
-Subject: [PATCH 3/3] README: Installation im Rahmen der Schulplattform und
+Subject: [PATCH 3/6] README: Installation im Rahmen der Schulplattform und
  Standalone; veraltete Angaben korrigiert
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -534,6 +534,2826 @@ index 3915e38..a4b5e50 100644
  docker compose exec app python manage.py admin_anlegen deine@adresse.de
  ```
  
+-- 
+2.43.0
+
+
+From f2c4aa6dc6b1e47cce0d72e4a1f3aa14f8a453ab Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Florian=20Emrich-F=C3=B6rster?= <florian@foerster.rocks>
+Date: Mon, 9 Nov 2026 19:28:27 +0100
+Subject: [PATCH 4/6] memory
+
+---
+ nextcloud-oidc-unter-plattform.md | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+ create mode 100644 nextcloud-oidc-unter-plattform.md
+
+diff --git a/nextcloud-oidc-unter-plattform.md b/nextcloud-oidc-unter-plattform.md
+new file mode 100644
+index 0000000..fa60a7f
+--- /dev/null
++++ b/nextcloud-oidc-unter-plattform.md
+@@ -0,0 +1,17 @@
++---
++name: nextcloud-oidc-unter-plattform
++description: "Offen seit 2026-11-09 – Nextcloud-OIDC lässt sich unter der Schulplattform nicht konfigurieren; Plattformerweiterung geplant, von einem anderen Rechner aus"
++metadata:
++  node_type: memory
++  type: project
++  originSessionId: 12d5a0fa-175c-4334-ab90-26c697bb160b
++  modified: 2026-11-09T18:25:14.784Z
++---
++
++Schulwissen läuft bei dieser Schule im Rahmen der Schulplattform (Repo `/home/foerster_schule/Schulplattform`). Dort greift die `.env` des Schulwissen-Repos nicht: Compose liest nur `apps/schulwissen/docker-compose.yml` + `generated/schulwissen.yml`, und das Override setzt `env_file: !override /var/lib/schulplattform/runtime/wissen.env`. Diese Datei wird aus `catalogue.py` generiert und bei jedem `render()` überschrieben; `platform.toml` erlaubt pro App keine zusätzlichen Schlüssel (`additionalProperties: false`). Für `SW_OIDC_*` fehlt damit jeder vorgesehene Platz.
++
++Geplant (Stand 2026-11-09 noch nicht begonnen, soll von einem anderen Rechner aus erfolgen): Erweiterung im Plattform-Repo nach dem Muster von `youtube-key`/`gallery-ai-key` – Schemaschlüssel `nextcloud_issuer`/`nextcloud_discovery_url`/`nextcloud_client_id`, Platzhalter `{oidc_block}` in der `wissen.env`-Vorlage, Secret `wissen-oidc`, neuer Befehl `./install.sh nextcloud-oidc`, danach signierter Release über `scripts/make_release.py`.
++
++**Why:** Die Einrichtungsanleitung in `PHASE4.md` beschreibt nur den Standalone-Weg über die `.env` und führt unter der Plattform in die Irre.
++
++**How to apply:** Bei Fragen zu `SW_*`-Einstellungen im Echtbetrieb immer zuerst klären, ob Plattform oder Standalone gemeint ist. Der `SW_OIDC_CLIENT_SECRET_FILE`-Weg darf nur eingetragen werden, wenn die Secretdatei gefüllt ist – `umgebung.text` prüft `_FILE` vor dem Standardwert und bricht bei leerer Datei den Start ab.
+-- 
+2.43.0
+
+
+From cb2a158340988fff20fe2574181c7fe3b9c824cc Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Tue, 10 Nov 2026 11:49:24 +0100
+Subject: [PATCH 5/6] =?UTF-8?q?Dateianh=C3=A4nge=20direkt=20beim=20Erfasse?=
+ =?UTF-8?q?n=20erm=C3=B6glichen?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ README.md                                     |   6 +
+ eintragstypen/formulare.py                    |  43 ++++++
+ kern/templates/kern/_nextcloud_erfassung.html |  16 ++
+ kern/templates/kern/eintrag_bearbeiten.html   |  56 ++++++-
+ kern/urls.py                                  |   5 +
+ kern/views.py                                 |  72 ++++++++-
+ tests/test_anhaenge_erfassung.py              | 140 ++++++++++++++++++
+ 7 files changed, 335 insertions(+), 3 deletions(-)
+ create mode 100644 kern/templates/kern/_nextcloud_erfassung.html
+ create mode 100644 tests/test_anhaenge_erfassung.py
+
+diff --git a/README.md b/README.md
+index a4b5e50..ead9f48 100644
+--- a/README.md
++++ b/README.md
+@@ -319,6 +319,12 @@ Konzepte und Konferenzprotokolle an. Kapitel und Tagesordnungspunkte entstehen
+ über dieselben Formulare und durchlaufen denselben Beschlussworkflow wie
+ der Arbeitsplan. Auf der Dokumentseite stehen Import und Exporte bereit.
+ 
++Schon beim Anlegen und Bearbeiten eines Eintrags können unter **Anhänge
++hinzufügen** mehrere Dateien vom Gerät, ein Nextcloud-Link oder Dateien aus
++**Nextcloud durchsuchen** ausgewählt werden. Die Anhänge werden gemeinsam mit
++dem Eintrag gespeichert. Eine Nextcloud-Auswahl bleibt bei Formularfehlern
++erhalten; Dateien vom Gerät müssen dann erneut ausgewählt werden.
++
+ ## Entwickeln
+ 
+ ```bash
+diff --git a/eintragstypen/formulare.py b/eintragstypen/formulare.py
+index 5d50aa2..7532bce 100644
+--- a/eintragstypen/formulare.py
++++ b/eintragstypen/formulare.py
+@@ -9,6 +9,7 @@ Hilfetext, im richtigen Block und mit Pflichtmarkierung.
+ from __future__ import annotations
+ 
+ from django import forms
++from django.core import signing
+ 
+ from eintragstypen import html
+ from eintragstypen.dienste import Rohsatz
+@@ -21,6 +22,21 @@ DATEN = "f_"
+ VERWEIS = "v_"
+ 
+ 
++class MehrdateiWidget(forms.ClearableFileInput):
++    allow_multiple_selected = True
++
++
++class MehrdateiFeld(forms.FileField):
++    widget = MehrdateiWidget
++
++    def clean(self, data, initial=None):
++        if not data:
++            return []
++        dateien = data if isinstance(data, (list, tuple)) else [data]
++        bereinigen = super().clean
++        return [bereinigen(datei, initial) for datei in dateien]
++
++
+ class RichtextFeld(forms.CharField):
+     """Formatierter Text. Der Editor im Browser hängt sich an das Textfeld."""
+ 
+@@ -108,6 +124,11 @@ class EintragFormular(forms.Form):
+     """Maske eines Eintrags – Felder und Blöcke kommen aus der Registry."""
+ 
+     ausgangsstand = forms.CharField(required=False, widget=forms.HiddenInput)
++    anhang_dateien = MehrdateiFeld(label="Dateien vom Gerät", required=False)
++    anhang_link = forms.URLField(
++        label="Nextcloud-Link", required=False, max_length=500, assume_scheme="https"
++    )
++    anhang_nextcloud = forms.Field(required=False, widget=forms.MultipleHiddenInput)
+ 
+     titel = forms.CharField(
+         label="Titel",
+@@ -119,6 +140,8 @@ class EintragFormular(forms.Form):
+     def __init__(self, *args, eintragstyp: str, eintrag=None, nutzer=None, dokument=None, **kwargs):
+         self.typ = registry.holen(eintragstyp)
+         self.eintrag = eintrag
++        self.nutzer = nutzer
++        self.dokument = dokument or (eintrag.dokument if eintrag else None)
+         super().__init__(*args, **kwargs)
+ 
+         for feld in self.typ.felder:
+@@ -152,6 +175,26 @@ class EintragFormular(forms.Form):
+             # „Idee" im Auswahlfeld, nur weil das der erste Wert der Liste ist.
+             self.fields["status"].initial = Status.ENTWURF
+ 
++    def _nextcloud_lesen(self, token):
++        try:
++            daten = signing.loads(token, salt="anhang-erfassung")
++        except signing.BadSignature as fehler:
++            raise forms.ValidationError("Bitte wähle die Nextcloud-Datei erneut aus.") from fehler
++        if daten["nutzer"] != self.nutzer.pk or daten["dokument"] != self.dokument.pk:
++            raise forms.ValidationError("Die Nextcloud-Auswahl gehört zu einem anderen Dokument.")
++        return daten
++
++    def clean_anhang_nextcloud(self):
++        tokens = self.cleaned_data["anhang_nextcloud"] or []
++        return [self._nextcloud_lesen(token) for token in dict.fromkeys(tokens)]
++
++    def nextcloud_auswahl(self):
++        for token in self["anhang_nextcloud"].value() or []:
++            try:
++                yield {"token": token, **self._nextcloud_lesen(token)}
++            except forms.ValidationError:
++                continue
++
+     def _vorbelegen(self, eintrag) -> None:
+         self.fields["titel"].initial = eintrag.titel
+         self.fields["status"].initial = eintrag.status
+diff --git a/kern/templates/kern/_nextcloud_erfassung.html b/kern/templates/kern/_nextcloud_erfassung.html
+new file mode 100644
+index 0000000..e1f81be
+--- /dev/null
++++ b/kern/templates/kern/_nextcloud_erfassung.html
+@@ -0,0 +1,16 @@
++{% if fehler %}<p class="meldung meldung-error" role="alert">{{ fehler }}</p>{% else %}
++<nav aria-label="Nextcloud-Ordner">
++{% for name, pfad in brotkrumen %}
++<button type="button" class="knopf knopf-leise" hx-get="{% url 'kern:nextcloud_erfassung' dokument.schluessel %}?kennung={{ kennung|urlencode }}&amp;pfad={{ pfad|urlencode }}" hx-target="#nextcloud-ordner">{{ name }}</button>
++{% endfor %}
++</nav>
++<ul>
++{% for zeile in dateien %}<li>
++{% if zeile.datei.ist_ordner %}
++<button type="button" class="knopf knopf-leise" hx-get="{% url 'kern:nextcloud_erfassung' dokument.schluessel %}?kennung={{ kennung|urlencode }}&amp;pfad={{ zeile.datei.pfad|urlencode }}" hx-target="#nextcloud-ordner">Ordner: {{ zeile.datei.name }}</button>
++{% else %}
++<button type="button" class="knopf" data-nextcloud-auswahl="{{ zeile.token }}" data-name="{{ zeile.datei.pfad }}">{{ zeile.datei.name }} hinzufügen</button>
++{% endif %}
++</li>{% empty %}<li>Dieser Ordner ist leer.</li>{% endfor %}
++</ul>
++{% endif %}
+diff --git a/kern/templates/kern/eintrag_bearbeiten.html b/kern/templates/kern/eintrag_bearbeiten.html
+index 8f99423..80fd584 100644
+--- a/kern/templates/kern/eintrag_bearbeiten.html
++++ b/kern/templates/kern/eintrag_bearbeiten.html
+@@ -35,7 +35,7 @@
+       jederzeit als Entwurf sichern und später weiterarbeiten.
+     </div>
+ 
+-    <form method="post" class="{% if typ.schluessel == 'prozess' %}prozessformular{% endif %}" data-eintragsformular x-data="{ jahrgang: '{{ formular.f_jahrgang.value|default:'' }}' }">
++    <form method="post" enctype="multipart/form-data" class="{% if typ.schluessel == 'prozess' %}prozessformular{% endif %}" data-eintragsformular x-data="{ jahrgang: '{{ formular.f_jahrgang.value|default:'' }}' }">
+       {% csrf_token %}
+       {{ formular.ausgangsstand }}
+ 
+@@ -132,6 +132,33 @@
+         </section>
+       {% endfor %}
+ 
++      <section class="block" aria-labelledby="anhaenge-titel">
++        <h2 id="anhaenge-titel">Anhänge hinzufügen</h2>
++        <p>Die ausgewählten Dateien werden beim Speichern angehängt.</p>
++        {% if eintrag.anhaenge.exists %}<p>Bereits vorhandene Anhänge findest du auf der <a href="{% url 'kern:eintrag' dokument.schluessel eintrag.kennung %}" target="_blank" rel="noopener">Ansichtsseite des Eintrags</a>.</p>{% endif %}
++        <div class="feld">
++          <label for="{{ formular.anhang_dateien.id_for_label }}">{{ formular.anhang_dateien.label }}</label>
++          {{ formular.anhang_dateien }}
++          {{ formular.anhang_dateien.errors }}
++          {% if formular.is_bound %}<p class="feld-hilfe">Falls du Dateien vom Gerät ausgewählt hattest, wähle sie vor dem erneuten Speichern bitte nochmals aus.</p>{% endif %}
++        </div>
++        <div class="feld">
++          <label for="{{ formular.anhang_link.id_for_label }}">{{ formular.anhang_link.label }}</label>
++          <p class="feld-hilfe">Einen vorhandenen Nextcloud-Link einfügen oder unten eine Datei auswählen.</p>
++          {{ formular.anhang_link }}{{ formular.anhang_link.errors }}
++        </div>
++        {{ formular.anhang_nextcloud.errors }}
++        <ul id="nextcloud-auswahl" aria-label="Ausgewählte Nextcloud-Dateien" aria-live="polite">
++          {% for auswahl in formular.nextcloud_auswahl %}<li data-nextcloud-pfad="{{ auswahl.pfad }}">
++            <input type="hidden" name="anhang_nextcloud" value="{{ auswahl.token }}">
++            {{ auswahl.pfad }} <button type="button" class="knopf knopf-leise" data-nextcloud-entfernen>Auswahl entfernen</button>
++          </li>{% endfor %}
++        </ul>
++        <button type="button" class="knopf" hx-get="{% url 'kern:nextcloud_erfassung' dokument.schluessel %}{% if eintrag %}?kennung={{ eintrag.kennung|urlencode }}{% endif %}" hx-target="#nextcloud-ordner">Nextcloud durchsuchen</button>
++        <div id="nextcloud-ordner" aria-live="polite"></div>
++        <noscript><p>Zum Durchsuchen der Nextcloud ist JavaScript erforderlich. Du kannst stattdessen einen Nextcloud-Link einfügen oder Dateien vom Gerät anhängen.</p></noscript>
++      </section>
++
+       <div class="aktionsleiste">
+       <details class="status-auswahl" {% if formular.status.errors %}open{% endif %}><summary>Status ändern</summary>
+         <div class="feld">
+@@ -157,6 +184,33 @@
+ 
+ {% block ende %}
+ <script>
++document.addEventListener("click", (ereignis) => {
++  const entfernen = ereignis.target.closest("[data-nextcloud-entfernen]");
++  if (entfernen) {
++    entfernen.closest("li").remove();
++    document.querySelector("[data-eintragsformular]").dispatchEvent(new Event("input", {bubbles: true}));
++    return;
++  }
++  const knopf = ereignis.target.closest("[data-nextcloud-auswahl]");
++  if (!knopf) return;
++  const liste = document.getElementById("nextcloud-auswahl");
++  if (Array.from(liste.children).some(zeile => zeile.dataset.nextcloudPfad === knopf.dataset.name)) return;
++  const zeile = document.createElement("li");
++  zeile.dataset.nextcloudPfad = knopf.dataset.name;
++  const feld = document.createElement("input");
++  feld.type = "hidden";
++  feld.name = "anhang_nextcloud";
++  feld.value = knopf.dataset.nextcloudAuswahl;
++  const loeschen = document.createElement("button");
++  loeschen.type = "button";
++  loeschen.className = "knopf knopf-leise";
++  loeschen.dataset.nextcloudEntfernen = "";
++  loeschen.textContent = "Auswahl entfernen";
++  zeile.append(feld, document.createTextNode(knopf.dataset.name + " "), loeschen);
++  liste.append(zeile);
++  feld.dispatchEvent(new Event("input", {bubbles: true}));
++});
++
+ /*
+  * Kleine Alpine-Komponente für die Kompetenzauswahl.
+  * Sie hält die Marken (Kennung + Klartext) und spiegelt die Kennungen in das
+diff --git a/kern/urls.py b/kern/urls.py
+index 61ea9af..fe44013 100644
+--- a/kern/urls.py
++++ b/kern/urls.py
+@@ -119,6 +119,11 @@ urlpatterns = [
+     # --- Dokumente und Einträge ---
+     path("d/<slug:schluessel>", views.dokument_ansehen, name="dokument"),
+     path("d/<slug:schluessel>/neu/<str:eintragstyp>", views.eintrag_neu, name="eintrag_neu"),
++    path(
++        "d/<slug:schluessel>/anhangauswahl/nextcloud",
++        views.nextcloud_erfassung,
++        name="nextcloud_erfassung",
++    ),
+     # Diese feste Route muss vor „<str:kennung>" stehen, sonst gilt
+     # „aenderungen" als Kennung eines Eintrags.
+     path("d/<slug:schluessel>/aenderungen", beschluss_views.aenderungen, name="aenderungen"),
+diff --git a/kern/views.py b/kern/views.py
+index d870333..9c99083 100644
+--- a/kern/views.py
++++ b/kern/views.py
+@@ -451,7 +451,8 @@ def eintrag_bearbeiten(request, schluessel: str, kennung: str):
+ 
+     if request.method == "POST":
+         formular = EintragFormular(
+-            request.POST, eintragstyp=eintrag.eintragstyp, eintrag=eintrag, nutzer=request.user
++            request.POST, request.FILES,
++            eintragstyp=eintrag.eintragstyp, eintrag=eintrag, nutzer=request.user
+         )
+         gueltig = formular.is_valid()
+         if getattr(eintrag, "entfernt", False):
+@@ -502,7 +503,8 @@ def eintrag_neu(request, schluessel: str, eintragstyp: str):
+ 
+     if request.method == "POST":
+         formular = EintragFormular(
+-            request.POST, eintragstyp=eintragstyp, dokument=dokument, nutzer=request.user
++            request.POST, request.FILES,
++            eintragstyp=eintragstyp, dokument=dokument, nutzer=request.user
+         )
+         if formular.is_valid():
+             antwort = _speichern(request, dokument, formular, None, None)
+@@ -621,6 +623,35 @@ def _speichern(request, dokument, formular, kennung: str, eintrag):
+             gespeichert.verantwortlich_gruppe = gruppe
+             gespeichert.save(update_fields=["verantwortlich_gruppe"])
+ 
++    for datei in formular.cleaned_data.get("anhang_dateien", []):
++        Anhang.objects.create(
++            dokument=dokument, eintrag=gespeichert, erstellt_von=request.user,
++            datei=datei, dateiname=datei.name,
++            mimetype=getattr(datei, "content_type", "") or "", groesse=datei.size,
++        )
++    link = formular.cleaned_data.get("anhang_link")
++    if link:
++        Anhang.objects.create(
++            dokument=dokument, eintrag=gespeichert, erstellt_von=request.user,
++            nextcloud_link=link,
++            dateiname=link.rstrip("/").rsplit("/", 1)[-1][:300] or "Nextcloud",
++        )
++    from kern import nextcloud
++
++    for auswahl in formular.cleaned_data.get("anhang_nextcloud", []):
++        Anhang.objects.get_or_create(
++            eintrag=gespeichert, nextcloud_pfad=auswahl["pfad"],
++            defaults={
++                "dokument": dokument, "erstellt_von": request.user,
++                "dateiname": auswahl["name"], "mimetype": auswahl["mimetype"],
++                "groesse": auswahl["groesse"],
++                "nextcloud_link": nextcloud.weblink(auswahl["pfad"]),
++            },
++        )
++    if (formular.cleaned_data.get("anhang_dateien") or link
++            or formular.cleaned_data.get("anhang_nextcloud")):
++        dienste.suchtext_aktualisieren(gespeichert)
++
+     if befundsatz.fehlende_pflichtfelder:
+         for feld in befundsatz.fehlende_pflichtfelder:
+             name = ("v_" if feld.ist_verlinkung else "f_") + feld.schluessel
+@@ -799,6 +830,43 @@ def gesundheit(request):
+     return HttpResponse("ok", content_type="text/plain")
+ 
+ 
++@login_required
++def nextcloud_erfassung(request, schluessel: str):
++    """Ordnerauswahl ohne vorzeitiges Speichern des Eintrags."""
++    from django.core import signing
++
++    from kern import nextcloud
++
++    dokument = get_object_or_404(rechte.sichtbare_dokumente(request.user), schluessel=schluessel)
++    kennung = request.GET.get("kennung", "")
++    if kennung:
++        eintrag = _eintrag_holen(request, schluessel, kennung)
++        erlaubt = rechte.darf_bearbeiten(request.user, eintrag)
++    else:
++        erlaubt = rechte.darf_anlegen(request.user, dokument)
++    if not erlaubt:
++        raise PermissionDenied("Zum Auswählen von Anhängen fehlt die Bearbeitungsberechtigung.")
++
++    pfad = request.GET.get("pfad", "")
++    dateien, fehler = [], ""
++    try:
++        for datei in nextcloud.auflisten(pfad):
++            token = ""
++            if not datei.ist_ordner:
++                token = signing.dumps({
++                    "nutzer": request.user.pk, "dokument": dokument.pk,
++                    "pfad": datei.pfad, "name": datei.name,
++                    "mimetype": datei.mimetype, "groesse": datei.groesse,
++                }, salt="anhang-erfassung")
++            dateien.append({"datei": datei, "token": token})
++    except nextcloud.NextcloudFehler as problem:
++        fehler = str(problem)
++    return render(request, "kern/_nextcloud_erfassung.html", {
++        "dokument": dokument, "kennung": kennung, "dateien": dateien,
++        "brotkrumen": nextcloud.brotkrumen(pfad), "fehler": fehler,
++    })
++
++
+ @login_required
+ def nextcloud_waehlen(request, schluessel: str, kennung: str):
+     """Dateiauswahl in der Nextcloud (SPEC.md §10, Stufe 1).
+diff --git a/tests/test_anhaenge_erfassung.py b/tests/test_anhaenge_erfassung.py
+new file mode 100644
+index 0000000..cb34387
+--- /dev/null
++++ b/tests/test_anhaenge_erfassung.py
+@@ -0,0 +1,140 @@
++"""Anhänge direkt beim Anlegen und Bearbeiten eines Eintrags."""
++
++import pytest
++from django.core.files.uploadedfile import SimpleUploadedFile
++from django.urls import reverse
++
++from kern import nextcloud
++from kern.models import Anhang
++
++pytestmark = pytest.mark.django_db
++
++
++def erfassung(dokument):
++    return reverse("kern:eintrag_neu", args=[dokument.schluessel, "grundlagenkapitel"])
++
++
++def test_neues_kapitel_mit_mehreren_dateien(client, redaktion_nutzer, dokument, settings, tmp_path):
++    settings.MEDIA_ROOT = tmp_path
++    client.force_login(redaktion_nutzer)
++    seite = client.get(erfassung(dokument))
++    assert b"multipart/form-data" in seite.content
++    assert b"Nextcloud durchsuchen" in seite.content
++    antwort = client.post(erfassung(dokument), {
++        "titel": "Kapitel mit Material", "status": "entwurf",
++        "anhang_dateien": [
++            SimpleUploadedFile("eins.txt", b"Erste Datei", content_type="text/plain"),
++            SimpleUploadedFile("zwei.txt", b"Zweite Datei", content_type="text/plain"),
++        ],
++        "anhang_link": "https://cloud.example.org/s/material",
++    })
++    assert antwort.status_code == 302
++    eintrag = dokument.eintraege.get(titel="Kapitel mit Material")
++    assert eintrag.anhaenge.count() == 3
++    assert eintrag.anhaenge.get(dateiname="eins.txt").datei.read() == b"Erste Datei"
++    assert eintrag.anhaenge.get(dateiname="material").nextcloud_link.endswith("/s/material")
++
++
++def test_nextcloud_auswahl_bleibt_bei_formularfehler(client, redaktion_nutzer, dokument, monkeypatch):
++    client.force_login(redaktion_nutzer)
++    monkeypatch.setattr(nextcloud, "auflisten", lambda pfad: [
++        nextcloud.Eintrag("Lesen.pdf", "Konzepte/Lesen.pdf", False, 123, "application/pdf")
++    ])
++    url = reverse("kern:nextcloud_erfassung", args=[dokument.schluessel])
++    auswahl = client.get(url, {"pfad": "Konzepte"})
++    token = auswahl.context["dateien"][0]["token"]
++    anzahl = dokument.eintraege.count()
++    # Die Ordnerauswahl allein legt noch keinen Eintrag an.
++    assert not Anhang.objects.exists()
++    fehler = client.post(erfassung(dokument), {"anhang_nextcloud": [token]})
++    assert fehler.status_code == 200
++    assert token.encode() in fehler.content
++    assert dokument.eintraege.count() == anzahl
++    assert not Anhang.objects.exists()
++    antwort = client.post(erfassung(dokument), {
++        "titel": "Mit Nextcloud", "status": "entwurf", "anhang_nextcloud": [token, token],
++    })
++    assert antwort.status_code == 302
++    anhang = dokument.eintraege.get(titel="Mit Nextcloud").anhaenge.get()
++    assert anhang.nextcloud_pfad == "Konzepte/Lesen.pdf"
++    assert anhang.groesse == 123
++    assert not anhang.datei
++
++
++def test_manipulierte_nextcloud_auswahl_speichert_nichts(client, redaktion_nutzer, dokument):
++    client.force_login(redaktion_nutzer)
++    antwort = client.post(erfassung(dokument), {
++        "titel": "Ungültig", "anhang_nextcloud": ["manipuliert"],
++    })
++    assert antwort.status_code == 200
++    assert "anhang_nextcloud" in antwort.context["formular"].errors
++    assert not dokument.eintraege.filter(titel="Ungültig").exists()
++    assert not Anhang.objects.exists()
++
++
++def test_jede_hochgeladene_datei_wird_geprueft(
++    client, redaktion_nutzer, dokument, settings, tmp_path
++):
++    settings.MEDIA_ROOT = tmp_path
++    client.force_login(redaktion_nutzer)
++    antwort = client.post(erfassung(dokument), {
++        "titel": "Mit leerer Datei",
++        "anhang_dateien": [
++            SimpleUploadedFile("gut.txt", b"Inhalt"),
++            SimpleUploadedFile("leer.txt", b""),
++        ],
++    })
++    assert antwort.status_code == 200
++    assert "anhang_dateien" in antwort.context["formular"].errors
++    assert not dokument.eintraege.filter(titel="Mit leerer Datei").exists()
++    assert not Anhang.objects.exists()
++
++
++def test_nextcloud_auswahl_gilt_nur_fuer_den_angemeldeten_nutzer(
++    client, redaktion_nutzer, admin_nutzer, dokument, monkeypatch
++):
++    monkeypatch.setattr(nextcloud, "auflisten", lambda pfad: [
++        nextcloud.Eintrag("Lesen.pdf", "Lesen.pdf", False)
++    ])
++    client.force_login(admin_nutzer)
++    auswahl = client.get(reverse("kern:nextcloud_erfassung", args=[dokument.schluessel]))
++    token = auswahl.context["dateien"][0]["token"]
++    client.force_login(redaktion_nutzer)
++    antwort = client.post(erfassung(dokument), {
++        "titel": "Fremde Auswahl", "anhang_nextcloud": [token],
++    })
++    assert antwort.status_code == 200
++    assert "anhang_nextcloud" in antwort.context["formular"].errors
++    assert not dokument.eintraege.filter(titel="Fremde Auswahl").exists()
++
++
++def test_lesende_duerfen_nextcloud_nicht_durchsuchen(client, lesend_nutzer, dokument, monkeypatch):
++    client.force_login(lesend_nutzer)
++
++    def unerlaubt(*args, **kwargs):
++        pytest.fail("Nextcloud darf ohne Bearbeitungsrecht nicht abgefragt werden.")
++
++    monkeypatch.setattr(nextcloud, "auflisten", unerlaubt)
++    antwort = client.get(reverse("kern:nextcloud_erfassung", args=[dokument.schluessel]))
++    assert antwort.status_code in (403, 404)
++
++
++def test_bearbeiten_ergaenzt_anhaenge(client, redaktion_nutzer, dokument, settings, tmp_path):
++    settings.MEDIA_ROOT = tmp_path
++    client.force_login(redaktion_nutzer)
++    client.post(erfassung(dokument), {"titel": "Kapitel", "status": "entwurf"})
++    eintrag = dokument.eintraege.get(titel="Kapitel")
++    vorhanden = Anhang.objects.create(
++        eintrag=eintrag, dokument=dokument, dateiname="Alt", erstellt_von=redaktion_nutzer,
++        nextcloud_link="https://cloud.example.org/s/alt",
++    )
++    url = reverse("kern:eintrag_bearbeiten", args=[dokument.schluessel, eintrag.kennung])
++    formular = client.get(url).context["formular"]
++    antwort = client.post(url, {
++        "titel": "Kapitel", "status": "entwurf",
++        "ausgangsstand": formular["ausgangsstand"].value(),
++        "anhang_dateien": SimpleUploadedFile("neu.txt", b"Neues Material"),
++    })
++    assert antwort.status_code == 302
++    assert eintrag.anhaenge.count() == 2
++    assert eintrag.anhaenge.filter(pk=vorhanden.pk).exists()
+-- 
+2.43.0
+
+
+From 6aed6d7843bc7e1c770e3a4e6091d3d308aa5fb8 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Tue, 10 Nov 2026 16:31:25 +0100
+Subject: [PATCH 6/6] =?UTF-8?q?Nextcloud-Suchordner=20indexieren=20und=20D?=
+ =?UTF-8?q?ateifenster=20f=C3=BCr=20Anh=C3=A4nge?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Neues Modell für Nextcloud-Suchordner (Migration 0014) mit Gruppenfreigabe,
+  Verwaltung im Admin und Indexierung über nextcloud_indexieren
+- Dateifenster zum Hinzufügen, Vorschauen und Löschen von Anhängen
+- Suche berücksichtigt Dateien aus Suchordnern
+- Dokumentation (README, DEPLOYMENT, PHASE4) und Tests ergänzt
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ DEPLOYMENT.md                                 |   9 +
+ PHASE4.md                                     |  58 +++-
+ README.md                                     |  24 ++
+ dateien/anhaenge.css                          |  26 ++
+ dateien/anhaenge.js                           | 192 ++++++++++++
+ deploy/schulwissen-nextcloud.service          |   2 +-
+ eintragstypen/formulare.py                    |  28 +-
+ kern/admin.py                                 |  80 ++++-
+ kern/anhaenge.py                              | 190 ++++++++++++
+ .../commands/nextcloud_indexieren.py          |  31 +-
+ kern/migrations/0014_nextcloud_suchordner.py  |  73 +++++
+ kern/models.py                                |  79 +++++
+ kern/nextcloud.py                             |  10 +-
+ kern/nextcloud_index.py                       |  96 ++++--
+ kern/nextcloud_ordner.py                      | 124 ++++++++
+ kern/rechte.py                                |  13 +
+ kern/staende.py                               |   3 +
+ kern/templates/kern/_dateifenster.html        |  16 +
+ kern/templates/kern/_nextcloud_erfassung.html |  14 +-
+ kern/templates/kern/anhang_loeschen.html      |  13 +
+ .../kern/anhang_vorschau_hinweis.html         |   3 +
+ kern/templates/kern/eintrag.html              |  13 +-
+ kern/templates/kern/eintrag_bearbeiten.html   |  46 +--
+ kern/urls.py                                  |  12 +
+ kern/views.py                                 |  28 +-
+ suche/dienste.py                              |  13 +-
+ suche/templates/suche/ergebnisse.html         |   3 +-
+ tests/test_anhangfenster.py                   | 221 ++++++++++++++
+ tests/test_nextcloud_suchordner.py            | 273 ++++++++++++++++++
+ vorlagen/grundlage.html                       |   3 +
+ 30 files changed, 1610 insertions(+), 86 deletions(-)
+ create mode 100644 dateien/anhaenge.css
+ create mode 100644 dateien/anhaenge.js
+ create mode 100644 kern/anhaenge.py
+ create mode 100644 kern/migrations/0014_nextcloud_suchordner.py
+ create mode 100644 kern/nextcloud_ordner.py
+ create mode 100644 kern/templates/kern/_dateifenster.html
+ create mode 100644 kern/templates/kern/anhang_loeschen.html
+ create mode 100644 kern/templates/kern/anhang_vorschau_hinweis.html
+ create mode 100644 tests/test_anhangfenster.py
+ create mode 100644 tests/test_nextcloud_suchordner.py
+
+diff --git a/DEPLOYMENT.md b/DEPLOYMENT.md
+index 24858da..b833df6 100644
+--- a/DEPLOYMENT.md
++++ b/DEPLOYMENT.md
+@@ -389,6 +389,15 @@ Nach dem Neubau werden die Fachverwaltung, alle neun Fächer, der allgemeine
+ Dokumenttyp „Arbeitsplan“ und die Metadaten zur Nextcloud-Indexierung migriert.
+ Bestehende Deutschkennungen und Schulkonten bleiben erhalten.
+ 
++Migration **0014** ergänzt verwaltbare **Nextcloud-Suchordner** und deren
++Dateizuordnung. Vor dem Update die Datenbank sichern und den separaten
++Migrationsjob `python manage.py platform_migrate` ausführen. Die vorhandenen
++Anhänge und Zugriffsregeln bleiben erhalten. Danach lassen sich Ordner unter
++**Verwaltung → Nextcloud-Suchordner** eintragen; der vorhandene Nextcloud-Timer
++übernimmt Inventur und Dateiindexierung. Ohne konfigurierte Freigabe bleiben
++Ordnerdateien ausschließlich für die Administration sichtbar. Einrichtung,
++Laufbudgets und Fehlerverhalten: [PHASE4.md](PHASE4.md).
++
+ ## Freigabekopien und Gültigkeit (AP09)
+ 
+ Migration 0012 ergänzt ausschließlich das Wissensmodell. Vor dem Aktualisieren die PostgreSQL-Datenbank sichern. Verbindliche Dateifassungen werden als Binärdaten in PostgreSQL gespeichert; ein vollständiges Datenbankbackup muss auch `kern_freigegebenedatei` enthalten. Nur Nextcloud- und Medienordner zu sichern reicht für diese Kopien nicht aus. Der Download erfolgt ausschließlich durch die geschützte App-Route `/dateifassung/<id>`. Keinen öffentlichen Alias für diese Inhalte anlegen. Dynamische Anlagen des Altbestands werden nicht rückwirkend zu gesicherten Fassungen erklärt. Details: [AP09_WISSENSPFLEGE.md](docs/AP09_WISSENSPFLEGE.md).
+diff --git a/PHASE4.md b/PHASE4.md
+index 00af215..58e5fcd 100644
+--- a/PHASE4.md
++++ b/PHASE4.md
+@@ -2,7 +2,8 @@
+ 
+ ## Stand und Voraussetzungen
+ 
+-Die App unterstützt die regelmäßige Indexierung verlinkter Nextcloud-Dateien,
++Die App unterstützt die regelmäßige Indexierung verlinkter Nextcloud-Dateien und
++konfigurierter Nextcloud-Suchordner,
+ OIDC-Anmeldung über Nextcloud sowie Arbeitspläne und Kompetenzimporte für
+ Deutsch, Mathematik, Sport, Kunst, Musik, Religion katholisch, Religion evangelisch,
+ Sachunterricht und Englisch.
+@@ -47,6 +48,61 @@ das technische Konto sollte nur für das Kollegium bestimmte Inhalte lesen könn
+ 
+ Referenz: [Nextcloud WebDAV](https://docs.nextcloud.com/server/latest/developer_manual/client_apis/WebDAV/basic.html).
+ 
++## Ganze Nextcloud-Ordner in die Suche aufnehmen
++
++Voraussetzung ist Migration **0014**. Im üblichen Aktualisierungsablauf zuerst
++das neue Abbild bauen und `python manage.py platform_migrate` als separaten
++Migrationsjob ausführen, anschließend Webdienst und Indexierung aktualisieren.
++Vor dem Aktualisieren die Datenbank sichern.
++
++1. Unter **Verwaltung → Nextcloud-Suchordner → Hinzufügen** einen Namen und den
++   Ordnerpfad aus Sicht des technischen Kontos eingeben, etwa `Kollegium/Konzepte`.
++   Keine Nextcloud-URL eingeben.
++2. **Unterordner einbeziehen** nach Bedarf aktivieren.
++3. Die **berechtigten Gruppen** auswählen oder ausdrücklich für **alle aktiven
++   Schulkonten** freigeben. Ohne beides sieht nur die Administration die Dateien.
++4. Speichern. Der vorhandene Timer `schulwissen-nextcloud.timer` übernimmt die
++   Quelle beim nächsten Lauf. Zum sofortigen Starten:
++
++       docker compose exec app python manage.py nextcloud_indexieren
++
++Die Aktion **Beim nächsten Lauf vollständig neu indexieren** merkt ausgewählte
++Ordner für eine erneute Inventur und das erneute Lesen ihrer Dateien vor. Sie
++führt keine langsamen Nextcloud-Anfragen innerhalb der Verwaltungsseite aus.
++In der Ordnerliste stehen Dateizahl, letzte Prüfung und Fehler. Ein Klick auf
++die Dateizahl öffnet die automatisch verwalteten Dateieinträge.
++
++Je Lauf werden bis zu zehn seit mindestens 15 Minuten nicht geprüfte Suchordner
++erfasst; `--ordner-anzahl` verändert dieses Limit. Das bestehende Dateibudget
++`--anzahl` gilt gemeinsam für verlinkte Anhänge und Dateien aus Suchordnern.
++Große Bestände benötigen mehrere Läufe. `--alle` ignoriert das Prüfintervall und
++die Datei-ETags innerhalb dieser Laufbudgets. Pro Suchordner sind höchstens
++500 Ordner, 10.000 Dateien und etwa 60 Sekunden für die Inventur vorgesehen.
++Bei Erreichen einer Grenze bleibt der vorherige vollständige Bestand bestehen;
++in diesem Fall kleinere, nicht überlappende Suchordner konfigurieren.
++
++Dateinamen sind nach erfolgreicher Inventur suchbar. Unterstützte PDF-, DOCX-,
++ODT-/ODS-/ODP- und Textdateien werden zusätzlich nach Inhalt durchsucht. Bilder,
++andere nicht unterstützte Formate und reine Bildscans ohne erkennbaren PDF-Text
++bleiben über ihre Dateinamen auffindbar; es findet keine OCR statt.
++
++Entfernte Dateien und nicht mehr zugängliche Ordner (403/404/410) werden aus
++den Suchergebnissen und Vorschauen ausgeblendet; ihr gespeicherter Suchtext
++wird entfernt. Ein vorübergehender Fehler in einem Unterordner verwirft die
++unvollständige Inventur und erhält den letzten erfolgreichen Bestand.
++Deaktivieren, Pfadwechsel und Änderungen an der Gruppenauswahl gelten sofort.
++Die Ordnerdateien werden automatisch verwaltet; zum Entfernen einer ganzen
++Quelle deren Indexierung deaktivieren. Aktive Suchordner dürfen sich nicht
++überlappen. Ein Dokument-, Status-, Jahrgangs- oder Fachfilter beschränkt die
++Dateisuche weiterhin auf passende Eintragsanhänge, da Ordnerdateien keine
++entsprechenden Dokumentmetadaten besitzen.
++
++Die Gruppenfreigabe schützt Dateinamen, Textausschnitte und Vorschauen gemeinsam.
++Für das Öffnen des Originals gelten zusätzlich die persönlichen Nextcloud-Rechte.
++Der technische Zugriff auf Inhalte erfolgt mit dem bereits eingerichteten
++App-Konto; persönliche Nextcloud-Dateirechte werden nicht synchronisiert.
++Die Suchordner geben keine Schulwissen-Einträge oder Konferenzbeschlüsse frei.
++
+ ## Mit Nextcloud anmelden
+ 
+ Nextcloud benötigt die App
+diff --git a/README.md b/README.md
+index ead9f48..b6aebbd 100644
+--- a/README.md
++++ b/README.md
+@@ -325,6 +325,30 @@ hinzufügen** mehrere Dateien vom Gerät, ein Nextcloud-Link oder Dateien aus
+ dem Eintrag gespeichert. Eine Nextcloud-Auswahl bleibt bei Formularfehlern
+ erhalten; Dateien vom Gerät müssen dann erneut ausgewählt werden.
+ 
++Dateianhänge besitzen eine schwebende Vorschau: mit der Maus kurz über der Datei
++verweilen oder **Vorschau** anklicken. PDF-Dateien werden vollständig im
++PDF-Betrachter des Browsers angezeigt, einschließlich aller Seiten; auch Bilder
++werden unterstützt. Fehlt im Browser ein PDF-Betrachter, lässt sich die Datei
++über **Datei öffnen** aufrufen. Die Nextcloud-Ordnerauswahl öffnet sich ebenfalls
++in einem Fenster über der Eingabemaske.
++
++Bestehende Anhänge lassen sich auf der Ansichtsseite über **Anhang löschen …**
++oder in der Bearbeitungsmaske durch Markieren und Speichern entfernen.
++Verwendete Anhänge und gesicherte Freigabefassungen bleiben geschützt.
++Nextcloud-Originale werden beim Entfernen eines Verweises nicht gelöscht.
++Vorschauen registrierter Nextcloud-Pfade werden über das technische Konto
++abgerufen und unter den Leserechten des Schulwissen-Anhangs bereitgestellt.
++Reine Freigabelinks werden dafür nicht vom Server abgerufen.
++
++Unter **Verwaltung → Nextcloud-Suchordner** lassen sich außerdem ganze Ordner
++für die Suche festlegen: Name, Pfad relativ zum technischen Konto,
++Unterordner und berechtigte Gruppen. Ohne ausgewählte Gruppen oder Freigabe
++für alle Schulkonten sind die Dateien nur für die Administration sichtbar.
++Der bestehende Nextcloud-Timer erfasst die Ordner und liest die Dateiinhalte
++schrittweise ein. Die Dateien erscheinen unter **Dateien** in den Suchergebnissen,
++mit Ordnerkontext, Link zur Nextcloud und Vorschau.
++Details zu Einrichtung und Grenzen stehen in [PHASE4.md](PHASE4.md).
++
+ ## Entwickeln
+ 
+ ```bash
+diff --git a/dateien/anhaenge.css b/dateien/anhaenge.css
+new file mode 100644
+index 0000000..a16dd5f
+--- /dev/null
++++ b/dateien/anhaenge.css
+@@ -0,0 +1,26 @@
++.dateifenster {
++  box-sizing: border-box;
++  width: min(940px, calc(100vw - 2rem));
++  max-width: calc(100vw - 2rem);
++  max-height: calc(100dvh - 2rem);
++  padding: 1.25rem;
++  border: 1px solid var(--linie, #aaa);
++  border-radius: 1rem;
++  background: var(--flaeche, #fff);
++  color: var(--text, #222);
++  box-shadow: 0 1rem 4rem #0004;
++  overflow: auto;
++}
++.dateifenster::backdrop { background: #0005; }
++.dateivorschau[data-offen] { display: block; position: fixed; inset: 1rem; margin: auto; z-index: 1000; }
++.dateifenster-kopf { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
++.dateifenster-kopf h2 { margin: 0; font-size: 1.15rem; overflow-wrap: anywhere; }
++.dateivorschau iframe { width: 100%; height: min(65dvh, 780px); border: 0; background: #fff; }
++.dateifenster-ordner { min-height: 8rem; max-height: 65dvh; overflow: auto; }
++.dateifenster-ordner ul { list-style: none; padding: 0; }
++.dateifenster-ordner li { display: flex; flex-wrap: wrap; gap: .5rem; padding: .5rem 0; border-bottom: 1px solid var(--linie, #ddd); }
++.dateifenster-ordner li > :first-child { overflow-wrap: anywhere; }
++.dateifenster-ordner form { margin: 0; }
++.anhang-aktionen { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-block: .5rem; }
++.anhang-auswahl li { margin-block: .5rem; overflow-wrap: anywhere; }
++@media print { .dateifenster { display: none !important; } }
+diff --git a/dateien/anhaenge.js b/dateien/anhaenge.js
+new file mode 100644
+index 0000000..888be86
+--- /dev/null
++++ b/dateien/anhaenge.js
+@@ -0,0 +1,192 @@
++/* Dateivorschau, Nextcloud-Dialog und noch nicht gespeicherte Dateiauswahl. */
++(() => {
++  const fenster = document.getElementById('dateivorschau');
++  const dialog = document.getElementById('nextcloud-dialog');
++  if (!fenster || !dialog) return;
++  const rahmen = fenster.querySelector('iframe');
++  const original = fenster.querySelector('[data-vorschau-original]');
++  const kannPopover = typeof fenster.showPopover === 'function';
++  let timer, schliessenTimer, fest = false, ausloeser;
++  const offen = () => (kannPopover && fenster.matches(':popover-open')) || fenster.hasAttribute('data-offen');
++
++  function schliessen() {
++    clearTimeout(timer);
++    clearTimeout(schliessenTimer);
++    if (fenster.hidePopover && fenster.matches(':popover-open')) fenster.hidePopover();
++    fenster.removeAttribute('data-offen');
++    fenster.hidden = true;
++    rahmen.src = 'about:blank';
++    ausloeser?.setAttribute('aria-expanded', 'false');
++    fest = false;
++  }
++
++  function zeigen(knopf, fixieren = false) {
++    clearTimeout(timer);
++    clearTimeout(schliessenTimer);
++    if (fest && !fixieren) return;
++    if (!knopf.dataset.dateivorschau) return;
++    // Innerhalb eines modalen Dialogs muss auch die Vorschau dort liegen,
++    // damit sie für Maus, Tastatur und Screenreader erreichbar bleibt.
++    const eltern = dialog.open ? dialog : document.body;
++    if (fenster.parentElement !== eltern) {
++      schliessen();
++      eltern.append(fenster);
++    }
++    if (ausloeser && ausloeser !== knopf) ausloeser.setAttribute('aria-expanded', 'false');
++    ausloeser = knopf;
++    fest = fixieren;
++    knopf.setAttribute('aria-controls', 'dateivorschau');
++    knopf.setAttribute('aria-expanded', 'true');
++    document.getElementById('dateivorschau-titel').textContent = knopf.dataset.name || 'Dateivorschau';
++    const url = knopf.dataset.dateivorschau;
++    if (rahmen.getAttribute('src') !== url) rahmen.src = url;
++    original.href = knopf.dataset.vorschauOriginal || knopf.getAttribute('href') || url;
++    if (!offen()) {
++      fenster.hidden = false;
++      if (fenster.showPopover) fenster.showPopover();
++      else fenster.setAttribute('data-offen', '');
++    }
++    if (fixieren) fenster.querySelector('[data-vorschau-schliessen]').focus();
++  }
++
++  function spaeterSchliessen() {
++    clearTimeout(timer);
++    clearTimeout(schliessenTimer);
++    if (!fest) schliessenTimer = setTimeout(schliessen, 450);
++  }
++
++  document.addEventListener('pointerover', e => {
++    if (e.pointerType !== 'mouse' || !matchMedia('(hover: hover)').matches) return;
++    const knopf = e.target.closest('[data-dateivorschau]');
++    if (!knopf || knopf.contains(e.relatedTarget)) return;
++    clearTimeout(schliessenTimer);
++    clearTimeout(timer);
++    timer = setTimeout(() => { if (knopf.isConnected) zeigen(knopf); }, 450);
++  });
++  document.addEventListener('pointerout', e => {
++    const knopf = e.target.closest('[data-dateivorschau]');
++    if (knopf && !knopf.contains(e.relatedTarget)) spaeterSchliessen();
++  });
++  fenster.addEventListener('pointerenter', () => clearTimeout(schliessenTimer));
++  fenster.addEventListener('pointerleave', spaeterSchliessen);
++  // Beim Lesen oder Scrollen innerhalb der Vorschau bleibt sie stehen.
++  fenster.addEventListener('pointerdown', () => { fest = true; });
++  fenster.addEventListener('focusin', () => { fest = true; });
++  fenster.addEventListener('toggle', e => {
++    if (e.newState === 'closed' && !offen()) schliessen();
++  });
++
++  document.addEventListener('click', e => {
++    if (e.target.closest('[data-vorschau-schliessen]')) {
++      const zurueck = ausloeser;
++      schliessen();
++      if (zurueck?.isConnected) zurueck.focus();
++      return;
++    }
++    const vorschau = e.target.closest('[data-vorschau-oeffnen]');
++    if (vorschau) {
++      e.preventDefault();
++      zeigen(vorschau, true);
++      return;
++    }
++    if (e.target.closest('[data-nextcloud-oeffnen]')) {
++      schliessen();
++      if (!dialog.open) dialog.showModal();
++      return;
++    }
++    if (e.target.closest('[data-nextcloud-schliessen]')) {
++      schliessen();
++      dialog.close();
++      return;
++    }
++    const entfernen = e.target.closest('[data-nextcloud-entfernen]');
++    if (entfernen) {
++      entfernen.closest('li').remove();
++      document.querySelector('[data-eintragsformular]').dispatchEvent(new Event('input', {bubbles: true}));
++      return;
++    }
++    const knopf = e.target.closest('[data-nextcloud-auswahl]');
++    if (!knopf) return;
++    const liste = document.getElementById('nextcloud-auswahl');
++    if (!liste || Array.from(liste.children).some(z => z.dataset.nextcloudPfad === knopf.dataset.name)) return;
++    const zeile = document.createElement('li');
++    zeile.dataset.nextcloudPfad = knopf.dataset.name;
++    const feld = document.createElement('input');
++    feld.type = 'hidden'; feld.name = 'anhang_nextcloud'; feld.value = knopf.dataset.nextcloudAuswahl;
++    const vorschauKnopf = document.createElement('button');
++    vorschauKnopf.type = 'button'; vorschauKnopf.className = 'knopf knopf-leise';
++    vorschauKnopf.dataset.dateivorschau = knopf.dataset.dateivorschau;
++    vorschauKnopf.dataset.name = knopf.dataset.name;
++    vorschauKnopf.dataset.vorschauOriginal = knopf.dataset.vorschauOriginal;
++    vorschauKnopf.dataset.vorschauOeffnen = '';
++    vorschauKnopf.textContent = 'Vorschau';
++    const loeschen = document.createElement('button');
++    loeschen.type = 'button'; loeschen.className = 'knopf knopf-leise';
++    loeschen.dataset.nextcloudEntfernen = ''; loeschen.textContent = 'Auswahl entfernen';
++    zeile.append(feld, document.createTextNode(knopf.dataset.name + ' '), vorschauKnopf, loeschen);
++    liste.append(zeile);
++    knopf.textContent = 'Ausgewählt';
++    feld.dispatchEvent(new Event('input', {bubbles: true}));
++  });
++  dialog.addEventListener('close', schliessen);
++  dialog.addEventListener('cancel', e => {
++    if (offen()) { e.preventDefault(); schliessen(); }
++  });
++  document.addEventListener('keydown', e => {
++    if (e.key === 'Escape' && offen()) { e.preventDefault(); schliessen(); }
++  });
++  document.body.addEventListener('htmx:responseError', e => {
++    if (e.detail.target?.id === 'nextcloud-ordner') {
++      e.detail.target.textContent = 'Die Dateiauswahl konnte nicht geladen werden. Bitte versuche es erneut.';
++    }
++  });
++  document.body.addEventListener('htmx:beforeRequest', e => {
++    if (e.detail.target?.id === 'nextcloud-ordner') schliessen();
++  });
++
++  function bildOderPdf(bytes) {
++    const text = String.fromCharCode(...bytes);
++    if (text.startsWith('%PDF-')) return 'application/pdf';
++    if (text.startsWith('\x89PNG\r\n\x1a\n')) return 'image/png';
++    if (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) return 'image/jpeg';
++    if (/^GIF8[79]a/.test(text)) return 'image/gif';
++    if (text.startsWith('RIFF') && text.slice(8, 12) === 'WEBP') return 'image/webp';
++    return '';
++  }
++
++  document.querySelectorAll('[data-eintragsformular] input[type="file"], [data-anhang-upload] input[type="file"]').forEach(eingabe => {
++    const liste = document.createElement('ul');
++    liste.className = 'anhang-auswahl'; liste.setAttribute('aria-label', 'Ausgewählte Dateien vom Gerät');
++    eingabe.after(liste);
++    let urls = [];
++    function anzeigen() {
++      urls.forEach(url => { if (rahmen.getAttribute('src') === url) schliessen(); URL.revokeObjectURL(url); });
++      urls = []; liste.replaceChildren();
++      Array.from(eingabe.files).forEach((datei, index) => {
++        const zeile = document.createElement('li');
++        const knopf = document.createElement('button');
++        knopf.type = 'button'; knopf.className = 'knopf knopf-leise';
++        knopf.textContent = 'Vorschau'; knopf.disabled = true;
++        const weg = document.createElement('button');
++        weg.type = 'button'; weg.className = 'knopf knopf-leise'; weg.textContent = 'Auswahl entfernen';
++        weg.addEventListener('click', () => {
++          const transfer = new DataTransfer();
++          Array.from(eingabe.files).forEach((f, i) => { if (i !== index) transfer.items.add(f); });
++          eingabe.files = transfer.files;
++          eingabe.dispatchEvent(new Event('change', {bubbles: true}));
++        });
++        zeile.append(document.createTextNode(datei.name + ' '), knopf, weg); liste.append(zeile);
++        datei.slice(0, 16).arrayBuffer().then(puffer => {
++          if (!zeile.isConnected) return;
++          const typ = bildOderPdf(new Uint8Array(puffer));
++          if (!typ) { knopf.textContent = 'Keine Vorschau für dieses Format'; return; }
++          const url = URL.createObjectURL(new Blob([datei], {type: typ})); urls.push(url);
++          knopf.dataset.dateivorschau = url; knopf.dataset.vorschauOriginal = url;
++          knopf.dataset.vorschauOeffnen = ''; knopf.dataset.name = datei.name; knopf.disabled = false;
++        }).catch(() => { knopf.textContent = 'Vorschau nicht verfügbar'; });
++      });
++    }
++    eingabe.addEventListener('change', anzeigen);
++    window.addEventListener('pagehide', () => urls.forEach(url => URL.revokeObjectURL(url)));
++  });
++})();
+diff --git a/deploy/schulwissen-nextcloud.service b/deploy/schulwissen-nextcloud.service
+index efcd0ab..f80b45d 100644
+--- a/deploy/schulwissen-nextcloud.service
++++ b/deploy/schulwissen-nextcloud.service
+@@ -1,5 +1,5 @@
+ [Unit]
+-Description=Schulwissen: verlinkte Nextcloud-Dateien indexieren
++Description=Schulwissen: Nextcloud-Suchordner und verlinkte Dateien indexieren
+ After=docker.service
+ Requires=docker.service
+ 
+diff --git a/eintragstypen/formulare.py b/eintragstypen/formulare.py
+index 7532bce..2ba36a5 100644
+--- a/eintragstypen/formulare.py
++++ b/eintragstypen/formulare.py
+@@ -14,7 +14,7 @@ from django.core import signing
+ from eintragstypen import html
+ from eintragstypen.dienste import Rohsatz
+ from eintragstypen.registry import Feldtyp, registry
+-from kern.models import Status
++from kern.models import Anhang, Status
+ 
+ #: Prefix der Datenfelder im Formular.
+ DATEN = "f_"
+@@ -129,6 +129,10 @@ class EintragFormular(forms.Form):
+         label="Nextcloud-Link", required=False, max_length=500, assume_scheme="https"
+     )
+     anhang_nextcloud = forms.Field(required=False, widget=forms.MultipleHiddenInput)
++    anhang_entfernen = forms.ModelMultipleChoiceField(
++        label="Vorhandene Anhänge löschen", queryset=Anhang.objects.none(),
++        required=False, widget=forms.CheckboxSelectMultiple,
++    )
+ 
+     titel = forms.CharField(
+         label="Titel",
+@@ -143,6 +147,8 @@ class EintragFormular(forms.Form):
+         self.nutzer = nutzer
+         self.dokument = dokument or (eintrag.dokument if eintrag else None)
+         super().__init__(*args, **kwargs)
++        if eintrag is not None and eintrag.pk:
++            self.fields["anhang_entfernen"].queryset = eintrag.anhaenge.all()
+ 
+         for feld in self.typ.felder:
+             if feld.ist_verlinkung:
+@@ -188,13 +194,31 @@ class EintragFormular(forms.Form):
+         tokens = self.cleaned_data["anhang_nextcloud"] or []
+         return [self._nextcloud_lesen(token) for token in dict.fromkeys(tokens)]
+ 
++    def clean_anhang_entfernen(self):
++        from kern.anhaenge import loeschhindernis
++
++        auswahl = self.cleaned_data["anhang_entfernen"]
++        for anhang in auswahl:
++            grund = loeschhindernis(anhang)
++            if grund:
++                raise forms.ValidationError(f"{anhang.dateiname}: {grund}")
++        return auswahl
++
+     def nextcloud_auswahl(self):
++        from kern import nextcloud
++
+         for token in self["anhang_nextcloud"].value() or []:
+             try:
+-                yield {"token": token, **self._nextcloud_lesen(token)}
++                daten = self._nextcloud_lesen(token)
++                yield {"token": token, "original": nextcloud.weblink(daten["pfad"]), **daten}
+             except forms.ValidationError:
+                 continue
+ 
++    def vorhandene_anhaenge(self):
++        ausgewaehlt = {str(pk) for pk in self["anhang_entfernen"].value() or []}
++        for anhang in self.fields["anhang_entfernen"].queryset:
++            yield {"anhang": anhang, "entfernen": str(anhang.pk) in ausgewaehlt}
++
+     def _vorbelegen(self, eintrag) -> None:
+         self.fields["titel"].initial = eintrag.titel
+         self.fields["status"].initial = eintrag.status
+diff --git a/kern/admin.py b/kern/admin.py
+index cc4e32a..74353ae 100644
+--- a/kern/admin.py
++++ b/kern/admin.py
+@@ -9,6 +9,7 @@ from django.contrib.auth.forms import AdminPasswordChangeForm, UserChangeForm, U
+ from django.contrib.auth.models import Group
+ from django.db import transaction
+ from django.urls import reverse
++from django.utils import timezone
+ from django.utils.html import format_html
+ 
+ from eintragstypen import dienste
+@@ -28,6 +29,7 @@ from kern.models import (
+     Gremium,
+     Gruppenprofil,
+     Kommentar,
++    NextcloudOrdner,
+     Nutzer,
+     OIDCIdentitaet,
+     Verlinkung,
+@@ -359,9 +361,83 @@ class BeschlussAdmin(InterneInhalteAdmin):
+ @admin.register(Anhang)
+ class AnhangAdmin(AdministrationsMixin, admin.ModelAdmin):
+     list_display = ["dateiname", "eintrag", "mimetype", "groesse", "index_stand"]
+-    list_filter = ["mimetype"]
++    list_filter = ["mimetype", "nextcloud_ordner", "nextcloud_verfuegbar"]
+     search_fields = ["dateiname", "beschreibung", "extrahierter_text"]
+-    readonly_fields = ["extrahierter_text", "index_stand"]
++    readonly_fields = [
++        "extrahierter_text", "index_stand", "nextcloud_ordner", "nextcloud_verfuegbar",
++        "nextcloud_inventur_etag",
++    ]
++
++    def get_readonly_fields(self, request, obj=None):
++        if obj and obj.nextcloud_ordner_id:
++            return [feld.name for feld in self.model._meta.fields]
++        return self.readonly_fields
++
++    def has_change_permission(self, request, obj=None):
++        return not (obj and obj.nextcloud_ordner_id) and super().has_change_permission(request, obj)
++
++    def has_delete_permission(self, request, obj=None):
++        return not (obj and obj.nextcloud_ordner_id) and super().has_delete_permission(request, obj)
++
++    def get_actions(self, request):
++        aktionen = super().get_actions(request)
++        aktionen.pop("delete_selected", None)
++        return aktionen
++
++
++@admin.register(NextcloudOrdner)
++class NextcloudOrdnerAdmin(AdministrationsMixin, admin.ModelAdmin):
++    list_display = [
++        "name", "pfad", "aktiv", "unterordner", "anzahl_dateien", "geprueft_am", "index_fehler",
++    ]
++    list_filter = ["aktiv", "kollegiumsweit", "unterordner"]
++    search_fields = ["name", "pfad"]
++    filter_horizontal = ["gruppen"]
++    readonly_fields = ["geprueft_am", "index_stand", "index_fehler", "anzahl_dateien"]
++    actions = ["neu_indexieren"]
++    fieldsets = (
++        (None, {
++            "fields": ["name", "pfad", "unterordner", "aktiv"],
++            "description": "Die Dateien werden beim nächsten Nextcloud-Indexierungslauf erfasst. "
++            "Ohne eingerichteten Timer den Befehl nextcloud_indexieren ausführen.",
++        }),
++        ("Sichtbarkeit in Schulwissen", {
++            "fields": ["kollegiumsweit", "gruppen"],
++            "description": "Diese Freigabe gilt für Dateinamen, Suchtexte und Vorschauen. "
++            "Persönliche Nextcloud-Dateirechte werden nicht übertragen.",
++        }),
++        ("Indexierungsstand", {
++            "fields": ["anzahl_dateien", "geprueft_am", "index_stand", "index_fehler"],
++        }),
++    )
++
++    def has_delete_permission(self, request, obj=None):
++        return False
++
++    def save_model(self, request, obj, form, change):
++        if not change:
++            obj.erstellt_von = request.user
++        super().save_model(request, obj, form, change)
++
++    @admin.display(description="Erfasste Dateien")
++    def anzahl_dateien(self, obj):
++        if obj is None or not obj.pk:
++            return "Noch nicht eingelesen"
++        anzahl = obj.dateien.filter(nextcloud_verfuegbar=True).count()
++        url = reverse("admin:kern_anhang_changelist") + f"?nextcloud_ordner__id__exact={obj.pk}"
++        return format_html('<a href="{}">{}</a>', url, anzahl)
++
++    @admin.action(description="Beim nächsten Lauf vollständig neu indexieren", permissions=["change"])
++    def neu_indexieren(self, request, queryset):
++        with transaction.atomic():
++            ids = list(queryset.select_for_update().values_list("pk", flat=True))
++            NextcloudOrdner.objects.filter(pk__in=ids).update(
++                geprueft_am=None, index_fehler="", geaendert_am=timezone.now(),
++            )
++            Anhang.objects.filter(nextcloud_ordner_id__in=ids).update(
++                nextcloud_geprueft_am=None, nextcloud_etag="",
++            )
++        self.message_user(request, "Die ausgewählten Ordner sind für den nächsten Lauf vorgemerkt.")
+ 
+ 
+ @admin.register(Kommentar)
+diff --git a/kern/anhaenge.py b/kern/anhaenge.py
+new file mode 100644
+index 0000000..7dda1dd
+--- /dev/null
++++ b/kern/anhaenge.py
+@@ -0,0 +1,190 @@
++"""Geschützte Dateivorschau und Entfernen unbenutzter Anhänge."""
++
++import logging
++from pathlib import Path
++from tempfile import TemporaryDirectory
++
++from django.contrib import messages
++from django.contrib.auth.decorators import login_required
++from django.core import signing
++from django.core.exceptions import PermissionDenied, ValidationError
++from django.db import transaction
++from django.http import FileResponse, Http404
++from django.shortcuts import get_object_or_404, redirect, render
++from django.views.decorators.clickjacking import xframe_options_sameorigin
++from django.views.decorators.http import require_GET, require_http_methods
++
++from eintragstypen import dienste
++from kern import nextcloud, rechte
++from kern.dateifassungen import originalstand
++from kern.models import Anhang, Eintrag, Eintragsversion, Verlinkung, Zieltyp
++from kern.staende import sichtbare_anhaenge
++
++logger = logging.getLogger(__name__)
++
++
++def loeschhindernis(anhang):
++    if anhang.freigabekopien.exists():
++        return "Dieser Anhang gehört zu einer gesicherten Freigabefassung und bleibt erhalten."
++    ziel = {"ziel_typ": Zieltyp.ANHANG, "ziel_id": str(anhang.pk)}
++    if (
++        Verlinkung.objects.filter(**ziel).exists()
++        or Eintragsversion.objects.filter(verlinkungen__contains=[ziel]).exists()
++    ):
++        return "Andere Einträge oder gespeicherte Fassungen verwenden diesen Anhang."
++    return ""
++
++
++def entfernen(anhang):
++    grund = loeschhindernis(anhang)
++    if grund:
++        raise ValidationError(grund)
++    name, speicher = anhang.datei.name, anhang.datei.storage
++    anhang.delete()
++    if name:
++
++        def datei_entfernen():
++            if not Anhang.objects.filter(datei=name).exists():
++                try:
++                    speicher.delete(name)
++                except OSError:
++                    logger.exception("Entfernte Anhangdatei konnte nicht bereinigt werden.")
++
++        transaction.on_commit(datei_entfernen)
++
++
++@login_required
++@require_http_methods(["GET", "POST"])
++@transaction.atomic
++def loeschen(request, schluessel, kennung, pk):
++    dokument = get_object_or_404(
++        rechte.sichtbare_dokumente(request.user).select_for_update(of=("self",)),
++        schluessel=schluessel,
++    )
++    eintrag = get_object_or_404(
++        Eintrag.objects.select_for_update(), dokument=dokument, kennung=kennung
++    )
++    if not rechte.darf_bearbeiten(request.user, eintrag):
++        raise PermissionDenied("Diesen Anhang darfst du nicht löschen.")
++    anhang = get_object_or_404(Anhang.objects.select_for_update(), eintrag=eintrag, pk=pk)
++    grund = loeschhindernis(anhang)
++    stand = {"nutzer": request.user.pk, "anhang": pk, "stand": originalstand(anhang)}
++    if request.method == "POST":
++        try:
++            bestaetigt = signing.loads(
++                request.POST.get("stand", ""), salt="anhang-loeschen", max_age=3600
++            )
++        except signing.BadSignature:
++            bestaetigt = None
++        if bestaetigt != stand:
++            grund = "Die Datei oder ihre Angaben haben sich geändert. Bitte prüfe erneut."
++    if request.method == "POST" and not grund:
++        name = anhang.dateiname
++        entfernen(anhang)
++        dienste.suchtext_aktualisieren(eintrag)
++        messages.success(request, f"Der Anhang „{name}“ wurde entfernt.")
++        return redirect("kern:eintrag", schluessel=schluessel, kennung=kennung)
++    return render(request, "kern/anhang_loeschen.html", {
++        "dokument": dokument, "eintrag": eintrag, "anhang": anhang, "grund": grund,
++        "stand": signing.dumps(stand, salt="anhang-loeschen"),
++    }, status=409 if request.method == "POST" else 200)
++
++
++def _hinweis(request, text):
++    antwort = render(request, "kern/anhang_vorschau_hinweis.html", {"text": text})
++    antwort["Cache-Control"] = "private, no-store"
++    return antwort
++
++
++def _dateiantwort(request, datei, name):
++    """Nur passive Formate einbetten; weder Dateiendung noch fremdem MIME vertrauen."""
++    try:
++        kopf = datei.read(512)
++        datei.seek(0)
++    except Exception:
++        datei.close()
++        raise
++    typ = ""
++    if kopf.startswith(b"%PDF-"):
++        typ = "application/pdf"
++    elif kopf.startswith(b"\x89PNG\r\n\x1a\n"):
++        typ = "image/png"
++    elif kopf.startswith(b"\xff\xd8\xff"):
++        typ = "image/jpeg"
++    elif kopf.startswith((b"GIF87a", b"GIF89a")):
++        typ = "image/gif"
++    elif kopf.startswith(b"RIFF") and kopf[8:12] == b"WEBP":
++        typ = "image/webp"
++    if not typ:
++        datei.close()
++        return _hinweis(
++            request,
++            "Für dieses Dateiformat ist keine eingebettete Vorschau verfügbar. "
++            "Bitte öffne die Originaldatei. PDF-Dateien und Bilder können angezeigt werden.",
++        )
++    antwort = FileResponse(datei, content_type=typ, as_attachment=False, filename=name)
++    antwort["Cache-Control"] = "private, no-store"
++    antwort["X-Content-Type-Options"] = "nosniff"
++    antwort["Content-Security-Policy"] = "frame-ancestors 'self'"
++    return antwort
++
++
++def _nextcloud_antwort(request, pfad, name):
++    ordner = TemporaryDirectory(prefix="schulwissen-vorschau-")
++    try:
++        ziel = Path(ordner.name) / "datei"
++        ergebnis = nextcloud.herunterladen(pfad, ziel)
++        if ergebnis.status != 200:
++            ordner.cleanup()
++            return _hinweis(request, "Diese Nextcloud-Datei ist derzeit nicht verfügbar.")
++        antwort = _dateiantwort(request, ziel.open("rb"), name)
++        # Die temporäre Datei lebt nur bis zum Ende der HTTP-Antwort.
++        antwort._resource_closers.append(ordner.cleanup)
++        return antwort
++    except nextcloud.NextcloudFehler:
++        ordner.cleanup()
++        return _hinweis(request, "Die Nextcloud-Vorschau ist derzeit nicht verfügbar.")
++    except Exception:
++        ordner.cleanup()
++        raise
++
++
++@login_required
++@require_GET
++@xframe_options_sameorigin
++def vorschau(request, pk):
++    anhang = get_object_or_404(sichtbare_anhaenge(request.user, Anhang.objects.all()), pk=pk)
++    if anhang.datei:
++        try:
++            return _dateiantwort(request, anhang.datei.open("rb"), anhang.dateiname)
++        except (OSError, ValueError) as fehler:
++            raise Http404("Die Datei ist nicht verfügbar.") from fehler
++    if anhang.nextcloud_pfad:
++        return _nextcloud_antwort(request, anhang.nextcloud_pfad, anhang.dateiname)
++    return _hinweis(
++        request,
++        "Für diesen Freigabe-Link ist keine Vorschau verfügbar. "
++        "Bitte öffne die Datei in der Nextcloud.",
++    )
++
++
++@login_required
++@require_GET
++@xframe_options_sameorigin
++def nextcloud_vorschau(request, schluessel):
++    dokument = get_object_or_404(rechte.sichtbare_dokumente(request.user), schluessel=schluessel)
++    try:
++        daten = signing.loads(request.GET.get("auswahl", ""), salt="anhang-erfassung")
++    except signing.BadSignature as fehler:
++        raise PermissionDenied("Die Dateiauswahl ist ungültig.") from fehler
++    if daten["nutzer"] != request.user.pk or daten["dokument"] != dokument.pk:
++        raise PermissionDenied("Diese Dateiauswahl ist nicht zugänglich.")
++    kennung = request.GET.get("kennung")
++    if kennung:
++        eintrag = get_object_or_404(Eintrag, dokument=dokument, kennung=kennung)
++        erlaubt = rechte.darf_bearbeiten(request.user, eintrag)
++    else:
++        erlaubt = rechte.darf_anlegen(request.user, dokument)
++    if not erlaubt:
++        raise PermissionDenied("Die Bearbeitungsberechtigung ist nicht mehr vorhanden.")
++    return _nextcloud_antwort(request, daten["pfad"], daten["name"])
+diff --git a/kern/management/commands/nextcloud_indexieren.py b/kern/management/commands/nextcloud_indexieren.py
+index 2f21f3e..fbc0f30 100644
+--- a/kern/management/commands/nextcloud_indexieren.py
++++ b/kern/management/commands/nextcloud_indexieren.py
+@@ -1,31 +1,50 @@
+-"""Verlinkte Nextcloud-Dateien regelmäßig prüfen und indexieren."""
++"""Suchordner erfassen und Nextcloud-Dateien regelmäßig prüfen und indexieren."""
+ 
+ from collections import Counter
++from datetime import timedelta
+ 
+ from django.core.management.base import BaseCommand, CommandError
+-from django.db.models import F
++from django.db.models import F, Q
++from django.utils import timezone
+ 
+ from kern import nextcloud
+-from kern.models import Anhang
++from kern.models import Anhang, NextcloudOrdner
+ from kern.nextcloud_index import indexieren
++from kern.nextcloud_ordner import ordner_einlesen
+ 
+ 
+ class Command(BaseCommand):
+-    help = "Aktualisiert den Suchtext verlinkter Nextcloud-Dateien anhand ihres ETags."
++    help = "Erfasst Nextcloud-Suchordner und aktualisiert den Suchtext von Nextcloud-Dateien."
+ 
+     def add_arguments(self, parser):
+         parser.add_argument("--anzahl", type=int, default=50)
+         parser.add_argument("--alle", action="store_true", help="ETags ignorieren, erneut lesen.")
++        parser.add_argument("--ordner-anzahl", type=int, default=10)
+ 
+     def handle(self, *args, **optionen):
+         if not nextcloud.ist_eingerichtet():
+             raise CommandError("Bitte zuerst den technischen Nextcloud-Zugang einrichten.")
+         if optionen["anzahl"] < 1:
+             raise CommandError("--anzahl muss mindestens 1 sein.")
++        if optionen["ordner_anzahl"] < 1:
++            raise CommandError("--ordner-anzahl muss mindestens 1 sein.")
++        quellen = NextcloudOrdner.objects.filter(aktiv=True)
++        if not optionen["alle"]:
++            quellen = quellen.filter(
++                Q(geprueft_am__isnull=True)
++                | Q(geprueft_am__lte=timezone.now() - timedelta(minutes=15))
++            )
++        quellen = quellen.order_by(F("geprueft_am").asc(nulls_first=True), "pk")
++        for quelle in quellen[:optionen["ordner_anzahl"]]:
++            self.stdout.write(f"{quelle.name}: {ordner_einlesen(quelle)}")
+         menge = (
+             Anhang.objects.filter(datei="")
+             .exclude(nextcloud_pfad="")
+-            .select_related("eintrag", "eintrag__dokument")
++            .filter(
++                Q(nextcloud_ordner__isnull=True)
++                | Q(nextcloud_ordner__aktiv=True, nextcloud_verfuegbar=True)
++            )
++            .select_related("eintrag", "eintrag__dokument", "nextcloud_ordner")
+             .order_by(F("nextcloud_geprueft_am").asc(nulls_first=True), "pk")
+         )
+         zaehler = Counter()
+@@ -35,5 +54,5 @@ class Command(BaseCommand):
+             self.stdout.write(f"{anhang.dateiname}: {ergebnis}")
+         self.stdout.write(
+             ", ".join(f"{anzahl} {art}" for art, anzahl in zaehler.items())
+-            or "Keine verlinkten Nextcloud-Dateien vorhanden."
++            or "Keine Nextcloud-Dateien zur Prüfung vorhanden."
+         )
+diff --git a/kern/migrations/0014_nextcloud_suchordner.py b/kern/migrations/0014_nextcloud_suchordner.py
+new file mode 100644
+index 0000000..d552e57
+--- /dev/null
++++ b/kern/migrations/0014_nextcloud_suchordner.py
+@@ -0,0 +1,73 @@
++import django.db.models.deletion
++from django.conf import settings
++from django.db import migrations, models
++
++
++class Migration(migrations.Migration):
++    dependencies = [
++        ("kern", "0013_eintrag_aufgabe_eintrag_kurzantwort_and_more"),
++        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
++        ("auth", "0012_alter_user_first_name_max_length"),
++    ]
++
++    operations = [
++        migrations.CreateModel(
++            name="NextcloudOrdner",
++            fields=[
++                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
++                ("erstellt_am", models.DateTimeField(auto_now_add=True, verbose_name="erstellt am")),
++                ("geaendert_am", models.DateTimeField(auto_now=True, verbose_name="geändert am")),
++                ("name", models.CharField(max_length=200, verbose_name="Name")),
++                ("pfad", models.CharField(
++                    max_length=500, unique=True, verbose_name="Nextcloud-Ordnerpfad",
++                    help_text="Relativ zum technischen Konto, z. B. Kollegium/Konzepte. Keine URL.",
++                )),
++                ("unterordner", models.BooleanField(default=True, verbose_name="Unterordner einbeziehen")),
++                ("aktiv", models.BooleanField(default=True, verbose_name="Indexierung aktiv")),
++                ("kollegiumsweit", models.BooleanField(
++                    default=False, verbose_name="Für alle aktiven Schulkonten sichtbar",
++                    help_text="Andernfalls sehen nur die ausgewählten Gruppen und die Administration die Dateien.",
++                )),
++                ("geprueft_am", models.DateTimeField(blank=True, null=True, verbose_name="Zuletzt geprüft")),
++                ("index_stand", models.DateTimeField(blank=True, null=True, verbose_name="Ordner zuletzt vollständig eingelesen")),
++                ("index_fehler", models.CharField(blank=True, max_length=500, verbose_name="Indexierungsfehler")),
++                ("erstellt_von", models.ForeignKey(
++                    blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL,
++                    related_name="+", to=settings.AUTH_USER_MODEL, verbose_name="erstellt von",
++                )),
++                ("gruppen", models.ManyToManyField(
++                    blank=True, related_name="nextcloud_ordner", to="auth.group",
++                    verbose_name="Berechtigte Gruppen",
++                    help_text="Ohne Gruppen und ohne schulweite Freigabe sieht nur die Administration die Dateien.",
++                )),
++            ],
++            options={
++                "verbose_name": "Nextcloud-Suchordner",
++                "verbose_name_plural": "Nextcloud-Suchordner",
++                "ordering": ["name", "pk"],
++            },
++        ),
++        migrations.AddField(
++            model_name="anhang", name="nextcloud_ordner",
++            field=models.ForeignKey(
++                blank=True, null=True, on_delete=django.db.models.deletion.CASCADE,
++                related_name="dateien", to="kern.nextcloudordner", verbose_name="Nextcloud-Suchordner",
++            ),
++        ),
++        migrations.AddField(
++            model_name="anhang", name="nextcloud_verfuegbar",
++            field=models.BooleanField(default=True, verbose_name="In Nextcloud verfügbar"),
++        ),
++        migrations.AddField(
++            model_name="anhang", name="nextcloud_inventur_etag",
++            field=models.CharField(blank=True, max_length=500, verbose_name="ETag der Ordnerinventur"),
++        ),
++        migrations.AddConstraint(
++            model_name="anhang",
++            constraint=models.UniqueConstraint(
++                fields=("nextcloud_ordner", "nextcloud_pfad"),
++                condition=models.Q(nextcloud_ordner__isnull=False),
++                name="nextcloud_ordner_dateipfad",
++            ),
++        ),
++    ]
+diff --git a/kern/models.py b/kern/models.py
+index 7fa1bf1..0225bec 100644
+--- a/kern/models.py
++++ b/kern/models.py
+@@ -982,6 +982,70 @@ class Verlinkung(Zeitstempel):
+ # --- Anhänge ---------------------------------------------------------------
+ 
+ 
++class NextcloudOrdner(Zeitstempel):
++    name = models.CharField("Name", max_length=200)
++    pfad = models.CharField(
++        "Nextcloud-Ordnerpfad", max_length=500, unique=True,
++        help_text="Relativ zum technischen Konto, z. B. Kollegium/Konzepte. Keine URL.",
++    )
++    unterordner = models.BooleanField("Unterordner einbeziehen", default=True)
++    aktiv = models.BooleanField("Indexierung aktiv", default=True)
++    kollegiumsweit = models.BooleanField(
++        "Für alle aktiven Schulkonten sichtbar", default=False,
++        help_text="Andernfalls sehen nur die ausgewählten Gruppen und die Administration die Dateien.",
++    )
++    gruppen = models.ManyToManyField(
++        Group, verbose_name="Berechtigte Gruppen", blank=True,
++        related_name="nextcloud_ordner",
++        help_text="Ohne Gruppen und ohne schulweite Freigabe sieht nur die Administration die Dateien.",
++    )
++    geprueft_am = models.DateTimeField("Zuletzt geprüft", null=True, blank=True)
++    index_stand = models.DateTimeField("Ordner zuletzt vollständig eingelesen", null=True, blank=True)
++    index_fehler = models.CharField("Indexierungsfehler", max_length=500, blank=True)
++
++    class Meta:
++        verbose_name = "Nextcloud-Suchordner"
++        verbose_name_plural = "Nextcloud-Suchordner"
++        ordering = ["name", "pk"]
++
++    def __str__(self):
++        return self.name
++
++    def clean(self):
++        self.pfad = self.pfad.strip().strip("/")
++        teile = self.pfad.split("/")
++        if not self.pfad or "://" in self.pfad or any(t in ("", ".", "..") for t in teile):
++            raise ValidationError({"pfad": "Bitte einen Ordnerpfad ohne URL, . oder .. eingeben."})
++        if self.aktiv:
++            for anderer in type(self).objects.filter(aktiv=True).exclude(pk=self.pk):
++                if (
++                    self.pfad == anderer.pfad
++                    or (anderer.unterordner and self.pfad.startswith(anderer.pfad + "/"))
++                    or (self.unterordner and anderer.pfad.startswith(self.pfad + "/"))
++                ):
++                    raise ValidationError({
++                        "pfad": f"Dieser Ordner überschneidet sich mit „{anderer.name}“.",
++                    })
++
++    def save(self, *args, **kwargs):
++        with transaction.atomic():
++            alt = type(self).objects.select_for_update().filter(pk=self.pk).first() if self.pk else None
++            if alt and (
++                alt.pfad != self.pfad or alt.unterordner != self.unterordner or alt.aktiv != self.aktiv
++            ):
++                self.dateien.update(
++                    nextcloud_verfuegbar=False, extrahierter_text="", suchvektor=None,
++                    nextcloud_etag="", nextcloud_geprueft_am=None,
++                )
++                self.geprueft_am = self.index_stand = None
++                self.index_fehler = ""
++                if kwargs.get("update_fields") is not None:
++                    kwargs["update_fields"] = set(kwargs["update_fields"]) | {
++                        "geprueft_am", "index_stand", "index_fehler", "geaendert_am",
++                    }
++            super().save(*args, **kwargs)
++
++
+ def anhang_pfad(anhang: Anhang, dateiname: str) -> str:
+     return f"anhaenge/{timezone.now():%Y/%m}/{dateiname}"
+ 
+@@ -1005,6 +1069,11 @@ class Anhang(Zeitstempel):
+         on_delete=models.CASCADE,
+         related_name="anhaenge",
+     )
++    nextcloud_ordner = models.ForeignKey(
++        NextcloudOrdner, verbose_name="Nextcloud-Suchordner", null=True, blank=True,
++        on_delete=models.CASCADE, related_name="dateien",
++    )
++    nextcloud_verfuegbar = models.BooleanField("In Nextcloud verfügbar", default=True)
+     verwendung = models.CharField(
+         "Verwendung",
+         max_length=20,
+@@ -1018,6 +1087,7 @@ class Anhang(Zeitstempel):
+     datei = models.FileField("Datei", upload_to=anhang_pfad, blank=True)
+     nextcloud_pfad = models.CharField("Nextcloud-Pfad", max_length=500, blank=True)
+     nextcloud_etag = models.CharField("Nextcloud-ETag", max_length=500, blank=True)
++    nextcloud_inventur_etag = models.CharField("ETag der Ordnerinventur", max_length=500, blank=True)
+     nextcloud_geprueft_am = models.DateTimeField("Nextcloud geprüft am", null=True, blank=True)
+     index_fehler = models.CharField("Indexierung: letzter Fehler", max_length=500, blank=True)
+     nextcloud_link = models.URLField("Nextcloud-Link", max_length=500, blank=True)
+@@ -1036,6 +1106,13 @@ class Anhang(Zeitstempel):
+         verbose_name_plural = "Anhänge"
+         ordering = ["dateiname"]
+         indexes = [GinIndex(fields=["suchvektor"], name="anhang_suchvektor")]
++        constraints = [
++            models.UniqueConstraint(
++                fields=["nextcloud_ordner", "nextcloud_pfad"],
++                condition=models.Q(nextcloud_ordner__isnull=False),
++                name="nextcloud_ordner_dateipfad",
++            ),
++        ]
+ 
+     def __str__(self) -> str:
+         return self.dateiname
+@@ -1070,6 +1147,8 @@ class Anhang(Zeitstempel):
+         return ergebnis
+ 
+     def clean(self) -> None:
++        if self.nextcloud_ordner_id and (self.eintrag_id or self.dokument_id or self.datei):
++            raise ValidationError("Dateien eines Suchordners werden automatisch verwaltet.")
+         if not self.datei and not self.nextcloud_pfad and not self.nextcloud_link:
+             raise ValidationError(
+                 "Ein Anhang braucht entweder eine hochgeladene Datei oder einen Nextcloud-Verweis."
+diff --git a/kern/nextcloud.py b/kern/nextcloud.py
+index d7b2641..f5d17da 100644
+--- a/kern/nextcloud.py
++++ b/kern/nextcloud.py
+@@ -51,6 +51,10 @@ ZEICHEN_JE_ENDUNG = {
+ class NextcloudFehler(Exception):
+     """Die Nextcloud ließ sich nicht erreichen oder antwortete unerwartet."""
+ 
++    def __init__(self, text="", status=None):
++        super().__init__(text)
++        self.status = status
++
+ 
+ @dataclass
+ class Eintrag:
+@@ -149,7 +153,11 @@ def auflisten(pfad: str = "", zeitgrenze: float = 15.0) -> list[Eintrag]:
+     if antwort.status_code == 401:
+         raise NextcloudFehler("Die Nextcloud hat die Anmeldung abgelehnt. Stimmt das App-Passwort?")
+     if antwort.status_code == 404:
+-        raise NextcloudFehler(f"Den Ordner „{pfad or '/'}“ gibt es nicht.")
++        raise NextcloudFehler(f"Den Ordner „{pfad or '/'}“ gibt es nicht.", status=404)
++    if antwort.status_code in (403, 410):
++        raise NextcloudFehler(
++            "Dieser Nextcloud-Ordner ist nicht mehr zugänglich.", status=antwort.status_code,
++        )
+     if antwort.status_code != 207:
+         raise NextcloudFehler(f"Unerwartete Antwort der Nextcloud: {antwort.status_code}.")
+ 
+diff --git a/kern/nextcloud_index.py b/kern/nextcloud_index.py
+index dcb02b2..571ac1d 100644
+--- a/kern/nextcloud_index.py
++++ b/kern/nextcloud_index.py
+@@ -8,53 +8,54 @@ from django.utils import timezone
+ 
+ from eintragstypen.dienste import suchtext_aktualisieren
+ from kern import extraktion, nextcloud
++from kern.models import Anhang, NextcloudOrdner
++from kern.nextcloud_ordner import konfiguration
+ 
+ 
+ def indexieren(anhang, erzwingen=False):
++    quelle_stand = konfiguration(anhang.nextcloud_ordner) if anhang.nextcloud_ordner_id else None
++    if quelle_stand is not None and (
++        not anhang.nextcloud_ordner.aktiv or not anhang.nextcloud_verfuegbar
++    ):
++        return "übersprungen"
++    bisher_geprueft = anhang.nextcloud_geprueft_am
+     jetzt = timezone.now()
+     anhang.nextcloud_geprueft_am = jetzt
+     text = None
+     ergebnis = "unverändert"
+     try:
+-        with TemporaryDirectory(prefix="schulwissen-nextcloud-") as ordner:
+-            ziel = Path(ordner) / "download"
+-            antwort = nextcloud.herunterladen(
+-                anhang.nextcloud_pfad,
+-                ziel,
+-                etag=anhang.nextcloud_etag if anhang.index_stand and not erzwingen else "",
+-            )
+-            if antwort.status == 304:
+-                pass
+-            elif antwort.status in (403, 404, 410):
+-                # Gelöschte oder nicht mehr freigegebene Inhalte aus dem Index entfernen.
+-                text = ""
+-                anhang.nextcloud_etag = ""
+-                anhang.index_stand = jetzt
+-                anhang.index_fehler = "Die Datei fehlt oder ist nicht mehr freigegeben."
+-                ergebnis = "entfernt"
+-            else:
+-                anhang.nextcloud_etag = antwort.etag
+-                anhang.groesse = antwort.groesse
+-                anhang.mimetype = antwort.mimetype or anhang.mimetype
+-                try:
+-                    text = extraktion.text_holen(ziel, anhang.dateiname)
+-                    anhang.index_fehler = ""
+-                    ergebnis = "gelesen"
+-                except extraktion.NichtLesbar:
+-                    text = ""
+-                    anhang.index_fehler = "Die Datei enthält keinen lesbaren Text."
+-                    ergebnis = "ohne Text"
+-                anhang.index_stand = jetzt
++        if anhang.nextcloud_ordner_id and not extraktion.ist_lesbar(anhang.dateiname):
++            text = ""
++            anhang.index_stand = jetzt
++            anhang.index_fehler = "Dieses Dateiformat ist nur über den Dateinamen durchsuchbar."
++            ergebnis = "ohne Text"
++        else:
++            text, ergebnis = _inhalt_lesen(anhang, jetzt, erzwingen)
+     except nextcloud.NextcloudFehler as fehler:
+         anhang.index_fehler = str(fehler)[:500]
+         ergebnis = "fehlgeschlagen"
+     with transaction.atomic():
++        if quelle_stand is not None:
++            quelle = (
++                NextcloudOrdner.objects.select_for_update()
++                .filter(pk=anhang.nextcloud_ordner_id).first()
++            )
++            if quelle is None or not quelle.aktiv or konfiguration(quelle) != quelle_stand:
++                return "übersprungen"
++            aktuell = Anhang.objects.select_for_update().filter(pk=anhang.pk).first()
++            if (
++                aktuell is None or not aktuell.nextcloud_verfuegbar
++                or aktuell.nextcloud_geprueft_am != bisher_geprueft
++                or aktuell.nextcloud_inventur_etag != anhang.nextcloud_inventur_etag
++            ):
++                return "übersprungen"
+         if text is not None:
+             anhang.extrahierter_text = text
+         anhang.save(
+             update_fields=[
+                 "nextcloud_geprueft_am",
+                 "nextcloud_etag",
++                "nextcloud_verfuegbar",
+                 "groesse",
+                 "mimetype",
+                 "index_stand",
+@@ -65,3 +66,40 @@ def indexieren(anhang, erzwingen=False):
+         if text is not None and anhang.eintrag_id and anhang.eintrag.typ_bekannt:
+             suchtext_aktualisieren(anhang.eintrag)
+     return ergebnis
++
++
++def _inhalt_lesen(anhang, jetzt, erzwingen):
++    text, ergebnis = None, "unverändert"
++    with TemporaryDirectory(prefix="schulwissen-nextcloud-") as ordner:
++        ziel = Path(ordner) / "download"
++        antwort = nextcloud.herunterladen(
++            anhang.nextcloud_pfad,
++            ziel,
++            etag=anhang.nextcloud_etag if anhang.index_stand and not erzwingen else "",
++        )
++        if antwort.status == 304:
++            anhang.index_fehler = ""
++            anhang.nextcloud_verfuegbar = True
++        elif antwort.status in (403, 404, 410):
++            # Gelöschte oder nicht mehr freigegebene Inhalte aus dem Index entfernen.
++            text = ""
++            anhang.nextcloud_etag = ""
++            anhang.nextcloud_verfuegbar = False
++            anhang.index_stand = jetzt
++            anhang.index_fehler = "Die Datei fehlt oder ist nicht mehr freigegeben."
++            ergebnis = "entfernt"
++        else:
++            anhang.nextcloud_verfuegbar = True
++            anhang.nextcloud_etag = antwort.etag
++            anhang.groesse = antwort.groesse
++            anhang.mimetype = antwort.mimetype or anhang.mimetype
++            try:
++                text = extraktion.text_holen(ziel, anhang.dateiname)
++                anhang.index_fehler = ""
++                ergebnis = "gelesen"
++            except extraktion.NichtLesbar:
++                text = ""
++                anhang.index_fehler = "Die Datei enthält keinen lesbaren Text."
++                ergebnis = "ohne Text"
++            anhang.index_stand = jetzt
++    return text, ergebnis
+diff --git a/kern/nextcloud_ordner.py b/kern/nextcloud_ordner.py
+new file mode 100644
+index 0000000..d325b55
+--- /dev/null
++++ b/kern/nextcloud_ordner.py
+@@ -0,0 +1,124 @@
++"""Vollständige Ordnerinventur; erst danach fehlende Dateien aus der Suche nehmen."""
++
++from time import monotonic
++
++from django.contrib.postgres.search import SearchVector
++from django.db import transaction
++from django.utils import timezone
++
++from kern import nextcloud
++from kern.models import Anhang, NextcloudOrdner
++from kern.suchindex import KONFIGURATION
++
++MAX_ORDNER = 500
++MAX_DATEIEN = 10000
++MAX_SEKUNDEN = 60
++
++
++def konfiguration(quelle):
++    return quelle.pfad, quelle.unterordner, quelle.aktiv, quelle.geaendert_am
++
++
++def inventur(quelle):
++    """Ein Ausfall in einem Unterordner darf keine teilweise Löschung auslösen."""
++    start = monotonic()
++    wartend, besucht, dateien, unzugaenglich = [quelle.pfad], set(), {}, 0
++    while wartend:
++        if len(besucht) >= MAX_ORDNER or monotonic() - start > MAX_SEKUNDEN:
++            raise nextcloud.NextcloudFehler("Die Ordnerinventur überschreitet die Laufgrenze.")
++        pfad = wartend.pop()
++        if pfad in besucht:
++            continue
++        besucht.add(pfad)
++        try:
++            kinder = nextcloud.auflisten(pfad)
++        except nextcloud.NextcloudFehler as fehler:
++            if fehler.status in (403, 404, 410):
++                unzugaenglich += 1
++                continue
++            raise
++        for datei in kinder:
++            if (
++                nextcloud._pfad_saeubern(datei.pfad) != datei.pfad
++                or datei.pfad.rsplit("/", 1)[0] != pfad
++                or len(datei.pfad) > 500 or len(datei.name) > 300
++                or len(nextcloud.weblink(datei.pfad)) > 500
++            ):
++                raise nextcloud.NextcloudFehler("Die Nextcloud meldet einen ungültigen Dateipfad.")
++            if datei.ist_ordner:
++                if quelle.unterordner:
++                    wartend.append(datei.pfad)
++            else:
++                dateien[datei.pfad] = datei
++                if len(dateien) > MAX_DATEIEN:
++                    raise nextcloud.NextcloudFehler("Der Suchordner enthält zu viele Dateien.")
++    return dateien, unzugaenglich
++
++
++def ordner_einlesen(quelle):
++    stand, jetzt = konfiguration(quelle), timezone.now()
++    fehler, dateien, unzugaenglich = "", None, 0
++    try:
++        dateien, unzugaenglich = inventur(quelle)
++    except nextcloud.NextcloudFehler as problem:
++        fehler = str(problem)[:500]
++    with transaction.atomic():
++        aktuell = NextcloudOrdner.objects.select_for_update().filter(pk=quelle.pk).first()
++        if aktuell is None or not aktuell.aktiv or konfiguration(aktuell) != stand:
++            return "Konfiguration geändert"
++        aktuell.geprueft_am = jetzt
++        aktuell.index_fehler = fehler
++        if dateien is not None:
++            bestand = {a.nextcloud_pfad: a for a in aktuell.dateien.all()}
++            neu, geaendert = [], []
++            for pfad, datei in dateien.items():
++                vorhanden = bestand.get(pfad)
++                daten = {
++                    "dateiname": datei.name,
++                    "groesse": datei.groesse or (vorhanden.groesse if vorhanden else 0),
++                    "mimetype": (datei.mimetype or (vorhanden.mimetype if vorhanden else ""))[:120],
++                    "nextcloud_link": nextcloud.weblink(pfad),
++                    "beschreibung": f"{aktuell.name} › {pfad.rsplit('/', 1)[0]}"[:300],
++                    "nextcloud_verfuegbar": True,
++                    "nextcloud_inventur_etag": datei.etag[:500],
++                }
++                if (
++                    vorhanden is None or not vorhanden.nextcloud_verfuegbar
++                    or datei.etag != vorhanden.nextcloud_inventur_etag
++                    or (datei.groesse and datei.groesse != vorhanden.groesse)
++                ):
++                    daten["nextcloud_geprueft_am"] = None
++                if vorhanden is None:
++                    neu.append(Anhang(nextcloud_ordner=aktuell, nextcloud_pfad=pfad, **daten))
++                elif any(getattr(vorhanden, feld) != wert for feld, wert in daten.items()):
++                    for feld, wert in daten.items():
++                        setattr(vorhanden, feld, wert)
++                    vorhanden.geaendert_am = jetzt
++                    geaendert.append(vorhanden)
++            Anhang.objects.bulk_create(neu, batch_size=500)
++            Anhang.objects.bulk_update(geaendert, [
++                "dateiname", "groesse", "mimetype", "nextcloud_link", "beschreibung",
++                "nextcloud_verfuegbar", "nextcloud_inventur_etag", "nextcloud_geprueft_am",
++                "geaendert_am",
++            ], batch_size=500)
++            Anhang.objects.filter(pk__in=[a.pk for a in neu + geaendert]).update(
++                suchvektor=(
++                    SearchVector("dateiname", weight="A", config=KONFIGURATION)
++                    + SearchVector("beschreibung", weight="A", config=KONFIGURATION)
++                    + SearchVector("extrahierter_text", weight="C", config=KONFIGURATION)
++                ),
++            )
++            aktuell.dateien.exclude(nextcloud_pfad__in=dateien).update(
++                nextcloud_verfuegbar=False, extrahierter_text="",
++                suchvektor=None, nextcloud_etag="",
++            )
++            aktuell.index_stand = jetzt
++            if unzugaenglich:
++                aktuell.index_fehler = (
++                    f"{unzugaenglich} Ordner nicht mehr zugänglich; "
++                    "zugehörige Dateien ausgeblendet."
++                )
++        aktuell.save(update_fields=["geprueft_am", "index_stand", "index_fehler"])
++    if dateien is None:
++        return fehler or "Inventur fehlgeschlagen"
++    return f"{len(dateien)} Dateien erfasst"
+diff --git a/kern/rechte.py b/kern/rechte.py
+index b111d03..ee64849 100644
+--- a/kern/rechte.py
++++ b/kern/rechte.py
+@@ -96,6 +96,19 @@ def darf_dokument_lesen(nutzer, dokument):
+     return bool(dokument and sichtbare_dokumente(nutzer).filter(pk=dokument.pk).exists())
+ 
+ 
++def sichtbare_nextcloud_ordner(nutzer):
++    from django.db.models import Q
++
++    from kern.models import NextcloudOrdner
++
++    menge = NextcloudOrdner.objects.filter(aktiv=True)
++    if not _angemeldet(nutzer):
++        return menge.none()
++    if ist_administration(nutzer):
++        return menge
++    return menge.filter(Q(kollegiumsweit=True) | Q(gruppen__in=nutzer.groups.all())).distinct()
++
++
+ def berechtigte_dokumente(nutzer, recht):
+     from django.db.models import Q
+ 
+diff --git a/kern/staende.py b/kern/staende.py
+index ebadee7..8ede625 100644
+--- a/kern/staende.py
++++ b/kern/staende.py
+@@ -177,6 +177,9 @@ def sichtbare_anhaenge(nutzer, menge):
+     sichtbar = rechte.sichtbare_eintraege(nutzer, Eintrag.objects.all())
+     menge = menge.filter(Q(dokument__isnull=True) | Q(dokument__in=dokumente)).filter(
+         Q(eintrag__isnull=True) | Q(eintrag__in=sichtbar)
++    ).filter(
++        Q(nextcloud_ordner__isnull=True)
++        | Q(nextcloud_ordner__in=rechte.sichtbare_nextcloud_ordner(nutzer), nextcloud_verfuegbar=True)
+     )
+     if not rechte.ist_nur_lesend(nutzer):
+         return menge
+diff --git a/kern/templates/kern/_dateifenster.html b/kern/templates/kern/_dateifenster.html
+new file mode 100644
+index 0000000..5833fc0
+--- /dev/null
++++ b/kern/templates/kern/_dateifenster.html
+@@ -0,0 +1,16 @@
++<section id="dateivorschau" class="dateifenster dateivorschau" popover="auto" role="dialog" aria-labelledby="dateivorschau-titel" hidden>
++  <div class="dateifenster-kopf">
++    <h2 id="dateivorschau-titel">Dateivorschau</h2>
++    <button type="button" class="knopf knopf-leise" data-vorschau-schliessen aria-label="Dateivorschau schließen">Schließen</button>
++  </div>
++  <p class="klein">PDFs lassen sich im Vorschaufenster scrollen und durchblättern. <a data-vorschau-original target="_blank" rel="noopener noreferrer">Datei öffnen</a></p>
++  <iframe title="Dateivorschau" referrerpolicy="same-origin"></iframe>
++</section>
++<dialog id="nextcloud-dialog" class="dateifenster" aria-labelledby="nextcloud-dialog-titel">
++  <div class="dateifenster-kopf">
++    <h2 id="nextcloud-dialog-titel">Dateien aus der Nextcloud auswählen</h2>
++    <button type="button" class="knopf knopf-leise" data-nextcloud-schliessen>Schließen</button>
++  </div>
++  <p>Durchsuche die Ordner und wähle die gewünschten Dateien aus.</p>
++  <div id="nextcloud-ordner" class="dateifenster-ordner" aria-live="polite"></div>
++</dialog>
+diff --git a/kern/templates/kern/_nextcloud_erfassung.html b/kern/templates/kern/_nextcloud_erfassung.html
+index e1f81be..2d0a781 100644
+--- a/kern/templates/kern/_nextcloud_erfassung.html
++++ b/kern/templates/kern/_nextcloud_erfassung.html
+@@ -1,15 +1,23 @@
+ {% if fehler %}<p class="meldung meldung-error" role="alert">{{ fehler }}</p>{% else %}
+ <nav aria-label="Nextcloud-Ordner">
+ {% for name, pfad in brotkrumen %}
+-<button type="button" class="knopf knopf-leise" hx-get="{% url 'kern:nextcloud_erfassung' dokument.schluessel %}?kennung={{ kennung|urlencode }}&amp;pfad={{ pfad|urlencode }}" hx-target="#nextcloud-ordner">{{ name }}</button>
++<button type="button" class="knopf knopf-leise" hx-get="{% url 'kern:nextcloud_erfassung' dokument.schluessel %}?kennung={{ kennung|urlencode }}&amp;pfad={{ pfad|urlencode }}{% if direkt %}&amp;direkt=1{% endif %}" hx-target="#nextcloud-ordner">{{ name }}</button>
+ {% endfor %}
+ </nav>
+ <ul>
+ {% for zeile in dateien %}<li>
+ {% if zeile.datei.ist_ordner %}
+-<button type="button" class="knopf knopf-leise" hx-get="{% url 'kern:nextcloud_erfassung' dokument.schluessel %}?kennung={{ kennung|urlencode }}&amp;pfad={{ zeile.datei.pfad|urlencode }}" hx-target="#nextcloud-ordner">Ordner: {{ zeile.datei.name }}</button>
++<button type="button" class="knopf knopf-leise" hx-get="{% url 'kern:nextcloud_erfassung' dokument.schluessel %}?kennung={{ kennung|urlencode }}&amp;pfad={{ zeile.datei.pfad|urlencode }}{% if direkt %}&amp;direkt=1{% endif %}" hx-target="#nextcloud-ordner">Ordner: {{ zeile.datei.name }}</button>
+ {% else %}
+-<button type="button" class="knopf" data-nextcloud-auswahl="{{ zeile.token }}" data-name="{{ zeile.datei.pfad }}">{{ zeile.datei.name }} hinzufügen</button>
++{% if direkt %}
++<span>{{ zeile.datei.name }}</span>
++<form method="post" action="{% url 'kern:nextcloud_verlinken' dokument.schluessel kennung %}">
++{% csrf_token %}<input type="hidden" name="pfad" value="{{ zeile.datei.pfad }}"><input type="hidden" name="mimetype" value="{{ zeile.datei.mimetype }}"><button type="submit" class="knopf">Verlinken</button>
++</form>
++{% else %}
++<button type="button" class="knopf" data-nextcloud-auswahl="{{ zeile.token }}" data-name="{{ zeile.datei.pfad }}" data-dateivorschau="{% url 'kern:nextcloud_vorschau' dokument.schluessel %}?auswahl={{ zeile.token|urlencode }}&amp;kennung={{ kennung|urlencode }}" data-vorschau-original="{{ zeile.original }}">{{ zeile.datei.name }} hinzufügen</button>
++{% endif %}
++<button type="button" class="knopf knopf-leise" data-vorschau-oeffnen data-name="{{ zeile.datei.name }}" data-dateivorschau="{% url 'kern:nextcloud_vorschau' dokument.schluessel %}?auswahl={{ zeile.token|urlencode }}&amp;kennung={{ kennung|urlencode }}" data-vorschau-original="{{ zeile.original }}">Vorschau</button>
+ {% endif %}
+ </li>{% empty %}<li>Dieser Ordner ist leer.</li>{% endfor %}
+ </ul>
+diff --git a/kern/templates/kern/anhang_loeschen.html b/kern/templates/kern/anhang_loeschen.html
+new file mode 100644
+index 0000000..0e50663
+--- /dev/null
++++ b/kern/templates/kern/anhang_loeschen.html
+@@ -0,0 +1,13 @@
++{% extends "grundlage.html" %}
++{% block titel %}Anhang löschen{% endblock %}
++{% block inhalt %}
++<div class="geruest ohne-navigation"><section class="karte">
++  <h1>Anhang löschen</h1>
++  <p>„{{ anhang.dateiname }}“ aus „{{ eintrag.titel }}“ entfernen?</p>
++  {% if grund %}<p class="meldung meldung-error" role="alert">{{ grund }}</p>{% else %}
++  <p>Eine hochgeladene Datei wird gelöscht. Eine verlinkte Nextcloud-Datei bleibt in der Nextcloud erhalten.</p>
++  <form method="post">{% csrf_token %}<input type="hidden" name="stand" value="{{ stand }}"><button class="knopf knopf-wichtig" type="submit">Anhang löschen</button></form>
++  {% endif %}
++  <p><a class="knopf" href="{% url 'kern:eintrag' dokument.schluessel eintrag.kennung %}">Zurück zum Eintrag</a></p>
++</section></div>
++{% endblock %}
+diff --git a/kern/templates/kern/anhang_vorschau_hinweis.html b/kern/templates/kern/anhang_vorschau_hinweis.html
+new file mode 100644
+index 0000000..3eecaec
+--- /dev/null
++++ b/kern/templates/kern/anhang_vorschau_hinweis.html
+@@ -0,0 +1,3 @@
++<!doctype html>
++<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Dateivorschau</title></head>
++<body><p>{{ text }}</p></body></html>
+diff --git a/kern/templates/kern/eintrag.html b/kern/templates/kern/eintrag.html
+index 03918b0..4096974 100644
+--- a/kern/templates/kern/eintrag.html
++++ b/kern/templates/kern/eintrag.html
+@@ -73,9 +73,14 @@
+       <section class="block">
+         <h2>Anhänge</h2>
+         <ul class="anhang-liste">{% for anhang in anhaenge %}<li>
+-          {% if anhang.datei %}<a class="anhang-kachel" href="{{ anhang.datei.url }}">{% elif anhang.nextcloud_link %}<a class="anhang-kachel" href="{{ anhang.nextcloud_link }}" rel="noopener noreferrer">{% else %}<div class="anhang-kachel">{% endif %}
++          {% if anhang.datei %}<a class="anhang-kachel" href="{{ anhang.datei.url }}" data-dateivorschau="{% url 'kern:anhang_vorschau' anhang.pk %}" data-name="{{ anhang.dateiname }}">{% elif anhang.nextcloud_link %}<a class="anhang-kachel" href="{{ anhang.nextcloud_link }}" rel="noopener noreferrer" data-dateivorschau="{% url 'kern:anhang_vorschau' anhang.pk %}" data-name="{{ anhang.dateiname }}">{% else %}<div class="anhang-kachel">{% endif %}
+           {% include "kern/_symbol.html" with name="datei" %}<span><strong>{{ anhang.dateiname }}</strong><small>{% if anhang.groesse %}{{ anhang.groesse|filesizeformat }}{% endif %}{% if anhang.nextcloud_link %} · Nextcloud{% endif %}{% if anhang.beschreibung %} · {{ anhang.beschreibung }}{% endif %}</small></span>
+-          {% if anhang.datei or anhang.nextcloud_link %}</a>{% else %}</div>{% endif %}<p class="klein">{{ anhang.get_verwendung_display }}{% if darf_bearbeiten %} · <a href="{% url 'kern:anlage_pflegen' dokument.schluessel eintrag.kennung anhang.pk %}">Dateifassung pflegen</a>{% endif %}</p></li>{% endfor %}</ul>
++          {% if anhang.datei or anhang.nextcloud_link %}</a>{% else %}</div>{% endif %}
++          <div class="anhang-aktionen">
++            <a class="knopf knopf-leise" href="{% url 'kern:anhang_vorschau' anhang.pk %}" target="_blank" rel="noopener" data-vorschau-oeffnen data-name="{{ anhang.dateiname }}" data-dateivorschau="{% url 'kern:anhang_vorschau' anhang.pk %}" data-vorschau-original="{% if anhang.datei %}{{ anhang.datei.url }}{% else %}{{ anhang.nextcloud_link }}{% endif %}">Vorschau</a>
++            {% if darf_bearbeiten %}<a class="knopf knopf-leise" href="{% url 'kern:anhang_loeschen' dokument.schluessel eintrag.kennung anhang.pk %}">Anhang löschen …</a>{% endif %}
++          </div>
++          <p class="klein">{{ anhang.get_verwendung_display }}{% if darf_bearbeiten %} · <a href="{% url 'kern:anlage_pflegen' dokument.schluessel eintrag.kennung anhang.pk %}">Dateifassung pflegen</a>{% endif %}</p></li>{% endfor %}</ul>
+       </section>
+     {% endif %}
+   </article>
+@@ -156,7 +161,7 @@
+       <div class="karte">
+         <h3>Anhang hinzufügen</h3>
+         <form action="{% url 'kern:anhang_hochladen' dokument.schluessel eintrag.kennung %}"
+-              method="post" enctype="multipart/form-data">
++              method="post" enctype="multipart/form-data" data-anhang-upload>
+           {% csrf_token %}
+           {% for feld in anhang_formular %}
+             <div class="feld">
+@@ -170,7 +175,7 @@
+         <p class="klein leise">
+           Oder eine Datei aus der Nextcloud verlinken:
+         </p>
+-        <a class="knopf" href="{% url 'kern:nextcloud_waehlen' dokument.schluessel eintrag.kennung %}">
++        <a class="knopf" href="{% url 'kern:nextcloud_waehlen' dokument.schluessel eintrag.kennung %}" data-nextcloud-oeffnen hx-get="{% url 'kern:nextcloud_erfassung' dokument.schluessel %}?kennung={{ eintrag.kennung|urlencode }}&amp;direkt=1" hx-target="#nextcloud-ordner">
+           Nextcloud durchsuchen</a>
+       </div>
+     {% endif %}
+diff --git a/kern/templates/kern/eintrag_bearbeiten.html b/kern/templates/kern/eintrag_bearbeiten.html
+index 80fd584..5974e88 100644
+--- a/kern/templates/kern/eintrag_bearbeiten.html
++++ b/kern/templates/kern/eintrag_bearbeiten.html
+@@ -135,7 +135,17 @@
+       <section class="block" aria-labelledby="anhaenge-titel">
+         <h2 id="anhaenge-titel">Anhänge hinzufügen</h2>
+         <p>Die ausgewählten Dateien werden beim Speichern angehängt.</p>
+-        {% if eintrag.anhaenge.exists %}<p>Bereits vorhandene Anhänge findest du auf der <a href="{% url 'kern:eintrag' dokument.schluessel eintrag.kennung %}" target="_blank" rel="noopener">Ansichtsseite des Eintrags</a>.</p>{% endif %}
++        {% if eintrag.anhaenge.exists %}
++        <h3>Vorhandene Anhänge</h3>
++        <p>Markierte Anhänge werden beim Speichern gelöscht. Dateien in der Nextcloud bleiben dort erhalten.</p>
++        <ul class="anhang-auswahl" id="id_anhang_entfernen">
++          {% for zeile in formular.vorhandene_anhaenge %}<li>
++            <label><input type="checkbox" name="anhang_entfernen" value="{{ zeile.anhang.pk }}"{% if zeile.entfernen %} checked{% endif %}> „{{ zeile.anhang.dateiname }}“ löschen</label>
++            <button type="button" class="knopf knopf-leise" data-vorschau-oeffnen data-name="{{ zeile.anhang.dateiname }}" data-dateivorschau="{% url 'kern:anhang_vorschau' zeile.anhang.pk %}" data-vorschau-original="{% if zeile.anhang.datei %}{{ zeile.anhang.datei.url }}{% else %}{{ zeile.anhang.nextcloud_link }}{% endif %}">Vorschau</button>
++          </li>{% endfor %}
++        </ul>
++        {% endif %}
++        {{ formular.anhang_entfernen.errors }}
+         <div class="feld">
+           <label for="{{ formular.anhang_dateien.id_for_label }}">{{ formular.anhang_dateien.label }}</label>
+           {{ formular.anhang_dateien }}
+@@ -151,11 +161,12 @@
+         <ul id="nextcloud-auswahl" aria-label="Ausgewählte Nextcloud-Dateien" aria-live="polite">
+           {% for auswahl in formular.nextcloud_auswahl %}<li data-nextcloud-pfad="{{ auswahl.pfad }}">
+             <input type="hidden" name="anhang_nextcloud" value="{{ auswahl.token }}">
+-            {{ auswahl.pfad }} <button type="button" class="knopf knopf-leise" data-nextcloud-entfernen>Auswahl entfernen</button>
++            {{ auswahl.pfad }}
++            <button type="button" class="knopf knopf-leise" data-vorschau-oeffnen data-name="{{ auswahl.pfad }}" data-dateivorschau="{% url 'kern:nextcloud_vorschau' dokument.schluessel %}?auswahl={{ auswahl.token|urlencode }}{% if eintrag %}&amp;kennung={{ eintrag.kennung|urlencode }}{% endif %}" data-vorschau-original="{{ auswahl.original }}">Vorschau</button>
++            <button type="button" class="knopf knopf-leise" data-nextcloud-entfernen>Auswahl entfernen</button>
+           </li>{% endfor %}
+         </ul>
+-        <button type="button" class="knopf" hx-get="{% url 'kern:nextcloud_erfassung' dokument.schluessel %}{% if eintrag %}?kennung={{ eintrag.kennung|urlencode }}{% endif %}" hx-target="#nextcloud-ordner">Nextcloud durchsuchen</button>
+-        <div id="nextcloud-ordner" aria-live="polite"></div>
++        <button type="button" class="knopf" data-nextcloud-oeffnen hx-get="{% url 'kern:nextcloud_erfassung' dokument.schluessel %}{% if eintrag %}?kennung={{ eintrag.kennung|urlencode }}{% endif %}" hx-target="#nextcloud-ordner">Nextcloud durchsuchen</button>
+         <noscript><p>Zum Durchsuchen der Nextcloud ist JavaScript erforderlich. Du kannst stattdessen einen Nextcloud-Link einfügen oder Dateien vom Gerät anhängen.</p></noscript>
+       </section>
+ 
+@@ -184,33 +195,6 @@
+ 
+ {% block ende %}
+ <script>
+-document.addEventListener("click", (ereignis) => {
+-  const entfernen = ereignis.target.closest("[data-nextcloud-entfernen]");
+-  if (entfernen) {
+-    entfernen.closest("li").remove();
+-    document.querySelector("[data-eintragsformular]").dispatchEvent(new Event("input", {bubbles: true}));
+-    return;
+-  }
+-  const knopf = ereignis.target.closest("[data-nextcloud-auswahl]");
+-  if (!knopf) return;
+-  const liste = document.getElementById("nextcloud-auswahl");
+-  if (Array.from(liste.children).some(zeile => zeile.dataset.nextcloudPfad === knopf.dataset.name)) return;
+-  const zeile = document.createElement("li");
+-  zeile.dataset.nextcloudPfad = knopf.dataset.name;
+-  const feld = document.createElement("input");
+-  feld.type = "hidden";
+-  feld.name = "anhang_nextcloud";
+-  feld.value = knopf.dataset.nextcloudAuswahl;
+-  const loeschen = document.createElement("button");
+-  loeschen.type = "button";
+-  loeschen.className = "knopf knopf-leise";
+-  loeschen.dataset.nextcloudEntfernen = "";
+-  loeschen.textContent = "Auswahl entfernen";
+-  zeile.append(feld, document.createTextNode(knopf.dataset.name + " "), loeschen);
+-  liste.append(zeile);
+-  feld.dispatchEvent(new Event("input", {bubbles: true}));
+-});
+-
+ /*
+  * Kleine Alpine-Komponente für die Kompetenzauswahl.
+  * Sie hält die Marken (Kennung + Klartext) und spiegelt die Kennungen in das
+diff --git a/kern/urls.py b/kern/urls.py
+index fe44013..3d597c3 100644
+--- a/kern/urls.py
++++ b/kern/urls.py
+@@ -4,6 +4,7 @@ from django.contrib.auth import views as auth_views
+ from django.urls import path
+ 
+ from kern import (
++    anhaenge,
+     arbeitsablauf,
+     beschluss_views,
+     dateifassungen,
+@@ -50,6 +51,17 @@ urlpatterns = [
+     path("funktionen", funktionen.verzeichnis, name="funktionen"),
+     path("funktionen/<slug:schluessel>", funktionen.detail, name="funktion"),
+     path("medien/<path:pfad>", views.anhang_datei, name="anhang_datei"),
++    path("anhang/<int:pk>/vorschau", anhaenge.vorschau, name="anhang_vorschau"),
++    path(
++        "d/<slug:schluessel>/<str:kennung>/anhang/<int:pk>/loeschen",
++        anhaenge.loeschen,
++        name="anhang_loeschen",
++    ),
++    path(
++        "d/<slug:schluessel>/anhangauswahl/vorschau",
++        anhaenge.nextcloud_vorschau,
++        name="nextcloud_vorschau",
++    ),
+     path("", views.startseite, name="startseite"),
+     path("dokumente", uebersichten.dokumente, name="dokumente"),
+     path("meine-entwuerfe", uebersichten.eigene_entwuerfe, name="eigene_entwuerfe"),
+diff --git a/kern/views.py b/kern/views.py
+index 9c99083..3ebea48 100644
+--- a/kern/views.py
++++ b/kern/views.py
+@@ -542,8 +542,25 @@ def _kennung_vergeben(dokument, typ, formular) -> str:
+ def _speichern(request, dokument, formular, kennung: str, eintrag):
+     """Prüft und speichert; gibt eine Weiterleitung zurück oder ``None``."""
+     from deutsch import gliederung
++    from kern import anhaenge as anhangdienst
+ 
+     Dokument.objects.select_for_update().get(pk=dokument.pk)
++    ausgewaehlt = formular.cleaned_data.get("anhang_entfernen", [])
++    zu_entfernen = []
++    if eintrag:
++        zu_entfernen = list(
++            Anhang.objects.select_for_update().filter(
++                pk__in=[a.pk for a in ausgewaehlt], eintrag=eintrag,
++            )
++        )
++    if len(zu_entfernen) != len(ausgewaehlt):
++        formular.add_error("anhang_entfernen", "Die Anhangliste hat sich geändert. Bitte neu laden.")
++        return None
++    for anhang in zu_entfernen:
++        grund = anhangdienst.loeschhindernis(anhang)
++        if grund:
++            formular.add_error("anhang_entfernen", grund)
++            return None
+     if eintrag is None:
+         kennung = _kennung_vergeben(dokument, formular.typ, formular)
+     roh = formular.als_rohsatz(kennung)
+@@ -623,6 +640,9 @@ def _speichern(request, dokument, formular, kennung: str, eintrag):
+             gespeichert.verantwortlich_gruppe = gruppe
+             gespeichert.save(update_fields=["verantwortlich_gruppe"])
+ 
++    for anhang in zu_entfernen:
++        anhangdienst.entfernen(anhang)
++
+     for datei in formular.cleaned_data.get("anhang_dateien", []):
+         Anhang.objects.create(
+             dokument=dokument, eintrag=gespeichert, erstellt_von=request.user,
+@@ -648,7 +668,7 @@ def _speichern(request, dokument, formular, kennung: str, eintrag):
+                 "nextcloud_link": nextcloud.weblink(auswahl["pfad"]),
+             },
+         )
+-    if (formular.cleaned_data.get("anhang_dateien") or link
++    if (zu_entfernen or formular.cleaned_data.get("anhang_dateien") or link
+             or formular.cleaned_data.get("anhang_nextcloud")):
+         dienste.suchtext_aktualisieren(gespeichert)
+ 
+@@ -858,11 +878,15 @@ def nextcloud_erfassung(request, schluessel: str):
+                     "pfad": datei.pfad, "name": datei.name,
+                     "mimetype": datei.mimetype, "groesse": datei.groesse,
+                 }, salt="anhang-erfassung")
+-            dateien.append({"datei": datei, "token": token})
++            dateien.append({
++                "datei": datei, "token": token,
++                "original": nextcloud.weblink(datei.pfad) if not datei.ist_ordner else "",
++            })
+     except nextcloud.NextcloudFehler as problem:
+         fehler = str(problem)
+     return render(request, "kern/_nextcloud_erfassung.html", {
+         "dokument": dokument, "kennung": kennung, "dateien": dateien,
++        "direkt": request.GET.get("direkt") == "1" and bool(kennung),
+         "brotkrumen": nextcloud.brotkrumen(pfad), "fehler": fehler,
+     })
+ 
+diff --git a/suche/dienste.py b/suche/dienste.py
+index 7d8f130..a4c0517 100644
+--- a/suche/dienste.py
++++ b/suche/dienste.py
+@@ -23,6 +23,7 @@ from __future__ import annotations
+ 
+ from dataclasses import dataclass, field
+ 
++import nh3
+ from django.contrib.postgres.search import (
+     SearchHeadline,
+     SearchQuery,
+@@ -61,6 +62,8 @@ class Treffer:
+     status: str = ""
+     status_text: str = ""
+     zusatz: str = ""
++    vorschau_url: str = ""
++    original_url: str = ""
+ 
+     @property
+     def ist_entwurf(self) -> bool:
+@@ -431,14 +434,14 @@ def _dateien_suchen(
+                 | Q(beschreibung__icontains=begriff)
+                 | Q(extrahierter_text__icontains=begriff)
+             )
+-            .select_related("eintrag", "eintrag__dokument", "dokument")
++            .select_related("eintrag", "eintrag__dokument", "dokument", "nextcloud_ordner")
+             .order_by("dateiname")
+         )
+     else:
+         anfrage = _anfrage(begriff)
+         treffer = (
+             erlaubt.filter(suchvektor=anfrage)
+-            .select_related("eintrag", "eintrag__dokument", "dokument")
++            .select_related("eintrag", "eintrag__dokument", "dokument", "nextcloud_ordner")
+             .annotate(
+                 rang=SearchRank(F("suchvektor"), anfrage),
+                 ausschnitt=_ausschnitt("extrahierter_text", begriff),
+@@ -457,6 +460,8 @@ def _dateien_suchen(
+         else:
+             url = anhang.datei.url if anhang.datei else anhang.nextcloud_link
+             kontext = anhang.dokument.titel if anhang.dokument else "Freier Anhang"
++            if anhang.nextcloud_ordner_id:
++                kontext = f"Nextcloud › {anhang.nextcloud_ordner.name} › {anhang.nextcloud_pfad}"
+ 
+         gruppe.treffer.append(
+             Treffer(
+@@ -467,12 +472,14 @@ def _dateien_suchen(
+                     wortlaut_ausschnitt(anhang.extrahierter_text, begriff)
+                     if wortlaut
+                     else (
+-                        anhang.ausschnitt
++                        mark_safe(nh3.clean(anhang.ausschnitt, tags={"mark"}, attributes={}))
+                         if anhang.extrahierter_text
+                         else escape(anhang.beschreibung)
+                     )
+                 ),
+                 zusatz="Nextcloud" if anhang.nextcloud_link and not anhang.datei else "",
++                vorschau_url=reverse("kern:anhang_vorschau", args=[anhang.pk]),
++                original_url=anhang.datei.url if anhang.datei else anhang.nextcloud_link,
+             )
+         )
+     return gruppe
+diff --git a/suche/templates/suche/ergebnisse.html b/suche/templates/suche/ergebnisse.html
+index 39a15c3..8d6e649 100644
+--- a/suche/templates/suche/ergebnisse.html
++++ b/suche/templates/suche/ergebnisse.html
+@@ -31,10 +31,11 @@
+     {% for gruppe in ergebnis.gefuellte_gruppen %}
+       <section class="suchgruppe" aria-labelledby="gruppe-{{ gruppe.schluessel }}"><h2 id="gruppe-{{ gruppe.schluessel }}">{{ gruppe.name }} <span class="trefferzahl">{{ gruppe.gesamt }}</span></h2>
+         <ul class="trefferliste">{% for treffer in gruppe.treffer %}<li class="treffer">
+-          <div class="treffer-kopf"><h3><a class="treffer-titel" href="{{ treffer.url }}">{% if gruppe.schluessel == 'dateien' %}{% include "kern/_symbol.html" with name="datei" %}{% endif %}{{ treffer.titel }}</a></h3>{% if treffer.status %}<span class="schild schild-klein schild-{{ treffer.status }}">{{ treffer.status_text }}</span>{% endif %}</div>
++          <div class="treffer-kopf"><h3><a class="treffer-titel" href="{{ treffer.url }}"{% if treffer.vorschau_url %} data-dateivorschau="{{ treffer.vorschau_url }}" data-vorschau-original="{{ treffer.original_url }}" data-name="{{ treffer.titel }}"{% endif %}>{% if gruppe.schluessel == 'dateien' %}{% include "kern/_symbol.html" with name="datei" %}{% endif %}{{ treffer.titel }}</a></h3>{% if treffer.status %}<span class="schild schild-klein schild-{{ treffer.status }}">{{ treffer.status_text }}</span>{% endif %}</div>
+           {% if treffer.kontext %}<p class="treffer-kontext">{{ treffer.kontext }}</p>{% endif %}
+           {% if treffer.ausschnitt %}<p class="treffer-ausschnitt">{{ treffer.ausschnitt|safe }}</p>{% endif %}
+           <div class="treffer-metainfo">{% if treffer.kennung %}<span class="kennung">{{ treffer.kennung }}</span>{% endif %}{% if treffer.zusatz %}<span>{{ treffer.zusatz }}</span>{% endif %}</div>
++          {% if treffer.vorschau_url %}<a class="knopf knopf-leise" href="{{ treffer.vorschau_url }}" target="_blank" rel="noopener" data-vorschau-oeffnen data-dateivorschau="{{ treffer.vorschau_url }}" data-vorschau-original="{{ treffer.original_url }}" data-name="{{ treffer.titel }}">Vorschau</a>{% endif %}
+         </li>{% endfor %}</ul>
+         {% if gruppe.mehr %}<p class="treffer-mehr">… und {{ gruppe.mehr }} weitere. <a href="{% querystring gruppe=gruppe.schluessel %}">Nur diese Gruppe zeigen</a></p>{% endif %}
+       </section>
+diff --git a/tests/test_anhangfenster.py b/tests/test_anhangfenster.py
+new file mode 100644
+index 0000000..6d182a9
+--- /dev/null
++++ b/tests/test_anhangfenster.py
+@@ -0,0 +1,221 @@
++"""Vollständige PDF-Vorschau, Dateirechte und sicheres Löschen von Anhängen."""
++
++import io
++
++import pytest
++from django.core import signing
++from django.core.files.uploadedfile import SimpleUploadedFile
++from django.urls import reverse
++from pypdf import PdfReader, PdfWriter
++
++from kern import nextcloud
++from kern.models import Anhang, FreigegebeneDatei, Verlinkung
++from tests.test_anhaenge_erfassung import erfassung
++
++pytestmark = pytest.mark.django_db
++
++
++@pytest.fixture
++def kapitel(client, redaktion_nutzer, dokument):
++    client.force_login(redaktion_nutzer)
++    antwort = client.post(erfassung(dokument), {"titel": "Dateifenster", "status": "entwurf"})
++    assert antwort.status_code == 302
++    return dokument.eintraege.get(titel="Dateifenster")
++
++
++@pytest.fixture
++def pdf_bytes():
++    pdf = PdfWriter()
++    pdf.add_blank_page(width=300, height=400)
++    pdf.add_blank_page(width=400, height=300)
++    puffer = io.BytesIO()
++    pdf.write(puffer)
++    return puffer.getvalue()
++
++
++@pytest.fixture
++def anhang(kapitel, pdf_bytes, settings, tmp_path):
++    settings.MEDIA_ROOT = tmp_path
++    return Anhang.objects.create(
++        eintrag=kapitel, dokument=kapitel.dokument, dateiname="Zwei Seiten.pdf",
++        datei=SimpleUploadedFile("mehrseitig.pdf", pdf_bytes, content_type="application/pdf"),
++    )
++
++
++def loesch_url(anhang):
++    return reverse("kern:anhang_loeschen", args=[
++        anhang.eintrag.dokument.schluessel, anhang.eintrag.kennung, anhang.pk,
++    ])
++
++
++def test_pdf_vorschau_enthaelt_alle_seiten(client, anhang):
++    antwort = client.get(reverse("kern:anhang_vorschau", args=[anhang.pk]))
++    assert antwort.status_code == 200
++    assert antwort["Content-Type"] == "application/pdf"
++    assert antwort["Content-Disposition"].startswith("inline")
++    assert antwort["X-Frame-Options"] == "SAMEORIGIN"
++    assert antwort["Cache-Control"] == "private, no-store"
++    inhalt = b"".join(antwort.streaming_content)
++    assert len(PdfReader(io.BytesIO(inhalt)).pages) == 2
++    antwort.close()
++
++
++def test_vorschau_ist_kein_oeffentlicher_dateizugang(client, anhang, lesend_nutzer):
++    client.logout()
++    url = reverse("kern:anhang_vorschau", args=[anhang.pk])
++    assert client.get(url).status_code == 302
++    client.force_login(lesend_nutzer)
++    assert client.get(url).status_code == 404  # Noch nicht freigegebener Anhang.
++
++
++def test_html_wird_auch_mit_pdf_dateinamen_nicht_eingebettet(client, anhang):
++    anhang.datei.save("falsch.pdf", SimpleUploadedFile("falsch.pdf", b"<script>alert(1)</script>"))
++    antwort = client.get(reverse("kern:anhang_vorschau", args=[anhang.pk]))
++    assert not antwort.streaming
++    assert b"<script>" not in antwort.content
++    assert "keine eingebettete Vorschau" in antwort.content.decode()
++
++
++@pytest.mark.parametrize("vor_speichern", [False, True])
++def test_nextcloud_vorschau_ist_temporaer(
++    client, kapitel, pdf_bytes, monkeypatch, vor_speichern
++):
++    pfade = []
++
++    def herunterladen(pfad, ziel):
++        assert pfad == "Konzepte/Plan.pdf"
++        ziel.write_bytes(pdf_bytes)
++        pfade.append(ziel)
++        return nextcloud.Download(200)
++
++    monkeypatch.setattr(nextcloud, "herunterladen", herunterladen)
++    if vor_speichern:
++        token = signing.dumps({
++            "nutzer": kapitel.erstellt_von_id, "dokument": kapitel.dokument_id,
++            "pfad": "Konzepte/Plan.pdf", "name": "Plan.pdf",
++        }, salt="anhang-erfassung")
++        antwort = client.get(
++            reverse("kern:nextcloud_vorschau", args=[kapitel.dokument.schluessel]),
++            {"auswahl": token, "kennung": kapitel.kennung},
++        )
++    else:
++        anhang = Anhang.objects.create(
++            eintrag=kapitel, dokument=kapitel.dokument,
++            nextcloud_pfad="Konzepte/Plan.pdf", dateiname="Plan.pdf",
++        )
++        antwort = client.get(reverse("kern:anhang_vorschau", args=[anhang.pk]))
++    assert len(PdfReader(io.BytesIO(b"".join(antwort.streaming_content))).pages) == 2
++    antwort.close()
++    assert not pfade[0].exists()
++    assert not pfade[0].parent.exists()
++
++
++def test_freigabelinks_werden_nicht_vom_server_abgerufen(client, kapitel, monkeypatch):
++    anhang = Anhang.objects.create(
++        eintrag=kapitel, dokument=kapitel.dokument, dateiname="Link",
++        nextcloud_link="https://cloud.example.org/s/token",
++    )
++
++    def unerlaubt(*args, **kwargs):
++        pytest.fail("Ein freier Link darf keine serverseitige Anfrage auslösen.")
++
++    monkeypatch.setattr(nextcloud, "herunterladen", unerlaubt)
++    antwort = client.get(reverse("kern:anhang_vorschau", args=[anhang.pk]))
++    assert "Freigabe-Link" in antwort.content.decode()
++
++
++def test_auswahlvorschau_prueft_signatur_und_nutzer(client, kapitel, andere_lehrkraft, monkeypatch):
++    def unerlaubt(*args, **kwargs):
++        pytest.fail("Unberechtigte Vorschauen dürfen nicht geladen werden.")
++
++    monkeypatch.setattr(nextcloud, "herunterladen", unerlaubt)
++    url = reverse("kern:nextcloud_vorschau", args=[kapitel.dokument.schluessel])
++    assert client.get(url, {"auswahl": "ungueltig"}).status_code == 403
++    token = signing.dumps({
++        "nutzer": andere_lehrkraft.pk, "dokument": kapitel.dokument_id,
++        "pfad": "Geheim.pdf", "name": "Geheim.pdf",
++    }, salt="anhang-erfassung")
++    assert client.get(url, {"auswahl": token}).status_code == 403
++
++
++def test_loeschen_braucht_bestaetigung_und_bereinigt_datei(
++    client, anhang, django_capture_on_commit_callbacks
++):
++    url = loesch_url(anhang)
++    seite = client.get(url)
++    assert Anhang.objects.filter(pk=anhang.pk).exists()
++    assert client.post(url).status_code == 409
++    speicher, name = anhang.datei.storage, anhang.datei.name
++    with django_capture_on_commit_callbacks(execute=True):
++        antwort = client.post(url, {"stand": seite.context["stand"]})
++    assert antwort.status_code == 302
++    assert not Anhang.objects.filter(pk=anhang.pk).exists()
++    assert not speicher.exists(name)
++
++
++def test_geaenderter_anhang_wird_nicht_mit_alter_bestaetigung_geloescht(client, anhang):
++    url = loesch_url(anhang)
++    token = client.get(url).context["stand"]
++    anhang.beschreibung = "Inzwischen überarbeitet"
++    anhang.save()
++    assert client.post(url, {"stand": token}).status_code == 409
++    assert Anhang.objects.filter(pk=anhang.pk).exists()
++
++
++@pytest.mark.parametrize("verwendung", ["verweis", "freigabekopie"])
++def test_verwendete_anhaenge_bleiben_erhalten(client, anhang, verwendung):
++    if verwendung == "verweis":
++        Verlinkung.objects.create(
++            von_eintrag=anhang.eintrag, ziel_typ="anhang", ziel_id=str(anhang.pk), art="nutzt",
++        )
++    else:
++        FreigegebeneDatei.objects.create(
++            original=anhang, version=anhang.eintrag.letzte_version(),
++            dateiname=anhang.dateiname, inhalt=b"Kopie", sha256="0" * 64, originalstand="0" * 64,
++        )
++    url = loesch_url(anhang)
++    seite = client.get(url)
++    assert seite.context["grund"]
++    assert client.post(url, {"stand": seite.context["stand"]}).status_code == 409
++    assert Anhang.objects.filter(pk=anhang.pk).exists()
++
++
++def test_loeschen_ohne_bearbeitungsrecht_verboten(client, anhang, andere_lehrkraft):
++    client.force_login(andere_lehrkraft)
++    assert client.post(loesch_url(anhang)).status_code == 403
++    assert Anhang.objects.filter(pk=anhang.pk).exists()
++
++
++def test_bearbeitungsmaske_loescht_nur_eigene_markierte_anhaenge(client, anhang):
++    eintrag = anhang.eintrag
++    url = reverse("kern:eintrag_bearbeiten", args=[eintrag.dokument.schluessel, eintrag.kennung])
++    seite = client.get(url)
++    assert seite.content.count(b'id="nextcloud-ordner"') == 1
++    assert b'data-nextcloud-oeffnen' in seite.content
++    antwort = client.post(url, {
++        "titel": eintrag.titel, "status": "entwurf",
++        "ausgangsstand": seite.context["formular"]["ausgangsstand"].value(),
++        "anhang_entfernen": [anhang.pk],
++    })
++    assert antwort.status_code == 302
++    assert not Anhang.objects.filter(pk=anhang.pk).exists()
++
++
++def test_fremder_anhang_kann_nicht_ueber_das_formular_geloescht_werden(client, anhang):
++    fremd = Anhang.objects.create(
++        dokument=anhang.dokument, dateiname="Anderer Anhang",
++        nextcloud_link="https://cloud.example.org/s/anderer",
++    )
++    eintrag = anhang.eintrag
++    url = reverse("kern:eintrag_bearbeiten", args=[eintrag.dokument.schluessel, eintrag.kennung])
++    seite = client.get(url)
++    antwort = client.post(url, {
++        "titel": "Soll nicht gespeichert werden", "status": "entwurf",
++        "ausgangsstand": seite.context["formular"]["ausgangsstand"].value(),
++        "anhang_entfernen": [fremd.pk],
++    })
++    assert antwort.status_code == 200
++    assert "anhang_entfernen" in antwort.context["formular"].errors
++    assert Anhang.objects.filter(pk=fremd.pk).exists()
++    eintrag.refresh_from_db()
++    assert eintrag.titel != "Soll nicht gespeichert werden"
+diff --git a/tests/test_nextcloud_suchordner.py b/tests/test_nextcloud_suchordner.py
+new file mode 100644
+index 0000000..e6390c0
+--- /dev/null
++++ b/tests/test_nextcloud_suchordner.py
+@@ -0,0 +1,273 @@
++"""Ordnerinventur, Suchrechte, ETags und Entfernung veralteter Suchtexte."""
++
++import io
++from datetime import timedelta
++
++import pytest
++from django.contrib.auth.models import AnonymousUser
++from django.core.exceptions import ValidationError
++from django.core.management import call_command
++from django.urls import reverse
++from django.utils import timezone
++
++from kern import nextcloud, nextcloud_ordner
++from kern.models import Anhang, NextcloudOrdner
++from kern.nextcloud_index import indexieren
++from kern.nextcloud_ordner import ordner_einlesen
++from kern.staende import sichtbare_anhaenge
++from suche.dienste import suchen
++
++pytestmark = pytest.mark.django_db
++
++
++@pytest.fixture
++def quelle(settings):
++    settings.NEXTCLOUD_URL = "https://cloud.example.org"
++    settings.NEXTCLOUD_NUTZER = "technik"
++    settings.NEXTCLOUD_PASSWORT = "app-passwort"
++    return NextcloudOrdner.objects.create(name="Schulkonzepte", pfad="Kollegium/Konzepte")
++
++
++@pytest.fixture
++def baum(quelle, monkeypatch):
++    daten = {
++        quelle.pfad: [
++            nextcloud.Eintrag("Lesen.txt", quelle.pfad + "/Lesen.txt", False, etag="stand-1"),
++            nextcloud.Eintrag("Deutsch", quelle.pfad + "/Deutsch", True),
++        ],
++        quelle.pfad + "/Deutsch": [
++            nextcloud.Eintrag("Plan.txt", quelle.pfad + "/Deutsch/Plan.txt", False, etag="stand-1"),
++        ],
++    }
++
++    def auflisten(pfad):
++        wert = daten[pfad]
++        if isinstance(wert, Exception):
++            raise wert
++        return wert
++
++    monkeypatch.setattr(nextcloud, "auflisten", auflisten)
++    return daten
++
++
++@pytest.fixture
++def download(monkeypatch):
++    anfragen = []
++
++    def herunterladen(pfad, ziel, etag=""):
++        anfragen.append((pfad, etag))
++        if etag == '"stand-1"':
++            return nextcloud.Download(304)
++        ziel.write_text("Leseförderung im Unterricht", encoding="utf-8")
++        return nextcloud.Download(200, '"stand-1"', "text/plain", ziel.stat().st_size)
++
++    monkeypatch.setattr(nextcloud, "herunterladen", herunterladen)
++    return anfragen
++
++
++def dateitreffer(nutzer, begriff="Leseförderung", **filterwerte):
++    return suchen(nutzer, begriff, gruppe="dateien", **filterwerte).gruppen[0]
++
++
++def test_ordner_inklusive_unterordner_erscheint_in_der_suche(quelle, baum, download, lehrkraft):
++    quelle.kollegiumsweit = True
++    quelle.save()
++    ordner_einlesen(quelle)
++    assert quelle.dateien.count() == 2
++    for datei in quelle.dateien.all():
++        assert indexieren(datei) == "gelesen"
++    gruppe = dateitreffer(lehrkraft)
++    assert gruppe.gesamt == 2
++    assert all(t.zusatz == "Nextcloud" for t in gruppe.treffer)
++    assert all("Schulkonzepte" in t.kontext for t in gruppe.treffer)
++    assert all(t.url.startswith("https://cloud.example.org/apps/files/") for t in gruppe.treffer)
++    assert all(t.vorschau_url for t in gruppe.treffer)
++    assert dateitreffer(lehrkraft, dokument="arbeitsplan-deutsch").gesamt == 0
++
++
++def test_ohne_unterordner_werden_nur_direkte_dateien_erfasst(quelle, baum):
++    quelle.unterordner = False
++    quelle.save()
++    ordner_einlesen(quelle)
++    assert list(quelle.dateien.values_list("dateiname", flat=True)) == ["Lesen.txt"]
++
++
++def test_rechte_schuetzen_dateinamen_suchtext_und_vorschau(
++    quelle, baum, download, client, admin_nutzer, lehrkraft, arbeitsgruppe, andere_lehrkraft
++):
++    quelle.gruppen.add(arbeitsgruppe)
++    lehrkraft.groups.add(arbeitsgruppe)
++    ordner_einlesen(quelle)
++    for datei in quelle.dateien.all():
++        indexieren(datei)
++    assert dateitreffer(lehrkraft).gesamt == 2
++    assert dateitreffer(admin_nutzer).gesamt == 2
++    assert dateitreffer(andere_lehrkraft).gesamt == 0
++    assert dateitreffer(andere_lehrkraft, "Lesen.txt").gesamt == 0
++    assert not sichtbare_anhaenge(AnonymousUser(), quelle.dateien.all()).exists()
++    url = reverse("kern:anhang_vorschau", args=[quelle.dateien.first().pk])
++    client.force_login(andere_lehrkraft)
++    assert client.get(url).status_code == 404
++    # Eine Rechteänderung gilt sofort und erfordert keinen neuen Indexierungslauf.
++    quelle.gruppen.clear()
++    assert dateitreffer(lehrkraft).gesamt == 0
++
++
++def test_ohne_freigabe_sieht_nur_die_administration_dateien(quelle, baum, admin_nutzer, lehrkraft):
++    ordner_einlesen(quelle)
++    assert dateitreffer(admin_nutzer, "Lesen.txt").gesamt == 1
++    assert dateitreffer(lehrkraft, "Lesen.txt").gesamt == 0
++
++
++def test_entfernte_dateien_verlieren_auch_dateinamentreffer(quelle, baum, download, admin_nutzer):
++    ordner_einlesen(quelle)
++    for datei in quelle.dateien.all():
++        indexieren(datei)
++    baum[quelle.pfad] = []
++    ordner_einlesen(quelle)
++    assert dateitreffer(admin_nutzer).gesamt == 0
++    assert dateitreffer(admin_nutzer, "Lesen.txt").gesamt == 0
++    assert not quelle.dateien.exclude(extrahierter_text="").exists()
++
++
++@pytest.mark.parametrize("status", [403, 404, 410])
++def test_nicht_mehr_zugaengliche_ordner_werden_ausgeblendet(
++    quelle, baum, download, admin_nutzer, status
++):
++    ordner_einlesen(quelle)
++    for datei in quelle.dateien.all():
++        indexieren(datei)
++    baum[quelle.pfad] = nextcloud.NextcloudFehler("Kein Zugriff", status=status)
++    ordner_einlesen(quelle)
++    assert dateitreffer(admin_nutzer).gesamt == 0
++    assert not quelle.dateien.filter(nextcloud_verfuegbar=True).exists()
++
++
++def test_teilausfall_behaelt_den_letzten_vollstaendigen_stand(quelle, baum, download):
++    ordner_einlesen(quelle)
++    for datei in quelle.dateien.all():
++        indexieren(datei)
++    baum[quelle.pfad] = [
++        nextcloud.Eintrag("Deutsch", quelle.pfad + "/Deutsch", True),
++        nextcloud.Eintrag("Neu.txt", quelle.pfad + "/Neu.txt", False),
++    ]
++    baum[quelle.pfad + "/Deutsch"] = nextcloud.NextcloudFehler("Vorübergehend ausgefallen")
++    assert "ausgefallen" in ordner_einlesen(quelle)
++    assert quelle.dateien.filter(nextcloud_verfuegbar=True).count() == 2
++    assert not quelle.dateien.filter(dateiname="Neu.txt").exists()
++    assert all(a.extrahierter_text for a in quelle.dateien.all())
++
++
++def test_etags_verhindern_erneute_textextraktion(quelle, baum, download):
++    ordner_einlesen(quelle)
++    datei = quelle.dateien.first()
++    assert indexieren(datei) == "gelesen"
++    assert indexieren(datei) == "unverändert"
++    assert download[-1][1] == '"stand-1"'
++    datei.refresh_from_db()
++    assert "Leseförderung" in datei.extrahierter_text
++
++
++def test_datei_403_entfernt_sie_aus_der_suche(quelle, baum, download, monkeypatch, admin_nutzer):
++    ordner_einlesen(quelle)
++    datei = quelle.dateien.first()
++    indexieren(datei)
++    monkeypatch.setattr(nextcloud, "herunterladen", lambda *a, **kw: nextcloud.Download(403))
++    assert indexieren(datei) == "entfernt"
++    assert dateitreffer(admin_nutzer, datei.dateiname).gesamt == 0
++
++
++def test_deaktivieren_und_pfadwechsel_blenden_alte_treffer_sofort_aus(
++    quelle, baum, download, admin_nutzer
++):
++    ordner_einlesen(quelle)
++    for datei in quelle.dateien.all():
++        indexieren(datei)
++    quelle.aktiv = False
++    quelle.save()
++    assert dateitreffer(admin_nutzer).gesamt == 0
++    quelle.aktiv = True
++    quelle.pfad = "Neuer/Ordner"
++    quelle.save()
++    assert dateitreffer(admin_nutzer).gesamt == 0
++    assert not quelle.dateien.exclude(extrahierter_text="").exists()
++
++
++def test_laufgrenze_loescht_keine_bestehenden_dateien(quelle, baum, monkeypatch):
++    ordner_einlesen(quelle)
++    monkeypatch.setattr(nextcloud_ordner, "MAX_ORDNER", 1)
++    assert "Laufgrenze" in ordner_einlesen(quelle)
++    assert quelle.dateien.filter(nextcloud_verfuegbar=True).count() == 2
++
++
++@pytest.mark.parametrize(
++    "pfad", ["../Geheim", "Konzepte/../Geheim", "https://cloud.example.org", "/"]
++)
++def test_ungueltige_ordnerpfade_werden_abgelehnt(pfad):
++    with pytest.raises(ValidationError):
++        NextcloudOrdner(name="Ungültig", pfad=pfad).full_clean()
++
++
++def test_ueberlappende_aktive_ordner_werden_abgelehnt(quelle):
++    with pytest.raises(ValidationError):
++        NextcloudOrdner(name="Doppelt", pfad=quelle.pfad + "/Deutsch").full_clean()
++
++
++def test_laufende_indexierung_kann_keine_deaktivierte_quelle_wieder_freigeben(
++    quelle, baum, monkeypatch
++):
++    ordner_einlesen(quelle)
++    datei = quelle.dateien.first()
++
++    def herunterladen(pfad, ziel, etag=""):
++        quelle.aktiv = False
++        quelle.save()
++        ziel.write_text("Soll nicht indiziert werden", encoding="utf-8")
++        return nextcloud.Download(200)
++
++    monkeypatch.setattr(nextcloud, "herunterladen", herunterladen)
++    assert indexieren(datei) == "übersprungen"
++    datei.refresh_from_db()
++    assert datei.extrahierter_text == ""
++    assert not datei.nextcloud_verfuegbar
++
++
++def test_dateibudget_arbeitet_auch_bei_regelmaessiger_inventur_alle_dateien_ab(
++    quelle, baum, download
++):
++    baum[quelle.pfad] = [
++        nextcloud.Eintrag(name, quelle.pfad + "/" + name, False, etag="stand-1")
++        for name in ["A.png", "B.png", "C.txt"]
++    ]
++    for _ in range(3):
++        NextcloudOrdner.objects.filter(pk=quelle.pk).update(
++            geprueft_am=timezone.now() - timedelta(minutes=16)
++        )
++        call_command("nextcloud_indexieren", anzahl=1, stdout=io.StringIO())
++    assert quelle.dateien.filter(index_stand__isnull=False).count() == 3
++    assert quelle.dateien.get(dateiname="C.txt").extrahierter_text
++    assert len(download) == 1  # Bilder werden nur über ihren Namen erfasst.
++
++
++def test_verwaltung_ist_auf_administration_beschraenkt(client, admin_nutzer, lehrkraft):
++    url = reverse("admin:kern_nextcloudordner_add")
++    client.force_login(admin_nutzer)
++    assert client.get(url).status_code == 200
++    lehrkraft.is_staff = True
++    lehrkraft.save()
++    client.force_login(lehrkraft)
++    assert client.get(url).status_code == 403
++
++
++def test_dateiausschnitte_enthalten_keine_aktiven_html_elemente(quelle, admin_nutzer, client):
++    datei = Anhang.objects.create(
++        nextcloud_ordner=quelle, nextcloud_pfad=quelle.pfad + "/Test.txt", dateiname="Test.txt",
++        nextcloud_link="https://cloud.example.org/apps/files/",
++        extrahierter_text='Leseförderung <img src=x onerror="alert(1)"> im Unterricht',
++    )
++    client.force_login(admin_nutzer)
++    antwort = client.get(reverse("suche:suchen"), {"q": "Leseförderung", "gruppe": "dateien"})
++    assert antwort.status_code == 200
++    assert b"<img src=x" not in antwort.content
++    assert b'onerror="alert' not in antwort.content
++    assert reverse("kern:anhang_vorschau", args=[datei.pk]).encode() in antwort.content
+diff --git a/vorlagen/grundlage.html b/vorlagen/grundlage.html
+index 15d5273..7874be1 100644
+--- a/vorlagen/grundlage.html
++++ b/vorlagen/grundlage.html
+@@ -8,8 +8,10 @@
+   <link rel="stylesheet" href="{% static 'tokens.css' %}">
+   <link rel="stylesheet" href="{% static 'schulwissen.css' %}">
+   <link rel="stylesheet" href="{% static 'inhalte.css' %}">
++  <link rel="stylesheet" href="{% static 'anhaenge.css' %}">
+   <script src="{% static 'vendor/htmx.min.js' %}" defer></script>
+   <script src="{% static 'oberflaeche.js' %}" defer></script>
++  <script src="{% static 'anhaenge.js' %}" defer></script>
+   <script src="{% static 'vendor/alpine.min.js' %}" defer></script>
+   {% block kopf_zusatz %}{% endblock %}
+ </head>
+@@ -84,6 +86,7 @@
+ </main>
+ 
+ <footer class="seitenfuss"><span>Schulwissen · GGS Niederkassel</span><span>Gemeinsam festhalten, was uns wichtig ist.</span></footer>
++{% if user.is_authenticated %}{% include "kern/_dateifenster.html" %}{% endif %}
+ {% block ende %}{% endblock %}
+ </body>
+ </html>
 -- 
 2.43.0
 

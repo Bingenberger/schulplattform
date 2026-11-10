@@ -35,3 +35,11 @@ def test_ssh_port_of_current_session_is_kept(tmp_path, monkeypatch):
     monkeypatch.setenv("SSH_CONNECTION", "192.0.2.5 50000 198.51.100.4 2222")
     p = Provisioner(tmp_path, runner=fake({}))
     assert p.ssh_ports() == [2222]
+
+
+def test_nextcloud_index_timer_runs_the_installer_every_15_minutes():
+    from schulplattform.host import units
+    unit_set = units("/var/lib/sp", "/opt/sp", "/run/sp.sock", "/etc/sp.toml", "/b", "/k.pub")
+    assert "nextcloud-index --quiet" in unit_set["schulplattform-nextcloud-index.service"]
+    assert "Type=oneshot" in unit_set["schulplattform-nextcloud-index.service"]
+    assert "OnUnitActiveSec=15min" in unit_set["schulplattform-nextcloud-index.timer"]

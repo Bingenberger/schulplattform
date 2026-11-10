@@ -1,0 +1,27 @@
+VM-Abnahme Update 0.3.2 -> 0.3.3 (10. November 2026), Ubuntu 24.04 (QEMU), Test-CA Pebble, Test-DNS *.schule.test
+Konfiguration: nur schulwissen (übrige Apps aus); Host-Code mit Timer schulplattform-nextcloud-index
+App-Tests schulwissen 6aed6d7 (Docker, docker-compose.test.yml): 709 passed
+
+$ ./install.sh apply --bundle /root/release ...                                (0.3.2)
+  Installation completed (Release 0.3.2); verwaltung, schulwissen aktiv
+Bestand angelegt (scripts/schulwissen_fixture.py SEED): 3 Konten, Bereich, Dokument, Eintrag, Anhang; kern-Migration 0013
+$ ./install.sh plan --bundle /root/0.3.3 ...                                   -> signature-and-manifests-verified
+  schulwissen: ghcr.io/bingenberger/schulwissen:0.1.1@sha256:1f7bd010a23eb17a8726efc761dfd11b628e4c01cea9d3cde8378f4f7b794543
+$ ./install.sh apply --bundle /root/0.3.3 ... --reconfigure                    -> completed (Release 0.3.3), exit 0
+  sp-schulwissen-app-1 ghcr.io/bingenberger/schulwissen:0.1.1 healthy
+Migration: 0013_eintrag_aufgabe_eintrag_kurzantwort_and_more -> 0014_nextcloud_suchordner
+Bestandstabellen (Zeilenzahlen aller kern-Tabellen, auth_group) unverändert: True; neu kern_nextcloudordner
+/health/ready: 200
+systemctl list-timers: schulplattform-nextcloud-index.timer aktiv (15 min)
+$ ./install.sh nextcloud-index  (ohne technischen Zugang)  -> "übersprungen: technischer Zugang nicht eingerichtet", exit 0
+toml nextcloud_files_url = https://cloud.schule.test (nicht auflösbar), ./install.sh nextcloud-files (pty) -> eingeschaltet
+Suchordner "Konzepte" (Kollegium/Konzepte, kollegiumsweit) angelegt
+$ ./install.sh nextcloud-index -> "Konzepte: Die Nextcloud ist nicht erreichbar: Name or service not known", exit 0
+systemctl start schulplattform-nextcloud-index.service -> Result=success
+WebDAV-Attrappe als Container im Netz sp-schulwissen_default (PROPFIND 207 / GET 200), Indexierung mit SW_NEXTCLOUD_URL=http://fakedav:8089:
+  Konzepte: 1 Dateien erfasst; Pausenkonzept.txt: gelesen
+Suche über HTTPS nach "Zitronenfalter" (Wort nur im Dateiinhalt):
+  Lehrkraft, Ordner kollegiumsweit: Treffer; Lehrkraft ohne Freigabe: kein Treffer; Administration ohne Freigabe: Treffer
+  /verwaltung/kern/nextcloudordner/: 200; Bestandseintrag weiterhin auffindbar
+$ ./install.sh backup --app schulwissen -> ok, offsite ok, healthy
+Nicht geprüft: echte Nextcloud (HTTPS, App-Passwort); Indexierung echter PDF/DOCX/ODT (in den App-Tests abgedeckt).
