@@ -1,0 +1,77 @@
+{
+  "scope": "four-app pilot, verified local TLS and synthetic accounts only",
+  "apps": [
+    "gswb",
+    "schulwissen",
+    "zackboing",
+    "schulhelfer"
+  ],
+  "installationId": "bbf27599-627c-4820-b5b0-b9675804c20c",
+  "imageId": "sha256:d8c4c9c46d8ddd646c5b0c9eee0aaa62fdbfc7c71a66a377865c0c4118ce3d40",
+  "domainChange": true,
+  "forcedFailureRollback": true,
+  "originalDomainRestored": true,
+  "checks": [
+    {
+      "domain": "helfer.localhost",
+      "publicIndex": true,
+      "anonymousAdminDenied": true,
+      "localAdminLogin": true,
+      "csrfRequired": true,
+      "pdfExport": true,
+      "parentLinkPublic": true,
+      "mailUsesNewOrigin": true,
+      "spoofedForwardedHostIgnored": true,
+      "oldRecoveryTokenDenied": true
+    },
+    {
+      "domain": "helfer-neu.localhost",
+      "publicIndex": true,
+      "anonymousAdminDenied": true,
+      "localAdminLogin": true,
+      "csrfRequired": true,
+      "pdfExport": true,
+      "parentLinkPublic": true,
+      "mailUsesNewOrigin": true,
+      "spoofedForwardedHostIgnored": true,
+      "oldRecoveryTokenDenied": true
+    },
+    {
+      "domain": "helfer-neu.localhost",
+      "publicIndex": true,
+      "anonymousAdminDenied": true,
+      "localAdminLogin": true,
+      "csrfRequired": true,
+      "pdfExport": true,
+      "parentLinkPublic": true,
+      "mailUsesNewOrigin": true,
+      "spoofedForwardedHostIgnored": true,
+      "oldRecoveryTokenDenied": true
+    },
+    {
+      "domain": "helfer.localhost",
+      "publicIndex": true,
+      "anonymousAdminDenied": true,
+      "localAdminLogin": true,
+      "csrfRequired": true,
+      "pdfExport": true,
+      "parentLinkPublic": true,
+      "mailUsesNewOrigin": true,
+      "spoofedForwardedHostIgnored": true,
+      "oldRecoveryTokenDenied": true
+    }
+  ],
+  "privateBackend": true,
+  "secureAdminCookie": true,
+  "twoNoopRuns": true,
+  "sameContainersKeysAndCheckpoints": true,
+  "stopMaintenance503": true,
+  "restartKeepsParentLink": true,
+  "noRepeatedBootstrapOrMigration": true,
+  "limits": [
+    "No public DNS/ACME ownership check",
+    "No QR/WebSocket/OIDC in this app flow",
+    "No persistent outbox/offsite backup or capacity measurement"
+  ],
+  "stoppedDataRetained": true
+}

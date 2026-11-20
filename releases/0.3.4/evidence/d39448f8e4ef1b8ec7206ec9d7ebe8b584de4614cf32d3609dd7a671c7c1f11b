@@ -1,0 +1,8 @@
+{
+  "scope": "standalone Compose only, without platform network/override",
+  "project": "sp-wissen-standalone-992f919338",
+  "explicitMigration": true,
+  "ready": true,
+  "productionLoginPage": true,
+  "restartReady": true
+}

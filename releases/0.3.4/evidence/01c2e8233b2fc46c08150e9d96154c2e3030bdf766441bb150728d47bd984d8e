@@ -1,0 +1,12 @@
+{
+  "app": "bildergalerie",
+  "artifacts": [],
+  "item": "restore",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "3acd4a0388bc257e3ea662920b749935649c544e",
+  "schemaVersion": 1,
+  "status": "open",
+  "summary": "No restore evidence recorded for bildergalerie.",
+  "testedCommit": "4b1fe55a259a2e0f0dd00c49839937fe8dfe02fc"
+}

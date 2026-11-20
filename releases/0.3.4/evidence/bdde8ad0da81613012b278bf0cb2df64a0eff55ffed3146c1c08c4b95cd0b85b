@@ -1,0 +1,36 @@
+{
+  "app": "zackboing",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/zackboing-image.json",
+      "sha256": "6e8bba20a73eebde5fa2afda0a20afb699615a77801ef56d5443bf2ed2b79e55"
+    }
+  ],
+  "images": {
+    "zackboing": "ghcr.io/bingenberger/zackboing:0.1.0@sha256:809c78a0637a0bcaeb779d48e80488b7555e2b30d21bc682921d29d10c156b7a"
+  },
+  "inspection": {
+    "zackboing": {
+      "architecture": "amd64",
+      "attestationPredicates": [
+        "https://slsa.dev/provenance/v1",
+        "https://spdx.dev/Document"
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "8ee2b9eec613d25b861e41de12ede251bdd7a0f0",
+        "org.opencontainers.image.source": "https://github.com/Bingenberger/zackboing",
+        "org.opencontainers.image.version": "0.1.0"
+      },
+      "os": "linux",
+      "user": "10001:10001"
+    }
+  },
+  "item": "amd64Build",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "8ee2b9eec613d25b861e41de12ede251bdd7a0f0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "Published linux/amd64 image(s) with revision label, SBOM and provenance.",
+  "testedCommit": "668b7f724e69e431215610183745886958b08d25"
+}

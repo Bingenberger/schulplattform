@@ -74,7 +74,7 @@
   {
     "app": "schulkasse",
     "baseCommit": "d99cfca9eb26acb606234ff664ffa2b38ff3352c",
-    "implementationCommit": "64d9f10bf8350cda2da5ea8aa9c81b11a6546fc9",
+    "implementationCommit": "3d05a05620c2a57428259dea31d4113f25d2222d",
     "patch": "patches/schulkasse/changes.patch"
   },
   {

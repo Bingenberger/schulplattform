@@ -1,0 +1,23 @@
+{
+  "imageId": "sha256:00441bd3b9f00362211f26e2cc06c897fc20b9504df09ba9dde0da83226773de",
+  "standalone": true,
+  "privateFileCredentials": true,
+  "nonRootReadOnly": true,
+  "checks": [
+    "live independent of schema; explicit migration; no default accounts; headless setup refused; content preserves accounts/templates",
+    "CSRF/foreign Origin denied; roles and class/student ownership enforced; consent required; QR child login and training start work",
+    "logout and QR rotation revoke JWTs server-side; original session survives ordinary restart",
+    "bulk import requires consent and owned target class; no QR capabilities in audit or new raw-token columns",
+    "password reset and child deletion revoke sessions, including child with training history",
+    "complete reading exercise, correct quiz answers and training progress retained for restore",
+    "legacy QR and IDs preserved by migration; class/detail/template projections withhold legacy raw tokens and password hashes",
+    "SPA served locally; private filesystem routes denied; oversized JSON refused",
+    "migration checksum drift and DB outage fail readiness while liveness remains available"
+  ],
+  "limits": [
+    "No production migration or identity import",
+    "No offsite backup",
+    "No real child data"
+  ],
+  "stoppedDataRetained": true
+}

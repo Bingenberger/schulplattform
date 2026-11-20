@@ -1,0 +1,27 @@
+{
+  "scope": "local TLS/domain rollback with synthetic mail only",
+  "successfulChange": true,
+  "forcedFailureRolledBack": true,
+  "checks": [
+    {
+      "domain": "wissen-neu.localhost",
+      "tls": true,
+      "loginPage": true,
+      "missingCsrfDenied": true,
+      "mailLinkMatchesDomain": true
+    },
+    {
+      "domain": "wissen-neu.localhost",
+      "tls": true,
+      "loginPage": true,
+      "missingCsrfDenied": true,
+      "mailLinkMatchesDomain": true
+    }
+  ],
+  "limits": [
+    "No public DNS/ACME ownership test",
+    "No OIDC callbacks configured",
+    "No QR function in this tested flow",
+    "Recovery through local CLI, not management web domain"
+  ]
+}

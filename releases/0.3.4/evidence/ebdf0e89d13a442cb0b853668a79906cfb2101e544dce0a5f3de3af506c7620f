@@ -1,0 +1,12 @@
+{
+  "app": "schulwissen",
+  "artifacts": [],
+  "images": {
+    "schulwissen": "ghcr.io/bingenberger/schulwissen:0.1.1@sha256:1f7bd010a23eb17a8726efc761dfd11b628e4c01cea9d3cde8378f4f7b794543"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}

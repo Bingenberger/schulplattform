@@ -1,0 +1,44 @@
+{
+  "acceptance": {
+    "amd64Build": "90c7f06014fbc73f857cc2bcf180d74ce5b501a0e3723aba26a86f2b89e6b559",
+    "domainRollback": "2d3b912c8adf3dc9b1e354776775faad7432a208a7079f975369f624ef4edfce",
+    "licenses": "36bd20d08a890a1613ebfb52ec110ea0526c120ce800f5ad046874ebbe807ab1",
+    "negativeAccess": "ad2cf18004be8655c3676515a3f3487792946e7f0e4766ff5f9e71d47aed7f2b",
+    "restore": "d3b31a8b751c320f25f42c0a79af912c142b184d293d5cb28541a19ca5e06118",
+    "sbom": "ed93149439e606ebd691c839f10ac641c748439afaf1bcf2ece0ba35fad86371",
+    "standalone": "525bcb389bbe85b3a88f0d512ac1f688fcb545bb2398550a22a99c45bd92b8c2"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/schulkasse/docker-compose.yml"
+  ],
+  "database": {
+    "account": "schulkasse",
+    "engine": "sqlite",
+    "name": "schulkasse"
+  },
+  "domainEnvironment": [],
+  "health": {
+    "live": "/health/live",
+    "ready": "/health/ready"
+  },
+  "id": "schulkasse",
+  "image": "ghcr.io/bingenberger/schulkasse:0.2.0@sha256:d9a919680880003e1baf9d29adb2d6147f0cf6d9ee67cd2c59c01aee0a32eee0",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "data",
+      "mount": "/data",
+      "owner": "10001:10001"
+    }
+  ],
+  "port": 8000,
+  "resources": {
+    "cpus": 1.0,
+    "exportSlotsPerProcess": 1,
+    "memoryMiB": 512,
+    "workers": 2
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "3d05a05620c2a57428259dea31d4113f25d2222d"
+}

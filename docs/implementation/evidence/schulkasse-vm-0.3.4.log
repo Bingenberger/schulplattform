@@ -1,0 +1,26 @@
+VM-Abnahme Update 0.3.3 -> 0.3.4 (20. November 2026), Ubuntu 24.04 (QEMU), Test-CA Pebble, Test-DNS *.schule.test
+Konfiguration: nur schulkasse (kasse.schule.test), übrige Apps aus
+App-Tests schulkasse 3d05a05 (tests-Image, read-only, --network none): 226 passed
+
+$ ./install.sh apply --bundle /root/release ...                                (0.3.3)
+  Installation completed (Release 0.3.3); verwaltung, schulkasse aktiv
+  sp-schulkasse-app-1 ghcr.io/bingenberger/schulkasse:0.1.0@sha256:8c2deda5…
+Bestand angelegt: create-admin, demo (34 Kinder, 5 Projekte), 2 CAMT-Importe (17 Umsätze); Migration 0009_umbuchung_konto
+Schnappschuss: Zeilenzahl + SHA-256 je Tabelle (23 Tabellen, 249 Zeilen; ohne Login-/Sitzungstabellen)
+$ ./install.sh plan --bundle /root/0.3.4 ...                                   -> signature-and-manifests-verified
+  schulkasse: ghcr.io/bingenberger/schulkasse:0.2.0@sha256:d9a919680880003e1baf9d29adb2d6147f0cf6d9ee67cd2c59c01aee0a32eee0
+$ ./install.sh apply --bundle /root/0.3.4 ... --reconfigure                    -> completed (Release 0.3.4), exit 0
+  sp-schulkasse-app-1 ghcr.io/bingenberger/schulkasse:0.2.0 healthy
+Migration: 0009_umbuchung_konto -> 0010_kontoauszug
+Bestand unverändert: True (249 Zeilen; konto ohne neue Spalte geldinstitut verglichen)
+pragma integrity_check: ok; foreign_key_check: []; neu: kontoauszug, umsatz_anmerkung
+HTTPS über Caddy (Test-CA): /health/ready 200, /anmelden 200, /static/vendor/phosphor/phosphor.css 200, Phosphor.woff2 200
+Funktionstest im Produktions-Container (Flask-Testclient, echte DB, WeasyPrint im Image):
+  Kontoauszüge-Übersicht 200; Auszug 1/2026 anlegen 302
+  Überwachungsliste Seite 200, PDF 200 (%PDF, Anlage-1-Layout geprüft), XLSX 200 (1 Blatt, 40 Zeilen)
+  Anmerkung je Umsatz gespeichert; Sammel-PDF 200, Sammel-XLSX 200
+  Jahresendmitteilung Seite 200, PDF 200; Klassenlisten Seite 200, PDF 200; Erinnerungszettel PDF 200   -> 11/11
+  Prüfvermerk: ohne Endsaldo abgelehnt; Endsaldo +1,00 € daneben abgelehnt; berechneter Endsaldo 1729,50 € -> vermerkt
+  Nach dem Vermerk: Anmerkung im Auszugszeitraum abgelehnt (gesperrt, wie dokumentiert)
+$ ./install.sh backup --app schulkasse -> ok, offsite ok, healthy
+Nicht geprüft: Anmeldung mit echtem TOTP im Browser (Prüfkonto mit Platzhalter-2FA über Testclient), echte Kontoauszüge/CAMT der Bank, Abnahme auf dem echten Server.

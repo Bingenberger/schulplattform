@@ -1,0 +1,36 @@
+{
+  "app": "schulwissen",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/schulwissen-image.json",
+      "sha256": "eb65bcc1a893fa1b6d24e88725cae13b927b6ee41bf7ca88f3583a56bf16b704"
+    }
+  ],
+  "images": {
+    "schulwissen": "ghcr.io/bingenberger/schulwissen:0.1.1@sha256:1f7bd010a23eb17a8726efc761dfd11b628e4c01cea9d3cde8378f4f7b794543"
+  },
+  "inspection": {
+    "schulwissen": {
+      "architecture": "amd64",
+      "attestationPredicates": [
+        "https://slsa.dev/provenance/v1",
+        "https://spdx.dev/Document"
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "6aed6d7843bc7e1c770e3a4e6091d3d308aa5fb8",
+        "org.opencontainers.image.source": "https://github.com/Bingenberger/schulwissen",
+        "org.opencontainers.image.version": "0.1.1"
+      },
+      "os": "linux",
+      "user": "schulwissen"
+    }
+  },
+  "item": "amd64Build",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "6aed6d7843bc7e1c770e3a4e6091d3d308aa5fb8",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "Published linux/amd64 image(s) with revision label, SBOM and provenance.",
+  "testedCommit": "6aed6d7843bc7e1c770e3a4e6091d3d308aa5fb8"
+}

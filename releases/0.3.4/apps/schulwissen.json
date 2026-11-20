@@ -1,0 +1,53 @@
+{
+  "acceptance": {
+    "amd64Build": "8af1abf2292b8e626e956da97e4d20fa91ecf7f4e5aab5cb4c2af1bc95dd2140",
+    "domainRollback": "24a4049a71ddf6fcd947268c67ce04b8603bfeb925c7ecda3cd1a6d82b609c8d",
+    "licenses": "38bb31ddec92d60a1b129c688b2541f22d2923dd5968089599ad57c99ed89f4d",
+    "negativeAccess": "ce54290659ce7cba2174efe18de34ae651879b75fc416c1924b4467f82856aab",
+    "restore": "4c83ae990b89a858378bbb9b55bbfb70a38a11d46d37e79c9c2017a31289dbb4",
+    "sbom": "ebdf0e89d13a442cb0b853668a79906cfb2101e544dce0a5f3de3af506c7620f",
+    "standalone": "0dc134c4d021095514726b6056163d9202b18157818bc8ed82519333aa9014cb"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/schulwissen/docker-compose.yml"
+  ],
+  "database": {
+    "account": "schulwissen",
+    "engine": "postgres16",
+    "name": "schulwissen"
+  },
+  "domainEnvironment": [
+    "SW_ALLOWED_HOSTS",
+    "SW_OEFFENTLICHE_URL"
+  ],
+  "health": {
+    "live": "/health/live",
+    "ready": "/health/ready"
+  },
+  "id": "schulwissen",
+  "image": "ghcr.io/bingenberger/schulwissen:0.1.1@sha256:1f7bd010a23eb17a8726efc761dfd11b628e4c01cea9d3cde8378f4f7b794543",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "pgdaten",
+      "mount": "/var/lib/postgresql/data",
+      "owner": "70:70"
+    },
+    {
+      "backup": true,
+      "id": "medien",
+      "mount": "/medien",
+      "owner": "10001:10001"
+    }
+  ],
+  "port": 8000,
+  "resources": {
+    "cpus": 1.0,
+    "exportSlotsPerProcess": 1,
+    "memoryMiB": 768,
+    "workers": 2
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "6aed6d7843bc7e1c770e3a4e6091d3d308aa5fb8"
+}
