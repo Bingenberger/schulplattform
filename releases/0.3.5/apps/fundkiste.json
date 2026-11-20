@@ -1,0 +1,46 @@
+{
+  "acceptance": {
+    "amd64Build": "a47be617f8a07f2412769f21ff8853c44fb5e24b4de9bb556b9dacfefdbd5ca4",
+    "domainRollback": "f1dc5a444dff494489a7b51ca5c7d8eb2a36ce776bc28af8b251a1f03588d0d8",
+    "licenses": "413555dc64b3d7be937b39561122ca2ae15dade4c8c250476f472c3e202ce0ff",
+    "negativeAccess": "a9dab898708dc10a385eef97f13fc9b9a3beb250db1e159ae2d23c66dbef1f20",
+    "restore": "efa9b51290b7d39e218e8f56b36ee070a6aeb962ccd39be1f50239a51785dd42",
+    "sbom": "51512c29e8251706c76e538661f897c985e00443ca0b8abd8cd96c4ace57d74a",
+    "standalone": "935a4fbfe6d650e27afd0aabf3d487e5f60b3378873529982092a0945a409d6b"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/fundkiste/docker-compose.yml"
+  ],
+  "database": {
+    "account": "fundkiste",
+    "engine": "sqlite",
+    "name": "fundkiste"
+  },
+  "domainEnvironment": [
+    "FUNDKISTE_BASE_URL"
+  ],
+  "health": {
+    "live": "/health/live",
+    "ready": "/health/ready"
+  },
+  "id": "fundkiste",
+  "image": "ghcr.io/bingenberger/fundkiste:0.1.0@sha256:5c3898878f87f872921655bd32994c8a5d66fb85040871de2aa8305cdaa89055",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "data",
+      "mount": "/data",
+      "owner": "10001:10001"
+    }
+  ],
+  "port": 8000,
+  "resources": {
+    "cpus": 1.0,
+    "exportSlotsPerProcess": 0,
+    "memoryMiB": 256,
+    "workers": 1
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "08d222d288a17a4c68280b91dc84e94311396608"
+}

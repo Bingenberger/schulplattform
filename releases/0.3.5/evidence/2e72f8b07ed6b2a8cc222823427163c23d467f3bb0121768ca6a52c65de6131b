@@ -1,0 +1,8 @@
+{
+  "Id": "sha256:4b13436cd1e7009d0f15b0936ea4e7999856fa21506334f765f82851d4c77b84",
+  "Architecture": "amd64",
+  "Os": "linux",
+  "Size": 190572022,
+  "RepoDigests": [],
+  "note": "Local image ID is not a registry distribution digest; no published release."
+}

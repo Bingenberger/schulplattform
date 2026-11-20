@@ -1,0 +1,33 @@
+VM-Abnahme Update 0.3.2 -> 0.3.5 (20. November 2026), Ubuntu 24.04 (QEMU), Test-CA Pebble, Test-DNS *.schule.test
+Nachbildung des echten Servers: schulwissen + fahrradausbildung auf 0.3.2, danach karten = true gesetzt
+App-Tests schulwissen 4451acb (Docker, docker-compose.test.yml): 713 passed; Plattform-Tests: 234 passed
+
+$ ./install.sh apply --bundle /root/release ...                                (0.3.2) -> completed
+  schulwissen 0.1.0, fahrradausbildung 0.2.0 healthy; FP_KARTEN_KACHELN leer
+Bestand (scripts/schulwissen_fixture.py SEED): 3 Konten, Bereich, Dokument, Eintrag, Anhang; 218 Zeilen in 32 Tabellen, kern 0013
+platform.toml: [apps.fahrradausbildung] karten = true; [apps.schulwissen] nextcloud_files_url/-user + App-Passwort-Projektion
+$ ./install.sh plan --bundle /root/0.3.5 ...                                   -> signature-and-manifests-verified
+  schulwissen: ghcr.io/bingenberger/schulwissen:0.1.2@sha256:6903c11112cc8117bd0b0b3328e425a05a356681413694a219e33f10e3ece835
+$ ./install.sh apply --bundle /root/0.3.5 ... --reconfigure                    -> completed (Release 0.3.5), exit 0
+  fahrradausbildung (Image unverändert 0.2.0) neu erstellt: FP_KARTEN_KACHELN=https://tile.openstreetmap.de/{z}/{x}/{y}.png
+  schulwissen 0.1.2 healthy; kern 0013 -> 0014; Fachtabellen unverändert (nur auth_permission +4,
+  django_content_type +1, django_migrations +1); neu kern_nextcloudordner(+_gruppen); Timer aktiv
+
+Indexierung gegen WebDAV-Attrappe (Container fakedav im Netz sp-schulwissen_default), Aufruf wie
+./install.sh nextcloud-index (compose run --rm --no-deps) plus -e SW_NEXTCLOUD_URL=http://fakedav:8089.
+Suchordner Konzepte: A-Pausenkonzept.txt, Bombe.docx (3,2 MB, document.xml entpackt ~1,2 GB), Z-Garten.txt
+Gegenprobe: Bombe im 768-MB-Limit -> Exit 137, OOMKilled=true
+Lauf 1: "A-Pausenkonzept.txt: gelesen", dann Kernel: oom-kill task=python uid=10001 (im Wegwerf-Container)
+  Bombe.docx: Vermerk "Auslesen läuft oder wurde abgebrochen."; Z-Garten.txt noch offen
+  Web-Container sp-schulwissen-app-1: StartedAt unverändert, gleiche gunicorn-PIDs, OOMKilled=false,
+  /health/ready über HTTPS während des Laufs durchgehend 200; kein Run-Container übrig
+Lauf 2: Z-Garten.txt gelesen, Bombe.docx "ohne Text" (kein Download), Fehlertext "Das Auslesen wurde abgebrochen …"
+Lauf 3: alles unverändert/ohne Text; seit Lauf 1 keine weiteren OOM-Kills; Bombe insgesamt 1x heruntergeladen
+Suche (Lehrkraft, Ordner kollegiumsweit): Schmetterlingsgarten 1, Zitronenfalter 1 (aus A-Pausenkonzept)
+Bombe.docx in der Attrappe durch normale DOCX ersetzt (neues ETag), Ordner fällig:
+  Lauf 4: "Bombe.docx: gelesen", Fehler leer; Suche "Igelfreundliche" 1 Treffer
+$ ./install.sh nextcloud-index (echte URL cloud.schule.test nicht erreichbar) -> Dateien "fehlgeschlagen", exit 0
+$ systemctl start schulplattform-nextcloud-index.service -> Result=success
+$ ./install.sh backup --app schulwissen -> ok, offsite ok, healthy
+Beobachtung (vorbestehend, unverändert): Dateinamensuche findet ganze Namen ("Bombe.docx"), keine Namensteile ("Garten").
+Nicht geprüft: echte Nextcloud, Abnahme auf dem echten Server.

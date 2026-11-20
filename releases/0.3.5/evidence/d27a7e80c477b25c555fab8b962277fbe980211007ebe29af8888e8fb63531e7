@@ -1,0 +1,36 @@
+{
+  "app": "gswb",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/gswb-image.json",
+      "sha256": "2e72f8b07ed6b2a8cc222823427163c23d467f3bb0121768ca6a52c65de6131b"
+    }
+  ],
+  "images": {
+    "gswb": "ghcr.io/bingenberger/gswb:0.1.1@sha256:39f41701b1cd047e10fa5ce5678ddf3865050fa0f8b0000a2f7f613573d74afb"
+  },
+  "inspection": {
+    "gswb": {
+      "architecture": "amd64",
+      "attestationPredicates": [
+        "https://slsa.dev/provenance/v1",
+        "https://spdx.dev/Document"
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "7c46741a56918f9c8dfd90d45ccc992734f87e45",
+        "org.opencontainers.image.source": "https://github.com/Bingenberger/gswb",
+        "org.opencontainers.image.version": "0.1.1"
+      },
+      "os": "linux",
+      "user": "10001:10001"
+    }
+  },
+  "item": "amd64Build",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "7c46741a56918f9c8dfd90d45ccc992734f87e45",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "Published linux/amd64 image(s) with revision label, SBOM and provenance.",
+  "testedCommit": "7c46741a56918f9c8dfd90d45ccc992734f87e45"
+}

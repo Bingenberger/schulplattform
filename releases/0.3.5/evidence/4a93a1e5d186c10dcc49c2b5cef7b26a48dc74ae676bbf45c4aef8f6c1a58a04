@@ -1,0 +1,12 @@
+{
+  "app": "schulanmeldung",
+  "artifacts": [],
+  "images": {
+    "schulanmeldung": "ghcr.io/bingenberger/schulanmeldung:0.1.1@sha256:846de364d06ee1c56e28cb39d4c636eb6558bafd2b1bd4b56ec73ba81d6ae0e7"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}

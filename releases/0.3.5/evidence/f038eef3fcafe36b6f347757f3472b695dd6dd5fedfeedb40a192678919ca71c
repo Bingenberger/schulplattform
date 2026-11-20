@@ -1,0 +1,12 @@
+{
+  "app": "fahrradausbildung",
+  "artifacts": [],
+  "images": {
+    "fahrradausbildung": "ghcr.io/bingenberger/fahrradausbildung:0.2.0@sha256:e8a5773eb60652d647525aabee550b750c356fdf96d596d616fee3181d113036"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}

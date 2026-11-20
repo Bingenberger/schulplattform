@@ -1,0 +1,66 @@
+{
+  "scope": "local synthetic combined SQLite/media snapshot; no offsite backup",
+  "archiveSha256": "0adc66b8abe8607eaba14e2152af0800a8fa8bef87026c11d639a9ede26614bb",
+  "sourceImage": "sha256:0499ac5fd33b65cd1282c207ec539e053f6238e86a659a422c6f72ea5667fe77",
+  "emptyNewVolume": true,
+  "sqliteOnlineBackup": true,
+  "writersStopped": true,
+  "noMigrationOrBootstrapOnRestore": true,
+  "restoredAppReady": true,
+  "schemaRolesAndOwnershipPreserved": true,
+  "database": {
+    "version": 1,
+    "users": [
+      {
+        "id": 1,
+        "role": "admin"
+      },
+      {
+        "id": 2,
+        "role": "teacher"
+      }
+    ],
+    "quizzes": [
+      {
+        "id": 1,
+        "user_id": 1
+      },
+      {
+        "id": 2,
+        "user_id": 1
+      },
+      {
+        "id": 3,
+        "user_id": 1
+      },
+      {
+        "id": 4,
+        "user_id": 1
+      }
+    ],
+    "foreignKeys": [],
+    "registration": "0"
+  },
+  "mediaSha256": "c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77",
+  "teacherAdminAccessDenied": true,
+  "anonymousAdminDenied": true,
+  "registrationStillClosed": true,
+  "nonemptyRestoreRejected": true,
+  "fileOwnership": [
+    {
+      "uid": 10001,
+      "gid": 10001,
+      "mode": 448
+    },
+    {
+      "uid": 10001,
+      "gid": 10001,
+      "mode": 384
+    },
+    {
+      "uid": 10001,
+      "gid": 10001,
+      "mode": 448
+    }
+  ]
+}

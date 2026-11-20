@@ -1,0 +1,31 @@
+{
+  "app": "fundkiste",
+  "artifacts": [],
+  "images": {
+    "fundkiste": "ghcr.io/bingenberger/fundkiste:0.1.0@sha256:5c3898878f87f872921655bd32994c8a5d66fb85040871de2aa8305cdaa89055"
+  },
+  "inspection": {
+    "fundkiste": {
+      "architecture": "amd64",
+      "attestationPredicates": [
+        "https://slsa.dev/provenance/v1",
+        "https://spdx.dev/Document"
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "08d222d288a17a4c68280b91dc84e94311396608",
+        "org.opencontainers.image.source": "https://github.com/Bingenberger/fundkiste",
+        "org.opencontainers.image.version": "0.1.0"
+      },
+      "os": "linux",
+      "user": "10001:10001"
+    }
+  },
+  "item": "amd64Build",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "08d222d288a17a4c68280b91dc84e94311396608",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "Published linux/amd64 image(s) with revision label, SBOM and provenance.",
+  "testedCommit": "4d90f2eba946f2d7be2993c754eca1dbaea19674"
+}

@@ -1,0 +1,12 @@
+{
+  "app": "schulanmeldung",
+  "artifacts": [],
+  "item": "negativeAccess",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "28d9652a293e188a3dbecc320cc982c614f1cb48",
+  "schemaVersion": 1,
+  "status": "open",
+  "summary": "No negativeAccess evidence recorded for schulanmeldung.",
+  "testedCommit": "5dcc86a0d5323abbb3e62389ca2638f3deb973f4"
+}

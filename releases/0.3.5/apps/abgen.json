@@ -1,0 +1,56 @@
+{
+  "acceptance": {
+    "amd64Build": "759eba3cc934968f8b239a4a325ee2c21af92bd759a317841a301e9c4d139d84",
+    "domainRollback": "ecdcf02db32562ec368a2fc2989d1ab05a7c91a070c471569dea017a9fe94ad0",
+    "licenses": "1beb9246cc38a27d68d434bd5033e52cbce58df0ed1c4a9d0b61db2b965d6592",
+    "negativeAccess": "6adf3394e9d0bc6d4ce8a9e3386aeae606b43e8d70a2ec6b4c21d61bf24014e7",
+    "restore": "620ac1944c0a66db612308b5419dd8de24ea7351365a4643d41ab39400efb6b2",
+    "sbom": "4c52c0e13a0d136719ed46589b7c20646feb858c6332f6043953a17ea9a62ada",
+    "standalone": "ec873bba9622e019a0be22c93b151e56ab281f5b4e9092b4efbfe45cb51fc32c"
+  },
+  "auxiliaryImages": {
+    "abgen-pdf": "ghcr.io/bingenberger/abgen-pdf:0.1.0@sha256:d6418abaa3ab29fac5ad5cd9f96814523c38abd72ab62057bd8159db9812827c"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/abgen/docker-compose.yml",
+    "compose/abgen/docker/init-postgres.sh"
+  ],
+  "database": {
+    "account": "abgen",
+    "engine": "postgres18",
+    "name": "abgen"
+  },
+  "domainEnvironment": [
+    "WEB_ORIGIN"
+  ],
+  "health": {
+    "live": "/api/health/live",
+    "ready": "/api/health/ready"
+  },
+  "id": "abgen",
+  "image": "ghcr.io/bingenberger/abgen:0.1.0@sha256:dc311a34b044d7cb00bc71ac7db6ad2ca442bf875ec27265706da04b2df814fa",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "assets",
+      "mount": "/app/data/assets",
+      "owner": "10001:10001"
+    },
+    {
+      "backup": true,
+      "id": "postgres",
+      "mount": "/var/lib/postgresql",
+      "owner": "70:70"
+    }
+  ],
+  "port": 3000,
+  "resources": {
+    "cpus": 1.0,
+    "exportSlotsPerProcess": 1,
+    "memoryMiB": 1024,
+    "workers": 1
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "0e72023ebfbef3bede8c06de35ac5d7836e88829"
+}

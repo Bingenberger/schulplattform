@@ -1,0 +1,46 @@
+{
+  "acceptance": {
+    "amd64Build": "be77caab2a38df8c873293310460952b5ee0f91e0d2a50a6d2970f40cd8ccf7f",
+    "domainRollback": "35d2071a977a08bf427443962fb73bdb20a33d8100552cf917b89a82bbdb691b",
+    "licenses": "47b2e0c14f9d1aa937d75c0b3408c340547dbfbe97497febe35f6ace3c379dee",
+    "negativeAccess": "98d50135f189ffe462f823eb49faf0504e5fe7beb8473e43dc81daddee2b101e",
+    "restore": "45fe1f7827ed3dc4aa4585f5e3a3b7d953aebb8048709fcd1f9123d91d537cff",
+    "sbom": "fcc13d142bd49f63369c0c233eee2bd458c6009d0e1e892c3f4d26cae126f250",
+    "standalone": "f0562eecd1b5e7e494228124fe5f307d72a98589ad13ac7c613f51eec0c7b79d"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/losverkauf/docker-compose.yml"
+  ],
+  "database": {
+    "account": "losverkauf",
+    "engine": "sqlite",
+    "name": "losverkauf"
+  },
+  "domainEnvironment": [
+    "BASE_URL"
+  ],
+  "health": {
+    "live": "/health/live",
+    "ready": "/health/ready"
+  },
+  "id": "losverkauf",
+  "image": "ghcr.io/bingenberger/losverkauf:0.1.1@sha256:4a260ce2f47c04d9e28436d3bc9c0461399f225fa079cef915749d6544b8c5b3",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "data",
+      "mount": "/data",
+      "owner": "10001:10001"
+    }
+  ],
+  "port": 8000,
+  "resources": {
+    "cpus": 1.0,
+    "exportSlotsPerProcess": 1,
+    "memoryMiB": 384,
+    "workers": 1
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "b40e06da5b5f29fe984ab326dc5d546cf7d83d99"
+}

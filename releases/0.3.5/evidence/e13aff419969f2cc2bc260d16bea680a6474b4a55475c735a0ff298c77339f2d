@@ -1,0 +1,12 @@
+{
+  "app": "zackboing",
+  "artifacts": [],
+  "images": {
+    "zackboing": "ghcr.io/bingenberger/zackboing:0.1.0@sha256:809c78a0637a0bcaeb779d48e80488b7555e2b30d21bc682921d29d10c156b7a"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}

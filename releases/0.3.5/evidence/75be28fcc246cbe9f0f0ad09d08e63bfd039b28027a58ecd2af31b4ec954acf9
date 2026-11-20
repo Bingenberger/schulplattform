@@ -1,0 +1,12 @@
+{
+  "app": "sl-journal",
+  "artifacts": [],
+  "images": {
+    "sl-journal": "ghcr.io/bingenberger/sl-journal:0.1.0@sha256:560bc3125d6b76c28a3a71cfdf6d95bd4807bf9dcd50d7d0916a4e87df96f6fc"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}

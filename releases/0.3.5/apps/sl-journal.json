@@ -1,0 +1,46 @@
+{
+  "acceptance": {
+    "amd64Build": "37176f053961b055444c16e4da738c5187a1406c11598aceca85be4fc688415b",
+    "domainRollback": "4386ff228b88ae716d1a896ed4bb17e97f87c7b6dfb0babfbfd96e014877e2eb",
+    "licenses": "e00a59d889abfb7dfe966b11d6b027cd5caee63460bb6fdba5e143ae75874cac",
+    "negativeAccess": "9f7862b317d37a0aa1aa8990f2784ac4ee14123673c4fd2ca98f15aeb9c95418",
+    "restore": "de4376e248614154738c5eaf47254b5652e4facf6eb96ec3b6f3d9f9e8a8e78a",
+    "sbom": "75be28fcc246cbe9f0f0ad09d08e63bfd039b28027a58ecd2af31b4ec954acf9",
+    "standalone": "ddf1d3c42fcf0ecd2c30bcda94d11ae9594aeadccf6b0170e12711fae3d0cd6d"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/sl-journal/docker-compose.yml"
+  ],
+  "database": {
+    "account": "sl_journal",
+    "engine": "sqlite",
+    "name": "sl_journal"
+  },
+  "domainEnvironment": [
+    "JOURNAL_PUBLIC_URL"
+  ],
+  "health": {
+    "live": "/health/live",
+    "ready": "/health/ready"
+  },
+  "id": "sl-journal",
+  "image": "ghcr.io/bingenberger/sl-journal:0.1.0@sha256:560bc3125d6b76c28a3a71cfdf6d95bd4807bf9dcd50d7d0916a4e87df96f6fc",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "data",
+      "mount": "/data",
+      "owner": "10001:10001"
+    }
+  ],
+  "port": 8000,
+  "resources": {
+    "cpus": 2.0,
+    "exportSlotsPerProcess": 1,
+    "memoryMiB": 1536,
+    "workers": 1
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "25e7090de33e0c701719be16d157fb110f1667eb"
+}

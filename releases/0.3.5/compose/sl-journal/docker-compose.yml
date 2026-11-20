@@ -1,0 +1,62 @@
+x-runtime: &runtime
+  JOURNAL_KEY_FILE: /run/secrets/master-key
+  JOURNAL_PROXY_IPS: ${JOURNAL_PROXY_IPS:-}
+  JOURNAL_PUBLIC_URL: ${JOURNAL_PUBLIC_URL:-https://localhost}
+  JOURNAL_APP_BACKUP: ${JOURNAL_APP_BACKUP:-0}
+x-logging: &logging
+  driver: json-file
+  options: {max-size: 10m, max-file: "3"}
+services:
+  app:
+    build: {context: ., target: final}
+    image: sl-journal:0.1.0-dev
+    user: "10001:10001"
+    init: true
+    stop_grace_period: 40s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=512m,mode=1777"]
+    mem_limit: 1536m
+    cpus: 2.0
+    pids_limit: 256
+    environment: *runtime
+    volumes:
+      - data:/data
+      - ${JOURNAL_MASTER_KEY_FILE:?Datei mit dem Fernet-Datenbankschlüssel angeben}:/run/secrets/master-key:ro
+    ports: ["127.0.0.1:${JOURNAL_PORT:-8088}:8000"]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"]
+      interval: 15s
+      timeout: 8s
+      retries: 6
+      start_period: 30s
+    logging: *logging
+  worker:
+    image: sl-journal:0.1.0-dev
+    command: [python, -m, journal.worker]
+    user: "10001:10001"
+    init: true
+    stop_grace_period: 30s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=512m,mode=1777"]
+    mem_limit: 1024m
+    cpus: 1.0
+    pids_limit: 128
+    environment: *runtime
+    volumes:
+      - data:/data
+      - ${JOURNAL_MASTER_KEY_FILE:?Datei mit dem Fernet-Datenbankschlüssel angeben}:/run/secrets/master-key:ro
+    depends_on:
+      app: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import os,time,sys; sys.exit(0 if time.time()-os.path.getmtime('/tmp/journal-worker.alive') < 300 else 1)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    logging: *logging
+volumes:
+  data:

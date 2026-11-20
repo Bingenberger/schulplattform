@@ -29,7 +29,7 @@ git clone https://github.com/Bingenberger/schulplattform.git /opt/schulplattform
 cd /opt/schulplattform
 ```
 
-`main` enthält das signierte Release-Bundle (`releases/0.3.4`). Den Vertrauensschlüssel getrennt beziehen. Vergleichen Sie den Fingerabdruck auf einem **anderen Weg** (z. B. telefonisch oder aus dieser Dokumentation auf einem anderen Gerät):
+`main` enthält das signierte Release-Bundle (`releases/0.3.5`). Den Vertrauensschlüssel getrennt beziehen. Vergleichen Sie den Fingerabdruck auf einem **anderen Weg** (z. B. telefonisch oder aus dieser Dokumentation auf einem anderen Gerät):
 
 ```sh
 python3 -c "import hashlib,base64;k=open('release-keys/schulplattform-release.pub').read().split('\n')[1];print('SHA256:'+hashlib.sha256(base64.b64decode(k)[-32:]).hexdigest())"
@@ -41,8 +41,8 @@ python3 -c "import hashlib,base64;k=open('release-keys/schulplattform-release.pu
 ```sh
 ./install.sh preflight          # nur lesend; muss "blockers": [] zeigen
 ./install.sh configure          # Fragen auf dem Terminal: Domains, Let's-Encrypt-Kontakt, IP, SMTP, Backup
-./install.sh smtp-password --bundle releases/0.3.4 --trusted-key release-keys/schulplattform-release.pub  # nur bei SMTP mit Anmeldung; Eingabe unsichtbar
-./install.sh plan --bundle releases/0.3.4 --trusted-key release-keys/schulplattform-release.pub
+./install.sh smtp-password --bundle releases/0.3.5 --trusted-key release-keys/schulplattform-release.pub  # nur bei SMTP mit Anmeldung; Eingabe unsichtbar
+./install.sh plan --bundle releases/0.3.5 --trusted-key release-keys/schulplattform-release.pub
 ```
 
 `plan` zeigt die offenen Abnahmepunkte des Release, etwa die Lizenzprüfung A0.
@@ -52,7 +52,7 @@ Beginnen Sie mit `acme_environment = "staging"`.
 ## 5. Installieren
 
 ```sh
-./install.sh apply --bundle releases/0.3.4 --trusted-key release-keys/schulplattform-release.pub
+./install.sh apply --bundle releases/0.3.5 --trusted-key release-keys/schulplattform-release.pub
 ```
 
 Erwartet: Am Ende eine Tabelle je App mit `aktiv`, `zertifikat-ausstehend` oder `dns-ausstehend` samt dem fehlenden DNS-Eintrag.
@@ -87,14 +87,14 @@ Den Backup-Schlüssel `/var/lib/schulplattform/secrets/backup-key` **außerhalb 
 
 ## Aktualisieren auf ein neues Release
 
-Beispiel: von 0.2.x oder 0.3.x auf 0.3.4 (oder von 0.1.1 direkt auf 0.3.4, dann kommen die fünf neuen Apps dazu).
+Beispiel: von 0.2.x oder 0.3.x auf 0.3.5 (oder von 0.1.1 direkt auf 0.3.5, dann kommen die fünf neuen Apps dazu).
 
 ```sh
 cd /opt/schulplattform
-git pull --ff-only                    # neuer Host-Code und Bundle releases/0.3.4
-./install.sh plan --bundle releases/0.3.4 --trusted-key release-keys/schulplattform-release.pub
+git pull --ff-only                    # neuer Host-Code und Bundle releases/0.3.5
+./install.sh plan --bundle releases/0.3.5 --trusted-key release-keys/schulplattform-release.pub
 ./install.sh configure                # neue Apps: installieren j/n und Hostname; bisherige Antworten sind vorbelegt
-./install.sh apply --bundle releases/0.3.4 --trusted-key release-keys/schulplattform-release.pub --reconfigure
+./install.sh apply --bundle releases/0.3.5 --trusted-key release-keys/schulplattform-release.pub --reconfigure
 ./install.sh status
 ```
 
@@ -253,6 +253,13 @@ entfallen deshalb. Sofort anstoßen und die Ausgabe sehen:
 ```
 
 Ein Lauf liest höchstens zehn Suchordner und 50 Dateien. Große Bestände brauchen daher mehrere Läufe.
+
+Jeder Lauf bekommt einen eigenen, danach gelöschten Container mit eigenem Speicherlimit. Eine sehr
+große oder beschädigte Datei kann deshalb die Webanwendung nicht mehr verdrängen. Bricht das Auslesen
+einer Datei ab (ab Schulwissen 0.1.2), rückt sie ans Ende und ist danach nur über den Dateinamen
+durchsuchbar. Den Grund zeigt die Datei in der Verwaltung („Indexierung: letzter Fehler“). Ändert sich
+die Datei in der Nextcloud oder wird der Ordner über „Beim nächsten Lauf vollständig neu indexieren“
+vorgemerkt, wird sie wieder ausgelesen.
 
 ## Bildergalerie (App `bildergalerie`)
 

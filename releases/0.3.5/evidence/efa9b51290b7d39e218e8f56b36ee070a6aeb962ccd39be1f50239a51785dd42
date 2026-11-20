@@ -1,0 +1,12 @@
+{
+  "app": "fundkiste",
+  "artifacts": [],
+  "item": "restore",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "08d222d288a17a4c68280b91dc84e94311396608",
+  "schemaVersion": 1,
+  "status": "open",
+  "summary": "No restore evidence recorded for fundkiste.",
+  "testedCommit": "4d90f2eba946f2d7be2993c754eca1dbaea19674"
+}

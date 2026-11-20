@@ -1,0 +1,11 @@
+{
+  "Id": "sha256:20f852b86a50239fea35610e67696d1bcf63d37a5482368a952c8f771a986667",
+  "Architecture": "amd64",
+  "Os": "linux",
+  "Size": 300284206,
+  "RepoDigests": [],
+  "runtime": {
+    "node": "v22.23.4",
+    "next": "16.1.6"
+  }
+}

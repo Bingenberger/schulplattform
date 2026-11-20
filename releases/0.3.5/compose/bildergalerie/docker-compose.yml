@@ -1,0 +1,44 @@
+# Standalone-Betrieb ohne Plattform:
+#   head -c 48 /dev/urandom | base64 > session-key && chmod 444 session-key
+#   docker compose build && docker compose run --rm app python migrate.py
+#   docker compose up -d && docker compose exec app python bootstrap.py <name>
+# Davor ein Reverse-Proxy mit HTTPS auf 127.0.0.1:${GALLERY_PORT:-8081}.
+services:
+  app:
+    build: {context: ., target: final}
+    image: bildergalerie:0.1.0-dev
+    user: "10001:10001"
+    init: true
+    stop_grace_period: 30s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 64
+    environment:
+      BASE_URL: ${GALLERY_BASE_URL:-http://localhost:8081}
+      SECRET_KEY_FILE: /run/secrets/session_key
+      GALLERY_PUBLIC: ${GALLERY_PUBLIC:-true}
+      GALLERY_API_TOKEN_FILE: ${GALLERY_API_TOKEN_FILE_IN_CONTAINER:-}
+      GALLERY_AI_KEY_FILE: ${GALLERY_AI_KEY_FILE_IN_CONTAINER:-}
+    secrets: [session_key]
+    volumes:
+      - db:/data/db
+      - media:/data/media
+    ports: ["127.0.0.1:${GALLERY_PORT:-8081}:8000"]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+secrets:
+  session_key:
+    file: ${GALLERY_SECRET_FILE:-./session-key}
+volumes:
+  db:
+  media:

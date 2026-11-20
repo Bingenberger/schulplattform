@@ -1,0 +1,47 @@
+{
+  "acceptance": {
+    "amd64Build": "3dbc64496d100cd02d90d357eec8702f09d6b6c43cd2eee8c865969c75ad1785",
+    "domainRollback": "4b49a45df5b066a5e15203707061c23f0e9e4a5880687fae0ca3f1a96f3a06d5",
+    "licenses": "343e429dd6fe6cb6d7ea1e533bf30334ff47cdb6f6e35646601df583030d4a18",
+    "negativeAccess": "617db68d7629fca53a9ebd39f4533e3e9ee9673b692fa159a3f155bf920c9692",
+    "restore": "6fb9b0a845f39e05bda6008002f470e48fd2c2f038892a5f503de4a2cedf7bb7",
+    "sbom": "b86017537ecbeae7bed2e3e782c5583bf025b1cc2a18c81e7b84f8252a35c92b",
+    "standalone": "a1cfe10f1989b0a9be68fd30231d264aa8993634fc70ba71289227ea77d703c0"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/leseflux/docker-compose.yml",
+    "compose/leseflux/docker/init-postgres.sh"
+  ],
+  "database": {
+    "account": "leseflux",
+    "engine": "postgres16",
+    "name": "leseflux"
+  },
+  "domainEnvironment": [
+    "CORS_ORIGIN"
+  ],
+  "health": {
+    "live": "/health/live",
+    "ready": "/health/ready"
+  },
+  "id": "leseflux",
+  "image": "ghcr.io/bingenberger/leseflux:0.1.0@sha256:65cf31a8b2d501599be682655f136feaf6cce44c71b984f735fa1fbd8ebf5887",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "postgres-data",
+      "mount": "/var/lib/postgresql/data",
+      "owner": "70:70"
+    }
+  ],
+  "port": 3001,
+  "resources": {
+    "cpus": 1.0,
+    "exportSlotsPerProcess": 0,
+    "memoryMiB": 768,
+    "workers": 1
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "3862d194588e5f4d03f0cc8bc763650e4b528b73"
+}

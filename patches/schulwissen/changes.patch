@@ -1,7 +1,7 @@
 From 225e4dd144a42c79b7db0855aa850bf54ec7d956 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Mon, 2 Nov 2026 13:17:50 +0100
-Subject: [PATCH 1/6] Add explicit migrations, readiness, proxy trust and
+Subject: [PATCH 1/7] Add explicit migrations, readiness, proxy trust and
  bounded PDF exports
 
 ---
@@ -386,7 +386,7 @@ index aa4b1fc..ff71455 100644
 From ce697abe0b64a6b7867f5cc1bf97c038d529ecd3 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 08:19:22 +0100
-Subject: [PATCH 2/6] Publish versioned amd64 release images to GHCR on version
+Subject: [PATCH 2/7] Publish versioned amd64 release images to GHCR on version
  tags
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -464,7 +464,7 @@ index 0000000..1e25a91
 From cf4408a3cdf9982545f628b8f65be907c4af08ee Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Wed, 4 Nov 2026 12:07:52 +0100
-Subject: [PATCH 3/6] README: Installation im Rahmen der Schulplattform und
+Subject: [PATCH 3/7] README: Installation im Rahmen der Schulplattform und
  Standalone; veraltete Angaben korrigiert
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -541,7 +541,7 @@ index 3915e38..a4b5e50 100644
 From f2c4aa6dc6b1e47cce0d72e4a1f3aa14f8a453ab Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Florian=20Emrich-F=C3=B6rster?= <florian@foerster.rocks>
 Date: Mon, 9 Nov 2026 19:28:27 +0100
-Subject: [PATCH 4/6] memory
+Subject: [PATCH 4/7] memory
 
 ---
  nextcloud-oidc-unter-plattform.md | 17 +++++++++++++++++
@@ -578,7 +578,7 @@ index 0000000..fa60a7f
 From cb2a158340988fff20fe2574181c7fe3b9c824cc Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Tue, 10 Nov 2026 11:49:24 +0100
-Subject: [PATCH 5/6] =?UTF-8?q?Dateianh=C3=A4nge=20direkt=20beim=20Erfasse?=
+Subject: [PATCH 5/7] =?UTF-8?q?Dateianh=C3=A4nge=20direkt=20beim=20Erfasse?=
  =?UTF-8?q?n=20erm=C3=B6glichen?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -1071,7 +1071,7 @@ index 0000000..cb34387
 From 6aed6d7843bc7e1c770e3a4e6091d3d308aa5fb8 Mon Sep 17 00:00:00 2001
 From: rheidter <florian@emrich.in>
 Date: Tue, 10 Nov 2026 16:31:25 +0100
-Subject: [PATCH 6/6] =?UTF-8?q?Nextcloud-Suchordner=20indexieren=20und=20D?=
+Subject: [PATCH 6/7] =?UTF-8?q?Nextcloud-Suchordner=20indexieren=20und=20D?=
  =?UTF-8?q?ateifenster=20f=C3=BCr=20Anh=C3=A4nge?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -3354,6 +3354,260 @@ index 15d5273..7874be1 100644
  {% block ende %}{% endblock %}
  </body>
  </html>
+-- 
+2.43.0
+
+
+From 4451acb4e2beb10ccf4c7c72b56bd6bad5ea2b61 Mon Sep 17 00:00:00 2001
+From: rheidter <florian@emrich.in>
+Date: Fri, 20 Nov 2026 12:46:39 +0100
+Subject: [PATCH 7/7] Nextcloud-Indexierung: abgebrochene Datei blockiert die
+ Warteschlange nicht
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Bricht das Auslesen hart ab (Speichergrenze, SIGKILL), wurde bisher nichts
+gespeichert: Die Datei stand beim nächsten Lauf wieder vorn und brach jeden
+Lauf erneut ab; Dateien dahinter kamen nie dran.
+
+Jetzt wird der Versuch vor dem Download vermerkt (geprüft am + Vermerk).
+Steht der Vermerk beim nächsten Lauf noch da, gilt die Datei als nicht
+auslesbar und ist nur über den Dateinamen durchsuchbar, bis sie sich in
+der Nextcloud ändert (neues ETag) oder jemand „neu indexieren“ auslöst.
+Übersprungene Läufe nehmen den Vermerk zurück.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ kern/admin.py                      |  2 +-
+ kern/nextcloud_index.py            | 24 +++++++-
+ kern/nextcloud_ordner.py           | 15 ++++-
+ tests/test_nextcloud_suchordner.py | 88 +++++++++++++++++++++++++++++-
+ 4 files changed, 123 insertions(+), 6 deletions(-)
+
+diff --git a/kern/admin.py b/kern/admin.py
+index 74353ae..bab08e2 100644
+--- a/kern/admin.py
++++ b/kern/admin.py
+@@ -435,7 +435,7 @@ class NextcloudOrdnerAdmin(AdministrationsMixin, admin.ModelAdmin):
+                 geprueft_am=None, index_fehler="", geaendert_am=timezone.now(),
+             )
+             Anhang.objects.filter(nextcloud_ordner_id__in=ids).update(
+-                nextcloud_geprueft_am=None, nextcloud_etag="",
++                nextcloud_geprueft_am=None, nextcloud_etag="", index_fehler="",
+             )
+         self.message_user(request, "Die ausgewählten Ordner sind für den nächsten Lauf vorgemerkt.")
+ 
+diff --git a/kern/nextcloud_index.py b/kern/nextcloud_index.py
+index 571ac1d..4ff33b5 100644
+--- a/kern/nextcloud_index.py
++++ b/kern/nextcloud_index.py
+@@ -9,7 +9,7 @@ from django.utils import timezone
+ from eintragstypen.dienste import suchtext_aktualisieren
+ from kern import extraktion, nextcloud
+ from kern.models import Anhang, NextcloudOrdner
+-from kern.nextcloud_ordner import konfiguration
++from kern.nextcloud_ordner import ABGEBROCHEN, NICHT_AUSLESBAR, konfiguration
+ 
+ 
+ def indexieren(anhang, erzwingen=False):
+@@ -19,12 +19,23 @@ def indexieren(anhang, erzwingen=False):
+     ):
+         return "übersprungen"
+     bisher_geprueft = anhang.nextcloud_geprueft_am
++    bisher_fehler = anhang.index_fehler
+     jetzt = timezone.now()
++    # Versuch vor dem Download festhalten; nur einer von zwei Läufen bekommt die Datei.
++    if not Anhang.objects.filter(pk=anhang.pk, nextcloud_geprueft_am=bisher_geprueft).update(
++        nextcloud_geprueft_am=jetzt, index_fehler=ABGEBROCHEN
++    ):
++        return "übersprungen"
+     anhang.nextcloud_geprueft_am = jetzt
+     text = None
+     ergebnis = "unverändert"
+     try:
+-        if anhang.nextcloud_ordner_id and not extraktion.ist_lesbar(anhang.dateiname):
++        if bisher_fehler in (ABGEBROCHEN, NICHT_AUSLESBAR) and not erzwingen:
++            text = ""
++            anhang.index_stand = jetzt
++            anhang.index_fehler = NICHT_AUSLESBAR
++            ergebnis = "ohne Text"
++        elif anhang.nextcloud_ordner_id and not extraktion.ist_lesbar(anhang.dateiname):
+             text = ""
+             anhang.index_stand = jetzt
+             anhang.index_fehler = "Dieses Dateiformat ist nur über den Dateinamen durchsuchbar."
+@@ -41,13 +52,15 @@ def indexieren(anhang, erzwingen=False):
+                 .filter(pk=anhang.nextcloud_ordner_id).first()
+             )
+             if quelle is None or not quelle.aktiv or konfiguration(quelle) != quelle_stand:
++                _vermerk_zuruecknehmen(anhang, bisher_fehler)
+                 return "übersprungen"
+             aktuell = Anhang.objects.select_for_update().filter(pk=anhang.pk).first()
+             if (
+                 aktuell is None or not aktuell.nextcloud_verfuegbar
+-                or aktuell.nextcloud_geprueft_am != bisher_geprueft
++                or aktuell.nextcloud_geprueft_am != jetzt
+                 or aktuell.nextcloud_inventur_etag != anhang.nextcloud_inventur_etag
+             ):
++                _vermerk_zuruecknehmen(anhang, bisher_fehler)
+                 return "übersprungen"
+         if text is not None:
+             anhang.extrahierter_text = text
+@@ -68,6 +81,11 @@ def indexieren(anhang, erzwingen=False):
+     return ergebnis
+ 
+ 
++def _vermerk_zuruecknehmen(anhang, bisher_fehler):
++    """Übersprungen ist kein Abbruch: den Vorbehaltsvermerk wieder entfernen."""
++    Anhang.objects.filter(pk=anhang.pk, index_fehler=ABGEBROCHEN).update(index_fehler=bisher_fehler)
++
++
+ def _inhalt_lesen(anhang, jetzt, erzwingen):
+     text, ergebnis = None, "unverändert"
+     with TemporaryDirectory(prefix="schulwissen-nextcloud-") as ordner:
+diff --git a/kern/nextcloud_ordner.py b/kern/nextcloud_ordner.py
+index d325b55..0d4275e 100644
+--- a/kern/nextcloud_ordner.py
++++ b/kern/nextcloud_ordner.py
+@@ -14,6 +14,15 @@ MAX_ORDNER = 500
+ MAX_DATEIEN = 10000
+ MAX_SEKUNDEN = 60
+ 
++# Vermerk vor dem Auslesen. Steht er beim nächsten Lauf noch da, wurde das
++# Auslesen hart abgebrochen (Speichergrenze, Zeitlimit). Ohne den Vermerk stand
++# so eine Datei immer wieder vorn in der Warteschlange und brach jeden Lauf ab.
++ABGEBROCHEN = "Auslesen läuft oder wurde abgebrochen."
++NICHT_AUSLESBAR = (
++    "Das Auslesen wurde abgebrochen (vermutlich zu groß oder beschädigt). "
++    "Die Datei ist nur über den Dateinamen durchsuchbar, bis sie sich ändert."
++)
++
+ 
+ def konfiguration(quelle):
+     return quelle.pfad, quelle.unterordner, quelle.aktiv, quelle.geaendert_am
+@@ -88,6 +97,10 @@ def ordner_einlesen(quelle):
+                     or (datei.groesse and datei.groesse != vorhanden.groesse)
+                 ):
+                     daten["nextcloud_geprueft_am"] = None
++                    if vorhanden is not None and vorhanden.index_fehler in (
++                        ABGEBROCHEN, NICHT_AUSLESBAR,
++                    ):
++                        daten["index_fehler"] = ""
+                 if vorhanden is None:
+                     neu.append(Anhang(nextcloud_ordner=aktuell, nextcloud_pfad=pfad, **daten))
+                 elif any(getattr(vorhanden, feld) != wert for feld, wert in daten.items()):
+@@ -99,7 +112,7 @@ def ordner_einlesen(quelle):
+             Anhang.objects.bulk_update(geaendert, [
+                 "dateiname", "groesse", "mimetype", "nextcloud_link", "beschreibung",
+                 "nextcloud_verfuegbar", "nextcloud_inventur_etag", "nextcloud_geprueft_am",
+-                "geaendert_am",
++                "index_fehler", "geaendert_am",
+             ], batch_size=500)
+             Anhang.objects.filter(pk__in=[a.pk for a in neu + geaendert]).update(
+                 suchvektor=(
+diff --git a/tests/test_nextcloud_suchordner.py b/tests/test_nextcloud_suchordner.py
+index e6390c0..1d5325f 100644
+--- a/tests/test_nextcloud_suchordner.py
++++ b/tests/test_nextcloud_suchordner.py
+@@ -10,7 +10,7 @@ from django.core.management import call_command
+ from django.urls import reverse
+ from django.utils import timezone
+ 
+-from kern import nextcloud, nextcloud_ordner
++from kern import nextcloud, nextcloud_index, nextcloud_ordner
+ from kern.models import Anhang, NextcloudOrdner
+ from kern.nextcloud_index import indexieren
+ from kern.nextcloud_ordner import ordner_einlesen
+@@ -271,3 +271,89 @@ def test_dateiausschnitte_enthalten_keine_aktiven_html_elemente(quelle, admin_nu
+     assert b"<img src=x" not in antwort.content
+     assert b'onerror="alert' not in antwort.content
+     assert reverse("kern:anhang_vorschau", args=[datei.pk]).encode() in antwort.content
++
++
++class HarterAbbruch(BaseException):
++    """Steht für SIGKILL durch die Speichergrenze: kein except Exception greift."""
++
++
++def abbruch_beim_auslesen(monkeypatch, namen=("Lesen.txt",)):
++    echt = nextcloud_index.extraktion.text_holen
++    aktiv = set(namen)
++
++    def text_holen(pfad, name):
++        if name in aktiv:
++            raise HarterAbbruch
++        return echt(pfad, name)
++
++    monkeypatch.setattr(nextcloud_index.extraktion, "text_holen", text_holen)
++    return aktiv
++
++
++def test_abgebrochene_datei_blockiert_die_warteschlange_nicht(quelle, baum, download, monkeypatch):
++    ordner_einlesen(quelle)
++    lesen = quelle.dateien.get(dateiname="Lesen.txt")
++    abbruch_beim_auslesen(monkeypatch)
++    with pytest.raises(HarterAbbruch):
++        indexieren(lesen)
++    lesen.refresh_from_db()
++    assert lesen.index_fehler == nextcloud_ordner.ABGEBROCHEN
++    assert lesen.nextcloud_geprueft_am is not None  # rückt ans Ende der Warteschlange
++
++    # Der nächste Lauf nimmt zuerst die andere Datei.
++    call_command("nextcloud_indexieren", anzahl=1, stdout=(ausgabe := io.StringIO()))
++    assert ausgabe.getvalue().startswith("Plan.txt: gelesen\n")
++
++    # Danach nicht noch einmal herunterladen und abstürzen, sondern als ohne Text vermerken.
++    anzahl = len(download)
++    lesen.refresh_from_db()
++    assert indexieren(lesen) == "ohne Text"
++    lesen.refresh_from_db()
++    assert indexieren(lesen) == "ohne Text"
++    assert len(download) == anzahl
++    lesen.refresh_from_db()
++    assert lesen.index_fehler == nextcloud_ordner.NICHT_AUSLESBAR and lesen.index_stand
++
++
++def test_geaenderte_datei_wird_nach_abbruch_wieder_gelesen(quelle, baum, download, monkeypatch):
++    ordner_einlesen(quelle)
++    lesen = quelle.dateien.get(dateiname="Lesen.txt")
++    abstuerzen = abbruch_beim_auslesen(monkeypatch)
++    with pytest.raises(HarterAbbruch):
++        indexieren(lesen)
++    abstuerzen.clear()
++    baum[quelle.pfad][0] = nextcloud.Eintrag("Lesen.txt", quelle.pfad + "/Lesen.txt", False,
++                                             etag="stand-2")
++    NextcloudOrdner.objects.filter(pk=quelle.pk).update(geprueft_am=None)
++    quelle.refresh_from_db()
++    ordner_einlesen(quelle)
++    lesen.refresh_from_db()
++    assert lesen.index_fehler == "" and lesen.nextcloud_geprueft_am is None
++    assert indexieren(lesen) == "gelesen"
++
++
++def test_erzwungenes_neu_indexieren_liest_nach_abbruch_wieder(quelle, baum, download, monkeypatch):
++    ordner_einlesen(quelle)
++    lesen = quelle.dateien.get(dateiname="Lesen.txt")
++    abstuerzen = abbruch_beim_auslesen(monkeypatch)
++    with pytest.raises(HarterAbbruch):
++        indexieren(lesen)
++    abstuerzen.clear()
++    lesen.refresh_from_db()
++    assert indexieren(lesen, erzwingen=True) == "gelesen"
++
++
++def test_uebersprungene_datei_behaelt_keinen_abbruchvermerk(quelle, baum, monkeypatch):
++    ordner_einlesen(quelle)
++    datei = quelle.dateien.first()
++
++    def herunterladen(pfad, ziel, etag=""):
++        quelle.aktiv = False
++        quelle.save()
++        ziel.write_text("x", encoding="utf-8")
++        return nextcloud.Download(200)
++
++    monkeypatch.setattr(nextcloud, "herunterladen", herunterladen)
++    assert indexieren(datei) == "übersprungen"
++    datei.refresh_from_db()
++    assert datei.index_fehler != nextcloud_ordner.ABGEBROCHEN
 -- 
 2.43.0
 

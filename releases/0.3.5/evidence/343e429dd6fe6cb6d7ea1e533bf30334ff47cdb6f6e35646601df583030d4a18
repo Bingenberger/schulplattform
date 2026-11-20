@@ -1,0 +1,9 @@
+{
+  "app": "leseflux",
+  "artifacts": [],
+  "item": "licenses",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "open",
+  "summary": "Work package A0 (project licence choice and third-party material review) is open; see docs/implementation/status.md."
+}
