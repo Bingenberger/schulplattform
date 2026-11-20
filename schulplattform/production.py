@@ -172,7 +172,10 @@ class Platform:
             # unhealthy apps were (re)started. A new release image needs migrate + start as well.
             if self.stack.outdated(app) or not self.stack.healthy(app):
                 self.stack.migrate(app)
-                self.stack.start(app)
+            # Always: compose recreates only services whose configuration changed. Real server
+            # (karten = true): the override had the tile URL, but the healthy container kept the
+            # old, empty FP_KARTEN_KACHELN because only outdated or unhealthy apps were started.
+            self.stack.start(app)
 
     def probe_apps(self, _identity):
         return all(self.stack.healthy(app) and not self.stack.outdated(app) for app in self.stack.apps)

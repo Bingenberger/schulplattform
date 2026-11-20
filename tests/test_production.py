@@ -244,7 +244,7 @@ def test_resumed_apply_refreshes_overrides_before_starting_apps(tmp_path):
     stack.migrate = lambda app: None
     stack.start = lambda app: started.append((app, "timeout: 30s" in stale.read_text()))
     platform.step_apps(None)
-    assert started == [("kompetenz-manager", True)]
+    assert ("kompetenz-manager", True) in started
 
 
 def test_proxy_reloads_when_render_already_wrote_the_new_caddyfile(tmp_path):
@@ -374,8 +374,30 @@ def test_apply_moves_a_healthy_app_to_its_new_release_image(tmp_path):
     stack.migrate = lambda app: calls.append(("migrate", app))
     stack.start = lambda app: calls.append(("start", app))
     platform.step_apps(None)
-    assert calls == [("migrate", "losverkauf"), ("start", "losverkauf")]
+    assert [c for c in calls if c[0] == "migrate"] == [("migrate", "losverkauf")]
+    assert calls.index(("migrate", "losverkauf")) < calls.index(("start", "losverkauf"))
     assert platform.probe_apps(None) is False          # still the old container in this fake
+
+
+def test_apply_recreates_a_healthy_app_after_a_config_change(tmp_path):
+    # Real server: [apps.fahrradausbildung] karten = true reached the override, but the healthy
+    # container on the current image was never started again and kept FP_KARTEN_KACHELN empty.
+    from schulplattform.production import Platform
+    config = sample()
+    config["apps"]["fahrradausbildung"]["karten"] = True
+    layout, stack, domains = render(tmp_path, config)
+    assert "tile.openstreetmap.de" in (layout.generated / "fahrradausbildung.yml").read_text()
+    platform = Platform.__new__(Platform)
+    platform.stack = stack
+    platform.current_domains = lambda: domains
+    stack.healthy = lambda app: True
+    stack.outdated = lambda app: False
+    calls = []
+    stack.migrate = lambda app: calls.append(("migrate", app))
+    stack.start = lambda app: calls.append(("start", app))
+    platform.step_apps(None)
+    assert ("start", "fahrradausbildung") in calls
+    assert not [c for c in calls if c[0] == "migrate"]   # same image: no migration
 
 
 def test_confirmed_import_counts_as_first_access(tmp_path, monkeypatch, capsys):
