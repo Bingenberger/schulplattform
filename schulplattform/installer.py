@@ -276,8 +276,11 @@ def _main(argv=None):
             if not args.quiet:
                 print('Nextcloud-Indexierung übersprungen: Schulwissen läuft nicht.')
             return 0
-        output = platform_.stack.compose('schulwissen', 'exec', '-T', 'app', 'python', 'manage.py',
-                                         'nextcloud_indexieren', '--anzahl', '50', timeout=900, check=False)
+        # Own throwaway container with its own memory limit: a huge or broken file must not push
+        # the web workers out (real server: OOM kill inside sp-schulwissen-app-1).
+        output = platform_.stack.compose('schulwissen', 'run', '--rm', '--no-deps', '-T', '--pull', 'never',
+                                         'app', 'python', 'manage.py', 'nextcloud_indexieren',
+                                         '--anzahl', '50', timeout=900, check=False)
         if not args.quiet and output:
             print(output.strip())
     elif args.action == 'domain-change':

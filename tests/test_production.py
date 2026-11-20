@@ -419,6 +419,26 @@ def test_confirmed_import_counts_as_first_access(tmp_path, monkeypatch, capsys):
     assert json.loads((state / "bootstrap.json").read_text())["appSetup"] == {"zackboing": True, "gswb": False}
 
 
+def test_nextcloud_index_runs_in_its_own_container(tmp_path, monkeypatch):
+    # Real server: an OOM kill inside sp-schulwissen-app-1; the indexer shared the web workers'
+    # memory limit via exec. It now gets a throwaway container of its own.
+    import types
+    from schulplattform import installer, production
+    calls = []
+    stack = types.SimpleNamespace(
+        files_block=lambda app: "files",
+        service_state=lambda app, service: {"health": "healthy"},
+        compose=lambda app, *args, **kw: calls.append((app, args)) or "",
+    )
+    fake = types.SimpleNamespace(stack=stack, layout=types.SimpleNamespace(state=tmp_path))
+    monkeypatch.setattr(installer, "verify_bundle", lambda bundle, key: None)
+    monkeypatch.setattr(production, "Platform", lambda *a, **kw: fake)
+    installer._main(["nextcloud-index", "--quiet", "--bundle", str(tmp_path), "--trusted-key", str(tmp_path / "k")])
+    [(app, args)] = calls
+    assert app == "schulwissen" and args[:3] == ("run", "--rm", "--no-deps")
+    assert "exec" not in args and args[-4:] == ("manage.py", "nextcloud_indexieren", "--anzahl", "50")
+
+
 def test_tafel_gallery_and_video_search_stay_off_until_configured(tmp_path):
     layout, stack, domains = render(tmp_path, sample(**{"apps.bildergalerie.enabled": False}))
     override = yaml.load((layout.generated / "grundschultafel.yml").read_text(), Loader=_TagLoader)
