@@ -261,6 +261,33 @@ durchsuchbar. Den Grund zeigt die Datei in der Verwaltung („Indexierung: letzt
 die Datei in der Nextcloud oder wird der Ordner über „Beim nächsten Lauf vollständig neu indexieren“
 vorgemerkt, wird sie wieder ausgelesen.
 
+## Grundschulbuch (App `grundschulbuch`)
+
+Digitale Hefte: Lehrkräfte gestalten Hefte, zeigen sie an der Tafel und drucken sie; Kinder arbeiten
+auf geteilten iPads mit QR-Karte in ihren Heften. Erstzugang (das erste Konto wird Admin):
+
+```sh
+./install.sh app-setup grundschulbuch    # Anzeigename abfragen, z. B. „Frau Beispiel“; Einmalcode nur im Terminal (15 min)
+```
+
+Mit dem Code unter „Mit Einmalcode“ anmelden und eine sechsstellige PIN festlegen. Weitere Konten,
+Klassen, Kinderkarten und Schulvorlagen verwaltet ein Admin in der App unter `/verwaltung`. Ein neuer
+Einmalcode für eine vergessene PIN geht auch über denselben Befehl mit dem vorhandenen Namen.
+
+- **Bildergalerie und Wörterbuch:** wie bei der Tafel (Tabelle oben, Einstellungen in
+  `[apps.grundschulbuch]`): Standard ist die eigene Galerie mit API-Token und das eigene gswb, `""`
+  schaltet ab. Das Wörterbuch ist im Grundschulbuch nur ein Link.
+- **YouTube-Suche:** Den API-Schlüssel trägt ein Admin in der App unter „Verwaltung → Einstellungen“
+  ein; er liegt im Datenvolume und wird mitgesichert. `./install.sh youtube-key` gilt nur für die Tafel.
+- **Schulvorlagen als Dateien (optional):** JSON-Vorlagen unter
+  `/var/lib/schulplattform/runtime/grundschulbuch/inhalte/vorlagen/` (Beispiel `docs/schulvorlage.json`
+  im App-Repository), schreibgeschützt eingebunden; danach `./install.sh start grundschulbuch`.
+  Üblicher Weg sind die Schulvorlagen in der Verwaltung der App.
+- **KI-Dienst:** aus (standardmäßig inaktiv); die Plattform setzt ihn nicht.
+- **Sicherung:** das ganze Datenvolume (JSON-Dateien, Bilder, Ton) jede Nacht, die App wird dafür nur
+  für den Dateischnappschuss angehalten. Der Sitzungsschlüssel (`runtime/buch-key`) gehört zu den
+  Plattform-Secrets; ohne ihn bleiben Konten mit PIN gültig, Sitzungen und offene Einmalcodes nicht.
+
 ## Bildergalerie (App `bildergalerie`)
 
 KI-generierte Bilder (CC0) mit Schlagworten, Suche, Sammelsuche für Wortlisten, Bildwünschen und einer

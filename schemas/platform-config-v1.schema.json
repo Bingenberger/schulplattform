@@ -163,7 +163,7 @@
       "additionalProperties": false,
       "minProperties": 1,
       "patternProperties": {
-        "^(gswb|schulwissen|zackboing|schulhelfer|losverkauf|grundschultafel|fahrradausbildung|leseflux|kompetenz-manager|abgen|fundkiste|schuleva|schulkasse|schulanmeldung|sl-journal|bildergalerie)$": {
+        "^(gswb|schulwissen|zackboing|schulhelfer|losverkauf|grundschultafel|fahrradausbildung|leseflux|kompetenz-manager|abgen|fundkiste|schuleva|schulkasse|schulanmeldung|sl-journal|bildergalerie|grundschulbuch)$": {
           "type": "object",
           "additionalProperties": false,
           "required": [

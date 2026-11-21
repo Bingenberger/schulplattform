@@ -297,7 +297,8 @@ def test_upgrade_adds_new_apps_to_an_existing_installation(tmp_path):
     from schulplattform.production import Platform
     old_apps = APP_IDS[:10]
     new_apps = APP_IDS[10:]
-    assert set(new_apps) == {"fundkiste", "schuleva", "schulkasse", "schulanmeldung", "sl-journal", "bildergalerie"}
+    assert set(new_apps) == {"fundkiste", "schuleva", "schulkasse", "schulanmeldung", "sl-journal", "bildergalerie",
+                             "grundschulbuch"}
     old = sample()
     old["apps"] = {app: old["apps"][app] for app in old_apps}
     path = tmp_path / "platform.toml"
@@ -479,6 +480,40 @@ def test_gallery_origin_is_validated(app, origin, message):
         cfg.validate(sample(**{f"apps.{app}.gallery_origin": origin}))
 
 
+def test_grundschulbuch_override_gallery_dictionary_assets_and_secret(tmp_path):
+    layout, stack, domains = render(tmp_path, sample())
+    override = yaml.load((layout.generated / "grundschulbuch.yml").read_text(), Loader=_TagLoader)
+    app = override["services"]["app"]
+    env = app["environment"]
+    assert env["BASE_URL"] == "https://grundschulbuch.schule.example"
+    # Own gallery with the shared token, own dictionary over its public origin.
+    assert env["GALLERY_ORIGIN"] == "https://bildergalerie.schule.example"
+    assert env["GALLERY_TOKEN_FILE"] == "/run/secrets/gallery-token"
+    assert env["WOERTERBUCH_ORIGIN"] == "https://gswb.schule.example"
+    token = layout.runtime / "gallery-api-token"
+    assert f"{token}:/run/secrets/gallery-token:ro" in app["volumes"]
+    assert app["ports"] == [] and set(override["networks"]) == {"proxy"}
+    # Operator content directory exists (empty) and the compose file mounts it read-only via the variable.
+    assert (layout.runtime / "grundschulbuch/inhalte").is_dir()
+    env_vars = stack.environment()
+    assert env_vars["GRUNDSCHULBUCH_ASSET_DIR"] == str(layout.runtime / "grundschulbuch/inhalte")
+    assert env_vars["GRUNDSCHULBUCH_SECRET_FILE"] == str(layout.runtime / "buch-key")
+    assert len((layout.runtime / "buch-key").read_text()) >= 32
+
+
+def test_grundschulbuch_never_sends_the_token_to_a_foreign_gallery(tmp_path):
+    data = sample(**{"apps.grundschulbuch.gallery_origin": "https://pix.example.org",
+                     "apps.grundschulbuch.woerterbuch_origin": ""})
+    cfg.validate(data)
+    layout, _, _ = render(tmp_path, data)
+    env = yaml.load((layout.generated / "grundschulbuch.yml").read_text(), Loader=_TagLoader)["services"]["app"]["environment"]
+    assert env["GALLERY_ORIGIN"] == "https://pix.example.org" and env["GALLERY_TOKEN_FILE"] == ""
+    assert env["WOERTERBUCH_ORIGIN"] == ""
+    layout, _, _ = render(tmp_path / "off", sample(**{"apps.bildergalerie.enabled": False}))
+    env = yaml.load((layout.generated / "grundschulbuch.yml").read_text(), Loader=_TagLoader)["services"]["app"]["environment"]
+    assert env["GALLERY_ORIGIN"] == "" and env["GALLERY_TOKEN_FILE"] == ""
+
+
 def test_gallery_origin_survives_toml_roundtrip(tmp_path):
     data = sample(**{"apps.grundschultafel.gallery_origin": "https://pix.example.org"})
     path = tmp_path / "platform.toml"
@@ -560,12 +595,14 @@ def test_wizard_asks_for_the_woerterbuch(tmp_path, stored, typed, expected):
     existing = sample()
     if stored is not None:
         existing["apps"]["grundschultafel"]["woerterbuch_origin"] = stored
-    # 6 platform questions, then per app: install + hostname (+ gallery, woerterbuch for the board)
+    # 6 platform questions, then per app: install + hostname (+ gallery, woerterbuch for board and book)
     answers = [""] * 6
     for app in APP_IDS:
         answers += ["", ""]
-        if app == "grundschultafel":
-            answers += ["", typed]
+        if app == "bildergalerie":
+            answers += [""]                         # publicly searchable?
+        if app in ("grundschultafel", "grundschulbuch"):
+            answers += ["", typed if app == "grundschultafel" else ""]
     answers += [""] * 12
     data = _run_wizard(tmp_path, existing, answers)
     assert data["apps"]["grundschultafel"].get("woerterbuch_origin") == expected
@@ -766,7 +803,9 @@ def test_wizard_keeps_hand_written_karten(tmp_path):
     answers = [""] * 6
     for app in APP_IDS:
         answers += ["", ""]
-        if app == "grundschultafel":
+        if app == "bildergalerie":
+            answers += [""]
+        if app in ("grundschultafel", "grundschulbuch"):
             answers += ["", ""]
     answers += [""] * 12
     data = _run_wizard(tmp_path, existing, answers)

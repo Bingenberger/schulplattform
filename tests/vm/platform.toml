@@ -61,3 +61,7 @@ hostname = "blaetter.schule.test"
 [apps.bildergalerie]
 enabled = true
 hostname = "bilder.schule.test"
+
+[apps.grundschulbuch]
+enabled = true
+hostname = "buch.schule.test"

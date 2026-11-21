@@ -76,6 +76,8 @@ FACTS = {
     "bildergalerie": dict(database=("sqlite", "bildergalerie", "bildergalerie"),
                           persistence=[("db", "/data/db"), ("media", "/data/media")], domain=["BASE_URL"],
                           memory=512, cpus=1.0, workers=1, slots=0, live="/health/live"),
+    "grundschulbuch": dict(database=("files", "grundschulbuch", "grundschulbuch"), persistence=[("data", "/data")],
+                           domain=["BASE_URL"], memory=512, cpus=1.0, workers=1, slots=0, live="/health/live"),
 }
 COMPOSE_EXTRA = {"fahrradausbildung": ["docker/init-postgres.sh"], "leseflux": ["docker/init-postgres.sh"],
                  "abgen": ["docker/init-postgres.sh"]}

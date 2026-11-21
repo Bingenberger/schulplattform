@@ -94,5 +94,11 @@
     "baseCommit": "f13c912b5c7e0e41cca161f870d1466abff04155",
     "implementationCommit": "3acd4a0388bc257e3ea662920b749935649c544e",
     "patch": "patches/bildergalerie/changes.patch"
+  },
+  {
+    "app": "grundschulbuch",
+    "baseCommit": "e5e6311ac3cf141ca9379c7c6b2a99fb9bcd2624",
+    "implementationCommit": "e5e6311ac3cf141ca9379c7c6b2a99fb9bcd2624",
+    "patch": "patches/grundschulbuch/changes.patch"
   }
 ]

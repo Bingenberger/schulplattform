@@ -1,4 +1,4 @@
-"""Single source of truth for the ten integrated apps.
+"""Single source of truth for the integrated apps.
 
 Everything the production stack derives per app (images, routing, public URL
 variables, proxy trust, mail target, secrets, migrations, checks) is declared
@@ -15,7 +15,7 @@ REGISTRY = "ghcr.io/bingenberger"
 
 APP_IDS = ("gswb", "schulwissen", "zackboing", "schulhelfer", "losverkauf", "grundschultafel",
            "fahrradausbildung", "leseflux", "kompetenz-manager", "abgen", "fundkiste", "schuleva", "schulkasse",
-           "schulanmeldung", "sl-journal", "bildergalerie")
+           "schulanmeldung", "sl-journal", "bildergalerie", "grundschulbuch")
 
 # Published image name -> Dockerfile target (None = default/last stage).
 RELEASE_IMAGES = {
@@ -35,6 +35,7 @@ RELEASE_IMAGES = {
     "schulanmeldung": (("schulanmeldung", "final"),),
     "sl-journal": (("sl-journal", "final"),),
     "bildergalerie": (("bildergalerie", "final"),),
+    "grundschulbuch": (("grundschulbuch", "runtime"),),
 }
 
 # Platform infrastructure images (pinned upstream digests, already used in the pilot).
@@ -61,7 +62,8 @@ DOMAIN_VARIABLES = {"gswb": (), "schulwissen": ("SW_ALLOWED_HOSTS", "SW_OEFFENTL
                     "kompetenz-manager": ("APP_BASE_URL",), "abgen": ("WEB_ORIGIN",),
                     "fundkiste": ("FUNDKISTE_BASE_URL",), "schuleva": ("BASE_URL",),
                     "schulkasse": (), "schulanmeldung": ("SL_OFFICE_PUBLIC_BASE_URL",),
-                    "sl-journal": ("JOURNAL_PUBLIC_URL",), "bildergalerie": ("BASE_URL",)}
+                    "sl-journal": ("JOURNAL_PUBLIC_URL",), "bildergalerie": ("BASE_URL",),
+                    "grundschulbuch": ("BASE_URL",)}
 
 
 @dataclass(frozen=True)
@@ -595,6 +597,38 @@ secrets:
       default: {{}}
       proxy:
         aliases: [bildergalerie]
+""" + _PROXY_NETWORK),
+    App("grundschulbuch", 17, 3000, "/health/ready", ("app",),
+        images={"app": "grundschulbuch"},
+        # GRUNDSCHULBUCH_ASSET_DIR: operator content (school page templates under vorlagen/), read-only.
+        compose_env={"GRUNDSCHULBUCH_SECRET_FILE": "buch-key",
+                     "GRUNDSCHULBUCH_ASSET_DIR": "grundschulbuch/inhalte"},
+        # gallery-api-token: shared with bildergalerie; sent only to the platform's own gallery.
+        # The YouTube key is set by an admin inside the app (stored in the data volume).
+        secrets=(("buch-key", "random:buch-key"), ("gallery-api-token", "random:gallery-api-token")),
+        migrations=(("node", "scripts/migrate.mjs"),),
+        host_dirs=("grundschulbuch/inhalte",),
+        checks=(Check("GET", "/api/bilder?quelle=galerie&q=apfel", 401), Check("GET", "/api/medien/beispiel.webp", 401),
+                # state-changing request without the own Origin
+                Check("POST", "/api/verwaltung", 403)),
+        # Account names are personal names ("Frau Beispiel"), hence {display}.
+        setup=("exec", ("node", "scripts/bootstrap.mjs", "{display}", "--admin")),
+        override="""services:
+  app:
+    image: {image_app}
+    restart: unless-stopped
+    ports: !reset []
+    environment:
+      BASE_URL: {origin}
+      GALLERY_ORIGIN: {gallery_origin}
+      GALLERY_TOKEN_FILE: {gallery_token_file}
+      WOERTERBUCH_ORIGIN: {woerterbuch_origin}
+    volumes:
+      - {runtime}/gallery-api-token:/run/secrets/gallery-token:ro
+    networks:
+      default: {{}}
+      proxy:
+        aliases: [grundschulbuch]
 """ + _PROXY_NETWORK),
 ]}
 

@@ -1,0 +1,22 @@
+# Plattform-Override des Grundschulbuchs (Referenz; erzeugt wird die Datei aus schulplattform/catalogue.py).
+services:
+  app:
+    image: ${GRUNDSCHULBUCH_IMAGE:?version and digest required by release validator}
+    ports: !reset []
+    environment:
+      BASE_URL: ${GRUNDSCHULBUCH_PUBLIC_URL:?canonical runtime origin required}
+      GALLERY_ORIGIN: ${GRUNDSCHULBUCH_GALLERY_ORIGIN:-}
+      GALLERY_TOKEN_FILE: ${GRUNDSCHULBUCH_GALLERY_TOKEN_FILE:-}
+      WOERTERBUCH_ORIGIN: ${GRUNDSCHULBUCH_WOERTERBUCH_ORIGIN:-}
+    volumes:
+      - ${GRUNDSCHULBUCH_GALLERY_TOKEN:?platform-generated token file}:/run/secrets/gallery-token:ro
+    networks:
+      default: {}
+      proxy:
+        aliases: [grundschulbuch]
+networks:
+  proxy:
+    external: true
+    name: sp-grundschulbuch-proxy
+# Aus der Compose-Datei der App: GRUNDSCHULBUCH_SECRET_FILE (runtime/buch-key) und
+# GRUNDSCHULBUCH_ASSET_DIR (runtime/grundschulbuch/inhalte, schreibgeschützt nach /assets).

@@ -49,6 +49,8 @@ ADOPTION = {
     "bildergalerie": "Altdatenbank wird nach Strukturprüfung übernommen (IDs, Dateinamen und Konten bleiben); "
                      "Originale, Anzeige- und Vorschaubilder ziehen mit und werden per SHA-256 geprüft; "
                      "alle melden sich neu an.",
+    "grundschulbuch": "Datenverzeichnis (Schema 1) wird unverändert übernommen; Konten mit PIN bleiben, "
+                      "offene Einmalcodes und Sitzungen nur mit dem alten Schlüssel; alle melden sich neu an.",
 }
 
 

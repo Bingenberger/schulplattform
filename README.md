@@ -28,6 +28,7 @@ Jede App bleibt ein eigenes Repository mit eigener `docker-compose.yml` und läs
 | schulanmeldung | Schulanmeldung und Sekretariat (SL-Office) | privat | `ghcr.io/bingenberger/schulanmeldung` |
 | sl-journal | Schulleitungsjournal (verschlüsselt) | [SL-Journal](https://github.com/Bingenberger/SL-Journal) | `ghcr.io/bingenberger/sl-journal` |
 | bildergalerie | KI-Bilder (CC0) mit Suche und JSON-API für die Tafel | [bildergalerie](https://github.com/Bingenberger/bildergalerie) | `ghcr.io/bingenberger/bildergalerie` |
+| grundschulbuch | Digitale Hefte für Tafel, Kinder-iPads und Druck | [grundschulbuch](https://github.com/Bingenberger/grundschulbuch) | `ghcr.io/bingenberger/grundschulbuch` |
 
 Infrastruktur auf dem Server:
 - Caddy als Proxy mit ACME

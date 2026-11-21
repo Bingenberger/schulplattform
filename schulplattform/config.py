@@ -22,10 +22,10 @@ DEFAULT_PATH = Path("/etc/schulplattform/platform.toml")
 DEFAULT_NETWORK_BASE = "10.231.0.0/16"
 # Apps that fetch images from a gallery (server side). Absent = the platform's own bildergalerie
 # when it is enabled; "" = off; otherwise the given https origin (e.g. an external gallery).
-GALLERY_APPS = ("grundschultafel",)
+GALLERY_APPS = ("grundschultafel", "grundschulbuch")
 # Apps that fetch word lists, pictures and recordings from a Grundschul-Wörterbuch (server side).
 # Absent = the platform's own gswb when it is enabled; "" = off; otherwise the given https origin.
-WOERTERBUCH_APPS = ("grundschultafel",)
+WOERTERBUCH_APPS = ("grundschultafel", "grundschulbuch")
 # Nextcloud as OpenID Connect provider (schulwissen only). Issuer and client id live here; the
 # client secret is entered with './install.sh nextcloud-oidc' and never written to platform.toml.
 OIDC_APPS = ("schulwissen",)
@@ -175,7 +175,7 @@ SUGGESTED_PREFIX = {"gswb": "woerterbuch", "schulwissen": "wissen", "zackboing":
                     "schulhelfer": "helfer", "losverkauf": "lose", "grundschultafel": "tafel",
                     "fahrradausbildung": "rad", "leseflux": "lesen", "kompetenz-manager": "kompetenz",
                     "abgen": "blaetter", "fundkiste": "fundkiste", "schuleva": "befragung", "schulkasse": "kasse", "schulanmeldung": "anmeldung", "sl-journal": "journal",
-                    "bildergalerie": "bilder"}
+                    "bildergalerie": "bilder", "grundschulbuch": "buch"}
 
 
 def wizard(path=DEFAULT_PATH, existing=None, tty_path="/dev/tty"):

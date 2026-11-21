@@ -290,7 +290,7 @@ class Stack:
             "runtime": str(self.layout.runtime),
             "postgres16": catalogue.INFRASTRUCTURE["postgres16"],
             "postgres18": catalogue.INFRASTRUCTURE["postgres18"],
-            # Optional features of grundschultafel (gallery, YouTube search, dictionary).
+            # Optional features of grundschultafel and grundschulbuch (gallery, YouTube search, dictionary).
             "gallery_origin": json.dumps(self.gallery_origin(app_id)),
             "gallery_token_file": json.dumps("/run/secrets/gallery-token" if self.own_gallery(app_id) else ""),
             # bildergalerie: publicly searchable unless switched off in platform.toml
@@ -686,7 +686,8 @@ DISPLAY = {"gswb": "Wörterbuch", "schulwissen": "Schulwissen", "zackboing": "Za
            "losverkauf": "Losverkauf", "grundschultafel": "Grundschultafel",
            "fahrradausbildung": "Fahrradausbildung", "leseflux": "Leseflux",
            "kompetenz-manager": "Kompetenz-Manager", "abgen": "Arbeitsblätter", "fundkiste": "Fundkiste", "schuleva": "Schulbefragung", "schulkasse": "Schulkasse", "schulanmeldung": "Schulanmeldung",
-           "sl-journal": "Schulleitungsjournal", "bildergalerie": "Bildergalerie"}
+           "sl-journal": "Schulleitungsjournal", "bildergalerie": "Bildergalerie",
+           "grundschulbuch": "Grundschulbuch"}
 DESCRIPTION = {"gswb": "Öffentliche Wörterbuchsuche", "schulwissen": "Schulinterne Inhalte",
                "zackboing": "Quiz und Spiele", "schulhelfer": "Helferlisten", "losverkauf": "Losverkauf",
                "grundschultafel": "Persönliche Lehrertafel", "fahrradausbildung": "Radfahrausbildung und Posten",
@@ -696,7 +697,8 @@ DESCRIPTION = {"gswb": "Öffentliche Wörterbuchsuche", "schulwissen": "Schulint
                "schulkasse": "Beiträge und Kassenbuch",
                "schulanmeldung": "Einschulung und Elternportal",
                "sl-journal": "Journal der Schulleitung (verschlüsselt)",
-               "bildergalerie": "KI-Bilder (CC0) für Unterricht und Tafel"}
+               "bildergalerie": "KI-Bilder (CC0) für Unterricht und Tafel",
+               "grundschulbuch": "Digitale Hefte für Tafel, iPad und Druck"}
 
 
 def catalogue_helper():

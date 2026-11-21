@@ -1,0 +1,66 @@
+{
+  "app": "grundschulbuch",
+  "commit": "e5e6311ac3cf141ca9379c7c6b2a99fb9bcd2624",
+  "image": "grundschulbuch:0.1.0-dev",
+  "imageId": "sha256:97dcc120e2488f237de870a8d1930d0457928311bbd8588aed539ee549060640",
+  "compose": "2.40.3",
+  "checks": {
+    "migrationJob1": "ok",
+    "migrationJob2": "ok",
+    "containerContract": {
+      "user": "10001:10001",
+      "readOnlyRootfs": true,
+      "publishedPorts": 0,
+      "capDrop": "ALL",
+      "networks": [
+        "sp-grundschulbuch-proxy",
+        "sp-grundschulbuch_default"
+      ]
+    },
+    "mounts": {
+      "/run/secrets/session-key": false,
+      "/run/secrets/gallery-token": false,
+      "/data": true,
+      "/assets": false
+    },
+    "environment": {
+      "BASE_URL": "https://buch.schule.test",
+      "GALLERY_ORIGIN": "https://bildergalerie.schule.test",
+      "GALLERY_TOKEN_FILE": "/run/secrets/gallery-token",
+      "WOERTERBUCH_ORIGIN": "https://gswb.schule.test",
+      "GRUNDSCHULBUCH_ASSET_DIR": "/assets"
+    },
+    "GET /health/live": 200,
+    "GET /health/ready": 200,
+    "GET /anmelden": 200,
+    "GET /verwaltung": 307,
+    "GET /api/bilder?quelle=galerie&q=apfel": 401,
+    "GET /api/medien/beispiel.webp": 401,
+    "POST /api/verwaltung": 403,
+    "bootstrapWithoutTerminalRefused": {
+      "exitCode": 2
+    },
+    "bootstrapOnTerminal": {
+      "created": true
+    },
+    "firstAccessForeignOrigin": 403,
+    "firstAccess": {
+      "status": 200,
+      "cookie": "HttpOnly; Secure; SameSite=Strict"
+    },
+    "codeSingleUse": 401,
+    "authenticatedGET /verwaltung": 200,
+    "adminOverview": 200,
+    "insideContainer": {
+      "token": true,
+      "assets": 0,
+      "writeRoot": false,
+      "data": "40700"
+    },
+    "afterRecreate": {
+      "session": 200,
+      "pinLogin": 200
+    }
+  },
+  "result": "passed"
+}
