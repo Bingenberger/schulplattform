@@ -1,0 +1,31 @@
+{
+  "scope": "local synthetic standalone SQLite restore with original test configuration/key",
+  "imageId": "sha256:d8c4c9c46d8ddd646c5b0c9eee0aaa62fdbfc7c71a66a377865c0c4118ce3d40",
+  "archiveSha256": "6501d157066c61a942fc95f7a2f0d7448099f12976f5965a405afbdaf751c251",
+  "emptyNewVolume": true,
+  "sqliteOnlineBackup": true,
+  "sourceStopped": true,
+  "schemaAndForeignKeys": true,
+  "idsBookingsAndAdminOwnershipPreserved": true,
+  "noMigrationOrBootstrap": true,
+  "invalidParentLinkDenied": true,
+  "nonemptyRestoreRejected": true,
+  "fileOwnership": [
+    {
+      "uid": 10001,
+      "gid": 10001,
+      "mode": 448
+    },
+    {
+      "uid": 10001,
+      "gid": 10001,
+      "mode": 384
+    }
+  ],
+  "publicIndex": true,
+  "anonymousAdminDenied": true,
+  "localAdminLogin": true,
+  "csrfRequired": true,
+  "pdfExport": true,
+  "parentLinkPublic": true
+}

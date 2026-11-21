@@ -1,0 +1,73 @@
+{
+  "scope": "seven-app local pilot, synthetic school data, verified local CA",
+  "apps": [
+    "gswb",
+    "schulwissen",
+    "zackboing",
+    "schulhelfer",
+    "losverkauf",
+    "grundschultafel",
+    "fahrradausbildung"
+  ],
+  "installationId": "992d9fa3-72ce-47a5-ac1c-a5cb9a7ab067",
+  "port": 57515,
+  "imageId": "sha256:f47591e54cf0e6e8182cc2624bbbc8f38c7070beada1abfc129ab94d3cc1f248",
+  "privateRootlessReadOnlyBackend": true,
+  "domainChange": true,
+  "forcedFailureRollback": true,
+  "originalDomainRestored": true,
+  "twoNoopRuns": true,
+  "containersKeysCheckpointsUnchanged": true,
+  "stopMaintenance503": true,
+  "noRepeatedMigration": true,
+  "oneIdempotentEventAfterAllTransitions": true,
+  "checks": [
+    {
+      "domain": "rad.localhost",
+      "secureCookie": true,
+      "existingRunAndEventId": true,
+      "publicStationAndPwa": true,
+      "anonymousAdminCrossSchoolCsrfDenied": true,
+      "decodedPdfQrMatchesRuntimeOriginAndExistingToken": true
+    },
+    {
+      "domain": "rad-neu.localhost",
+      "secureCookie": true,
+      "existingRunAndEventId": true,
+      "publicStationAndPwa": true,
+      "anonymousAdminCrossSchoolCsrfDenied": true,
+      "decodedPdfQrMatchesRuntimeOriginAndExistingToken": true
+    },
+    {
+      "domain": "rad-neu.localhost",
+      "secureCookie": true,
+      "existingRunAndEventId": true,
+      "publicStationAndPwa": true,
+      "anonymousAdminCrossSchoolCsrfDenied": true,
+      "decodedPdfQrMatchesRuntimeOriginAndExistingToken": true
+    },
+    {
+      "domain": "rad.localhost",
+      "secureCookie": true,
+      "existingRunAndEventId": true,
+      "publicStationAndPwa": true,
+      "anonymousAdminCrossSchoolCsrfDenied": true,
+      "decodedPdfQrMatchesRuntimeOriginAndExistingToken": true
+    },
+    {
+      "domain": "rad.localhost",
+      "secureCookie": true,
+      "existingRunAndEventId": true,
+      "publicStationAndPwa": true,
+      "anonymousAdminCrossSchoolCsrfDenied": true,
+      "decodedPdfQrMatchesRuntimeOriginAndExistingToken": true
+    }
+  ],
+  "limits": [
+    "No public DNS/ACME validation",
+    "No production Ubuntu acceptance",
+    "No automatic transfer of offline browser IndexedDB between origins",
+    "No capacity measurement"
+  ],
+  "stoppedDataRetained": true
+}

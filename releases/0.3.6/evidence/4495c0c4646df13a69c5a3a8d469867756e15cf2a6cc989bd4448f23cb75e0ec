@@ -1,0 +1,17 @@
+{
+  "app": "grundschulbuch",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/grundschulbuch-platform.json",
+      "sha256": "e9f688144cb2b225b1720c3f71bf31ed189f5e748e7a30046fcc645bdf8fe7e4"
+    }
+  ],
+  "item": "negativeAccess",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "0156ba133c299b413a5a20d2c65aeb944f4ecb3f",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "negativeAccess evidence from the local pilot work packages.",
+  "testedCommit": "e5e6311ac3cf141ca9379c7c6b2a99fb9bcd2624"
+}

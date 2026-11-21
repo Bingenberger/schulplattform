@@ -1,0 +1,36 @@
+{
+  "app": "kompetenz-manager",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/kompetenz-manager-image.json",
+      "sha256": "998075a3822e3b5d363e74ab79a20a67726dcdd9a539050e198663153baf6b94"
+    }
+  ],
+  "images": {
+    "kompetenz-manager": "ghcr.io/bingenberger/kompetenz-manager:0.1.0@sha256:75bb194ad582ff1924c01a76ad277d6f5e94306f639a33ad4b14152ee5ff7a30"
+  },
+  "inspection": {
+    "kompetenz-manager": {
+      "architecture": "amd64",
+      "attestationPredicates": [
+        "https://slsa.dev/provenance/v1",
+        "https://spdx.dev/Document"
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "b42fbdf52d777bc5e258d15a1d9173e6970f7245",
+        "org.opencontainers.image.source": "https://github.com/Bingenberger/kompetenz-manager",
+        "org.opencontainers.image.version": "0.1.0"
+      },
+      "os": "linux",
+      "user": "10001:10001"
+    }
+  },
+  "item": "amd64Build",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "b42fbdf52d777bc5e258d15a1d9173e6970f7245",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "Published linux/amd64 image(s) with revision label, SBOM and provenance.",
+  "testedCommit": "5ddeb21c7dbfecef987ca498e0bc0694be3a348d"
+}

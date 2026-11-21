@@ -1,0 +1,31 @@
+{
+  "app": "schulkasse",
+  "artifacts": [],
+  "images": {
+    "schulkasse": "ghcr.io/bingenberger/schulkasse:0.2.0@sha256:d9a919680880003e1baf9d29adb2d6147f0cf6d9ee67cd2c59c01aee0a32eee0"
+  },
+  "inspection": {
+    "schulkasse": {
+      "architecture": "amd64",
+      "attestationPredicates": [
+        "https://slsa.dev/provenance/v1",
+        "https://spdx.dev/Document"
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "3d05a05620c2a57428259dea31d4113f25d2222d",
+        "org.opencontainers.image.source": "https://github.com/Bingenberger/schulkasse",
+        "org.opencontainers.image.version": "0.2.0"
+      },
+      "os": "linux",
+      "user": "10001:10001"
+    }
+  },
+  "item": "amd64Build",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "3d05a05620c2a57428259dea31d4113f25d2222d",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "Published linux/amd64 image(s) with revision label, SBOM and provenance.",
+  "testedCommit": "3d05a05620c2a57428259dea31d4113f25d2222d"
+}

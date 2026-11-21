@@ -1,0 +1,15 @@
+{
+  "Id": "sha256:f47591e54cf0e6e8182cc2624bbbc8f38c7070beada1abfc129ab94d3cc1f248",
+  "Size": 363197786,
+  "Architecture": "amd64",
+  "Os": "linux",
+  "RepoDigests": [],
+  "runtime": {
+    "python": "3.12.12",
+    "fastapi": "0.143.1",
+    "uvicorn": "0.54.0",
+    "sqlalchemy": "2.1.4",
+    "psycopg": "3.3.6",
+    "weasyprint": "70.0"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "app": "grundschulbuch",
+  "artifacts": [],
+  "images": {
+    "grundschulbuch": "ghcr.io/bingenberger/grundschulbuch:0.1.0@sha256:fcc8d5d9c08f1d8d5dbad348b1755cf327b4374500b0ed8127cb069965f74cee"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}

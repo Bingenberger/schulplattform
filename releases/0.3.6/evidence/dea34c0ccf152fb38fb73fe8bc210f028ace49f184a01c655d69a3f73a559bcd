@@ -1,0 +1,36 @@
+{
+  "scope": "local CA and synthetic account only",
+  "successfulChange": true,
+  "forcedFailureRolledBack": true,
+  "checks": [
+    {
+      "domain": "quiz-neu.localhost",
+      "tls": true,
+      "canonicalQr": true,
+      "websocketOrigin": true,
+      "oldOriginDenied": true,
+      "userId": 1
+    },
+    {
+      "domain": "quiz-neu.localhost",
+      "tls": true,
+      "canonicalQr": true,
+      "websocketOrigin": true,
+      "oldOriginDenied": true,
+      "userId": 1
+    },
+    {
+      "domain": "quiz.localhost",
+      "tls": true,
+      "canonicalQr": true,
+      "websocketOrigin": true,
+      "oldOriginDenied": true,
+      "userId": 1
+    }
+  ],
+  "limits": [
+    "No public DNS ownership/ACME proof",
+    "No mail or OIDC flow in Zackboing"
+  ],
+  "originalRestored": true
+}

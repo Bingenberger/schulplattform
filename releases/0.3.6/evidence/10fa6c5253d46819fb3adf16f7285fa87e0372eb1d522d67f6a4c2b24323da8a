@@ -1,0 +1,31 @@
+{
+  "app": "grundschulbuch",
+  "artifacts": [],
+  "images": {
+    "grundschulbuch": "ghcr.io/bingenberger/grundschulbuch:0.1.0@sha256:fcc8d5d9c08f1d8d5dbad348b1755cf327b4374500b0ed8127cb069965f74cee"
+  },
+  "inspection": {
+    "grundschulbuch": {
+      "architecture": "amd64",
+      "attestationPredicates": [
+        "https://slsa.dev/provenance/v1",
+        "https://spdx.dev/Document"
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "0156ba133c299b413a5a20d2c65aeb944f4ecb3f",
+        "org.opencontainers.image.source": "https://github.com/Bingenberger/grundschulbuch",
+        "org.opencontainers.image.version": "0.1.0"
+      },
+      "os": "linux",
+      "user": "10001:10001"
+    }
+  },
+  "item": "amd64Build",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "0156ba133c299b413a5a20d2c65aeb944f4ecb3f",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "Published linux/amd64 image(s) with revision label, SBOM and provenance.",
+  "testedCommit": "e5e6311ac3cf141ca9379c7c6b2a99fb9bcd2624"
+}

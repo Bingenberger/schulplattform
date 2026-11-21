@@ -1,0 +1,23 @@
+{
+  "scope": "local PostgreSQL restore into a new network-isolated container and empty volume",
+  "fixture": {
+    "userId": 1,
+    "roleId": 1,
+    "localLogin": true,
+    "missingCsrfDenied": true
+  },
+  "archive": {
+    "engine": "postgres",
+    "database": "schulwissen",
+    "account": "schulwissen",
+    "sha256": "1381fb5c54b17e75551ec51a39de22d6fe42636e6620c2c4a1d12df563fe0248",
+    "bytes": 150003
+  },
+  "sameMigrationCount": true,
+  "sameForeignKeys": true,
+  "sameOwnership": true,
+  "sameUserAndRoleIds": true,
+  "nonemptyTargetRejected": true,
+  "targetVolume": "sp-pilot-5197d4c9034a-restore-c62018c4-data",
+  "limits": "No files/secrets/offsite restore; restored app HTTP not started."
+}

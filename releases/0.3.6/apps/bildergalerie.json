@@ -1,0 +1,52 @@
+{
+  "acceptance": {
+    "amd64Build": "b8a381d6d34a07c3d94e4bd8a53e6217f826bf38054370b9911224693b34b2ba",
+    "domainRollback": "f9fe16b3d71b348dd97ea97915ad7ed684dde158edd313b09002c8d218ef29bf",
+    "licenses": "64ca922517792a33791122cdf4fd39e4c9e9fd6b515b3b596abaf4acb8a80923",
+    "negativeAccess": "76733d1a31489461060b254a59a0b16b61316e37b48f736e86e64903b3227f31",
+    "restore": "01c2e8233b2fc46c08150e9d96154c2e3030bdf766441bb150728d47bd984d8e",
+    "sbom": "07437c3a6e1173aa74ac72eb36414006542563ad53da954bfd598be3ae103164",
+    "standalone": "6918c3f84210bae6aa9cab3a47d16fd2282255add395b9ab5e1fb482d4ebee23"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/bildergalerie/docker-compose.yml"
+  ],
+  "database": {
+    "account": "bildergalerie",
+    "engine": "sqlite",
+    "name": "bildergalerie"
+  },
+  "domainEnvironment": [
+    "BASE_URL"
+  ],
+  "health": {
+    "live": "/health/live",
+    "ready": "/health/ready"
+  },
+  "id": "bildergalerie",
+  "image": "ghcr.io/bingenberger/bildergalerie:0.1.1@sha256:587df7f0720d2ca9f2d71e0edcae1c7ae72ff44ce0dd39adec9a51ac3d2aa20c",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "db",
+      "mount": "/data/db",
+      "owner": "10001:10001"
+    },
+    {
+      "backup": true,
+      "id": "media",
+      "mount": "/data/media",
+      "owner": "10001:10001"
+    }
+  ],
+  "port": 8000,
+  "resources": {
+    "cpus": 1.0,
+    "exportSlotsPerProcess": 0,
+    "memoryMiB": 512,
+    "workers": 1
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "3acd4a0388bc257e3ea662920b749935649c544e"
+}

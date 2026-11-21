@@ -1,0 +1,68 @@
+{
+  "operations": [
+    {
+      "command": "up -d --no-build",
+      "exitCode": 0
+    },
+    {
+      "command": "run --rm --no-deps -T",
+      "exitCode": 0
+    },
+    {
+      "command": "ps -q app",
+      "exitCode": 0
+    }
+  ],
+  "readyBeforeMigration": 503,
+  "migration": [
+    "Neue Datenbank wird angelegt.",
+    "Schema auf Version 2 gebracht.",
+    "Migration abgeschlossen."
+  ],
+  "bootstrap": 0,
+  "secondBootstrapRefused": true,
+  "passwordChanged": true,
+  "apiBeforeReview": 0,
+  "apiAfterReview": {
+    "total": 1,
+    "id": true,
+    "tags": [
+      "apfel",
+      "obst"
+    ],
+    "style": "aquarell",
+    "size": [
+      320,
+      240
+    ]
+  },
+  "display": {
+    "status": 200,
+    "type": "image/webp",
+    "nosniff": "nosniff"
+  },
+  "tagsApi": {
+    "tags": [
+      {
+        "count": 1,
+        "name": "apfel"
+      }
+    ]
+  },
+  "traversal": 404,
+  "container": {
+    "user": "10001:10001",
+    "readOnly": true,
+    "capDrop": [
+      "ALL"
+    ],
+    "ports": {
+      "8000/tcp": [
+        {
+          "HostIp": "127.0.0.1",
+          "HostPort": "39127"
+        }
+      ]
+    }
+  }
+}

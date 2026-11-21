@@ -1,0 +1,101 @@
+$ /home/emrichschule/schulplattform/.work/docker-compose -p sp-wissen-standalone-992f919338 --env-file /home/emrichschule/schulplattform/.work/sp-wissen-standalone-992f919338/.env -f /home/emrichschule/schulplattform/.work/sp-wissen-standalone-992f919338/docker-compose.yml up -d --no-build --wait db
+ Network sp-wissen-standalone-992f919338_default  Creating
+ Network sp-wissen-standalone-992f919338_default  Created
+ Volume sp-wissen-standalone-992f919338_pgdaten  Creating
+ Volume sp-wissen-standalone-992f919338_pgdaten  Created
+ Container sp-wissen-standalone-992f919338-db-1  Creating
+ Container sp-wissen-standalone-992f919338-db-1  Created
+ Container sp-wissen-standalone-992f919338-db-1  Starting
+ Container sp-wissen-standalone-992f919338-db-1  Started
+ Container sp-wissen-standalone-992f919338-db-1  Waiting
+ Container sp-wissen-standalone-992f919338-db-1  Healthy
+
+exit_code=0
+
+$ /home/emrichschule/schulplattform/.work/docker-compose -p sp-wissen-standalone-992f919338 --env-file /home/emrichschule/schulplattform/.work/sp-wissen-standalone-992f919338/.env -f /home/emrichschule/schulplattform/.work/sp-wissen-standalone-992f919338/docker-compose.yml run --rm app python manage.py platform_migrate
+Operations to perform:
+  Apply all migrations: admin, auth, contenttypes, fachdaten, kern, sessions
+Running migrations:
+  Applying contenttypes.0001_initial... OK
+  Applying contenttypes.0002_remove_content_type_name... OK
+  Applying auth.0001_initial... OK
+  Applying auth.0002_alter_permission_name_max_length... OK
+  Applying auth.0003_alter_user_email_max_length... OK
+  Applying auth.0004_alter_user_username_opts... OK
+  Applying auth.0005_alter_user_last_login_null... OK
+  Applying auth.0006_require_contenttypes_0002... OK
+  Applying auth.0007_alter_validators_add_error_messages... OK
+  Applying auth.0008_alter_user_username_max_length... OK
+  Applying auth.0009_alter_user_last_name_max_length... OK
+  Applying auth.0010_alter_group_name_max_length... OK
+  Applying auth.0011_update_proxy_permissions... OK
+  Applying auth.0012_alter_user_first_name_max_length... OK
+  Applying kern.0001_initial... OK
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying fachdaten.0001_trigramm... OK
+  Applying fachdaten.0002_initial... OK
+  Applying fachdaten.0003_initial... OK
+  Applying fachdaten.0004_alter_kompetenzerwartung_bereich_fach... OK
+  Applying fachdaten.0005_faecher... OK
+  Applying fachdaten.0006_lehrplan_faecher... OK
+  Applying fachdaten.0007_bereiche_als_liste... OK
+  Applying kern.0002_anhang_suchvektor_beschluss_suchvektor_and_more... OK
+  Applying kern.0003_alter_eintrag_eintragstyp... OK
+  Applying kern.0004_dokumenttypen... OK
+  Applying kern.0005_anhang_index_fehler_anhang_nextcloud_etag_and_more... OK
+  Applying kern.0006_arbeitsplan... OK
+  Applying kern.0007_reserviertekennung... OK
+  Applying kern.0008_eintragsversion_freigegeben_am_and_more... OK
+  Applying kern.0009_wissensbereich_beschluss_dokumente_and_more... OK
+  Applying kern.0010_funktionsbereich_schulfunktion_funktionsbesetzung_and_more... OK
+  Applying kern.0011_prozessgrundlage... OK
+  Applying kern.0012_anhang_dateiversion_anhang_verwendung_and_more... OK
+  Applying kern.0013_eintrag_aufgabe_eintrag_kurzantwort_and_more... OK
+  Applying sessions.0001_initial... OK
+Rolle „Administration“ angelegt.
+Rolle „Redaktion“ angelegt.
+Rolle „Lehrkraft“ angelegt.
+Rolle „Lesend“ angelegt.
+Gremium „Lehrerkonferenz“ angelegt.
+Gremium „Fachkonferenz Deutsch“ angelegt.
+Gremium „Schulkonferenz“ angelegt.
+Gremium „Steuergruppe“ angelegt.
+Rollen und Gremien sind eingerichtet.
+ Volume sp-wissen-standalone-992f919338_medien  Creating
+ Volume sp-wissen-standalone-992f919338_medien  Created
+ Container sp-wissen-standalone-992f919338-db-1  Running
+
+exit_code=0
+
+$ /home/emrichschule/schulplattform/.work/docker-compose -p sp-wissen-standalone-992f919338 --env-file /home/emrichschule/schulplattform/.work/sp-wissen-standalone-992f919338/.env -f /home/emrichschule/schulplattform/.work/sp-wissen-standalone-992f919338/docker-compose.yml up -d --no-build
+ Container sp-wissen-standalone-992f919338-db-1  Running
+ Container sp-wissen-standalone-992f919338-app-1  Creating
+ Container sp-wissen-standalone-992f919338-app-1  Created
+ Container sp-wissen-standalone-992f919338-db-1  Waiting
+ Container sp-wissen-standalone-992f919338-db-1  Healthy
+ Container sp-wissen-standalone-992f919338-app-1  Starting
+ Container sp-wissen-standalone-992f919338-app-1  Started
+
+exit_code=0
+
+$ /home/emrichschule/schulplattform/.work/docker-compose -p sp-wissen-standalone-992f919338 --env-file /home/emrichschule/schulplattform/.work/sp-wissen-standalone-992f919338/.env -f /home/emrichschule/schulplattform/.work/sp-wissen-standalone-992f919338/docker-compose.yml restart app
+ Container sp-wissen-standalone-992f919338-app-1  Restarting
+ Container sp-wissen-standalone-992f919338-app-1  Started
+
+exit_code=0
+
+$ /home/emrichschule/schulplattform/.work/docker-compose -p sp-wissen-standalone-992f919338 --env-file /home/emrichschule/schulplattform/.work/sp-wissen-standalone-992f919338/.env -f /home/emrichschule/schulplattform/.work/sp-wissen-standalone-992f919338/docker-compose.yml down
+ Container sp-wissen-standalone-992f919338-app-1  Stopping
+ Container sp-wissen-standalone-992f919338-app-1  Stopped
+ Container sp-wissen-standalone-992f919338-app-1  Removing
+ Container sp-wissen-standalone-992f919338-app-1  Removed
+ Container sp-wissen-standalone-992f919338-db-1  Stopping
+ Container sp-wissen-standalone-992f919338-db-1  Stopped
+ Container sp-wissen-standalone-992f919338-db-1  Removing
+ Container sp-wissen-standalone-992f919338-db-1  Removed
+ Network sp-wissen-standalone-992f919338_default  Removing
+ Network sp-wissen-standalone-992f919338_default  Removed
+
+exit_code=0

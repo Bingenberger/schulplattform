@@ -1,0 +1,32 @@
+services:
+  app:
+    build: {context: ., target: final}
+    image: fundkiste:0.1.0-dev
+    user: "10001:10001"
+    init: true
+    stop_grace_period: 30s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    mem_limit: 256m
+    cpus: 1.0
+    pids_limit: 64
+    environment:
+      FUNDKISTE_DATA: /data
+      FUNDKISTE_SCHULE: ${FUNDKISTE_SCHULE:-GGS Niederkassel}
+      FUNDKISTE_RETENTION: ${FUNDKISTE_RETENTION:-60}
+      FUNDKISTE_BASE_URL: ${FUNDKISTE_BASE_URL:-http://localhost:5005}
+    volumes:
+      - data:/data
+    ports: ["127.0.0.1:${FUNDKISTE_PORT:-5005}:8000"]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+volumes:
+  data:

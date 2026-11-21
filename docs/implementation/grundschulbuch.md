@@ -43,5 +43,13 @@ Herkunftsprüfung gegen `BASE_URL`. `patches/grundschulbuch/changes.patch` ist d
 | Plattform-Abnahme `scripts/verify_grundschulbuch_platform.py` (echtes Override aus dem Katalog, Compose v2.40.3) | `grundschulbuch-platform.json`: Migrationsjob zweimal, `up --wait` gesund, kein Host-Port, nur Proxy- und eigenes Netz, Prüf-URLs wie erwartet, Erstzugang ohne Terminal abgelehnt, mit pty angelegt, fremde Origin 403, Einmalcode nur einmal, Cookie HttpOnly/Secure/SameSite=Strict, Verwaltung erreichbar, Token lesbar, Root-Dateisystem nicht beschreibbar, nach Neuanlage des Containers Sitzung und PIN-Anmeldung gültig |
 | Plattform-Tests (`pytest tests`) | 236 bestanden |
 
-**Offen:** Tag `v0.1.0` auf `0156ba1` pushen (löst den Image-Build aus), danach Release-Bundle und
-VM-Abnahme (Installation, Sicherung, Restore) wie bei den übrigen Apps.
+| VM, Update 0.3.5 → 0.3.6 mit signiertem Bundle (`grundschulbuch-vm-0.3.6.log`) | neue App per `apply --reconfigure` aktiv, bestehende Apps unberührt; Erstzugang per `app-setup`, HTTPS-Anmeldung, Verwaltung, Galerie-Token und Wörterbuch (mit Test-CA), Sicherung mit Offsite-Kopie, Restore nach Datenverlust: Konten und PIN zurück |
+
+Release: `grundschulbuch:0.1.0` (Tag `v0.1.0` auf `0156ba1`, leichter Tag; `make_release.py` akzeptiert jetzt
+leichte und annotierte Tags), Bundle `releases/0.3.6`.
+Bundle-Flags: `--version 0.1.0 --platform-version 0.2.0 --bundle-version 0.3.6` plus `--app-version` wie 0.3.5
+(bildergalerie=0.1.1 fahrradausbildung=0.2.0 grundschultafel=0.1.5 gswb=0.1.1 losverkauf=0.1.1
+schulanmeldung=0.1.1 schulhelfer=0.1.2 schulkasse=0.2.0 schulwissen=0.1.2).
+
+**Offen:** Rollout auf dem echten Server (DNS `buch.<domain>` setzen, `configure`, `apply --reconfigure`,
+`app-setup grundschulbuch`); Kinderzugang per QR-Karte und Oberfläche im Browser nur lokal geprüft, nicht in der VM.

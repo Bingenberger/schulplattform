@@ -1,0 +1,15 @@
+{
+  "project": "sp-zack-standalone-9c05a6373e",
+  "imageId": "sha256:0499ac5fd33b65cd1282c207ec539e053f6238e86a659a422c6f72ea5667fe77",
+  "noMigrationOnImport": true,
+  "liveBeforeMigration": true,
+  "readinessBlockedBeforeMigration": true,
+  "explicitMigration": true,
+  "bootstrapWithoutTerminalRejected": true,
+  "privateControlNotPublic": true,
+  "gameChecks": 117,
+  "noSkippedChecks": true,
+  "restartKeepsUsersAndSchema": true,
+  "nonRootReadOnly": true,
+  "scope": "standalone Compose only, local fixtures, no platform override"
+}

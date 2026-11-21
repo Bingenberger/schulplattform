@@ -1,0 +1,46 @@
+{
+  "acceptance": {
+    "amd64Build": "10fa6c5253d46819fb3adf16f7285fa87e0372eb1d522d67f6a4c2b24323da8a",
+    "domainRollback": "931be7d09db2ac216ed9065b5a8dff0f8c74789f2718bae56d278c9afafc2fa4",
+    "licenses": "49f4dc3565d1d96998dd76d8964da0dd3de41e392532f0e9b5e1a5b3face5edd",
+    "negativeAccess": "4495c0c4646df13a69c5a3a8d469867756e15cf2a6cc989bd4448f23cb75e0ec",
+    "restore": "c1a895a1c618b0b6fd5236e1acb874d21a7ad379257f5f32d603a1b3ce82661b",
+    "sbom": "a40e942e310835555eb6756542da55b8a64f7ef9f5fffdc173082b248a11e41f",
+    "standalone": "400c8ee94c317f722c5ab71c5851024f138c2603914e2251b0140d463aa86570"
+  },
+  "buildTimePublicUrl": false,
+  "compose": [
+    "compose/grundschulbuch/docker-compose.yml"
+  ],
+  "database": {
+    "account": "grundschulbuch",
+    "engine": "files",
+    "name": "grundschulbuch"
+  },
+  "domainEnvironment": [
+    "BASE_URL"
+  ],
+  "health": {
+    "live": "/health/live",
+    "ready": "/health/ready"
+  },
+  "id": "grundschulbuch",
+  "image": "ghcr.io/bingenberger/grundschulbuch:0.1.0@sha256:fcc8d5d9c08f1d8d5dbad348b1755cf327b4374500b0ed8127cb069965f74cee",
+  "persistence": [
+    {
+      "backup": true,
+      "id": "data",
+      "mount": "/data",
+      "owner": "10001:10001"
+    }
+  ],
+  "port": 3000,
+  "resources": {
+    "cpus": 1.0,
+    "exportSlotsPerProcess": 0,
+    "memoryMiB": 512,
+    "workers": 1
+  },
+  "schemaVersion": 1,
+  "sourceCommit": "0156ba133c299b413a5a20d2c65aeb944f4ecb3f"
+}

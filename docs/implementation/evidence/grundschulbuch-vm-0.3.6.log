@@ -1,0 +1,26 @@
+VM-Abnahme Update 0.3.5 -> 0.3.6 mit neuer App grundschulbuch (21. November 2026), Ubuntu 24.04 (QEMU),
+Test-CA Pebble, Test-DNS *.schule.test. Nachbildung eines Updates: Host-Code 3cfc2df + Bundle 0.3.5 mit
+gswb, grundschultafel, bildergalerie; danach Host-Code 9503fc6, [apps.grundschulbuch] ergänzt.
+App-Tests grundschulbuch e5e6311 (docker build --target tests): 384 bestanden, 1 übersprungen; Plattform-Tests: 236 bestanden
+
+$ ./install.sh apply --bundle /root/release ...                                (0.3.5) -> completed
+  gswb, grundschultafel, bildergalerie aktiv, Zertifikate der Test-CA
+$ ./install.sh configure --check                                                -> gültig (mit grundschulbuch)
+$ ./install.sh plan --bundle 0.3.6 ...                                          -> verified
+$ ./install.sh apply --bundle 0.3.6 ... --reconfigure                           -> completed (Release 0.3.6)
+  grundschulbuch buch.schule.test aktiv, läuft, Zertifikat; gswb/tafel/galerie: StartedAt und Image-Digest unverändert
+  Image ghcr.io/bingenberger/grundschulbuch:0.1.0@sha256:fcc8d5d9c08f1d8d5dbad348b1755cf327b4374500b0ed8127cb069965f74cee
+$ ./install.sh app-setup grundschulbuch (pty, Anzeigename "Frau Prüfung")      -> Konto angelegt (admin), Einmalcode nur im Terminal
+HTTPS buch.schule.test: Erstzugang mit PIN 200, derselbe Code erneut 401, /api/bilder?quellen {"galerie": true},
+  Verwaltung overview 200, zweites Konto "Herr Zweit" angelegt 200
+Container-Umgebung: BASE_URL https://buch.schule.test, GALLERY_ORIGIN https://bilder.schule.test,
+  GALLERY_TOKEN_FILE /run/secrets/gallery-token, WOERTERBUCH_ORIGIN https://woerterbuch.schule.test
+Abruf aus dem Container: ohne Vertrauen in die Test-CA UNABLE_TO_GET_ISSUER_CERT_LOCALLY (Tafel identisch; VM-Eigenheit,
+  mit Let's Encrypt kein Thema); mit NODE_EXTRA_CA_CERTS=Test-CA: Galerie-API mit Token 200, Wörterbuch 200
+  (Galerie öffentlich: API auch ohne gültiges Token 200, wie vorgesehen)
+$ ./install.sh backup --app grundschulbuch                                      -> ok, offsite ok, healthy (30841 Bytes)
+Datenverlust simuliert: /data/lehrkraefte.json und /data/hefte im Container gelöscht -> PIN-Anmeldung 500
+$ ./install.sh restore-probe grundschulbuch                                     -> ok
+$ ./install.sh restore grundschulbuch <archiv> --confirm-replace                -> healthy
+  danach PIN-Anmeldung 200, Konten ["Frau Prüfung", "Herr Zweit"], Anmeldung ohne Origin 403, Status aktiv/läuft
+Nicht geprüft: echter Server, Browser-Oberfläche in der VM, Kinderzugang per QR-Karte in der VM.

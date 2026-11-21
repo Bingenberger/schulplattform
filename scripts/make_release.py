@@ -148,9 +148,13 @@ def app_manifest(builder, app_id, index_entry, version=None):
     tag = "v" + version
     commit = run("git", "rev-parse", f"{tag}^{{commit}}", cwd=cwd).strip()
     # SSH over port 443: also works for private repositories (schulanmeldung).
-    remote = run("git", "ls-remote", f"ssh://git@ssh.github.com:443/Bingenberger/{app_id}.git", f"refs/tags/{tag}^{{}}",
-                 cwd=cwd).split()
-    if not remote or remote[0] != commit:
+    # Annotated tags are listed as "<tag object> refs/tags/T" plus "<commit> refs/tags/T^{}",
+    # lightweight tags only as "<commit> refs/tags/T".
+    listing = run("git", "ls-remote", f"ssh://git@ssh.github.com:443/Bingenberger/{app_id}.git", f"refs/tags/{tag}*",
+                  cwd=cwd).split()
+    refs = dict(zip(listing[1::2], listing[0::2]))
+    remote = refs.get(f"refs/tags/{tag}^{{}}") or refs.get(f"refs/tags/{tag}")
+    if remote != commit:
         raise SystemExit(f"{app_id}: tag {tag} on GitHub does not match local {commit[:7]}")
     implementation = index_entry["implementationCommit"]
     changed = set(run("git", "diff", "--name-only", f"{index_entry['testedCommit']}..{commit}", cwd=cwd).split())

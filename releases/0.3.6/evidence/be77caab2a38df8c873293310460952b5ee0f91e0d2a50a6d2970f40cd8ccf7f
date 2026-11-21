@@ -1,0 +1,36 @@
+{
+  "app": "losverkauf",
+  "artifacts": [
+    {
+      "path": "docs/implementation/evidence/losverkauf-image.json",
+      "sha256": "130c9e11fdd2564b6e22d7bf82687e74e1f12197be72b90a378b0bd40469b0cc"
+    }
+  ],
+  "images": {
+    "losverkauf": "ghcr.io/bingenberger/losverkauf:0.1.1@sha256:4a260ce2f47c04d9e28436d3bc9c0461399f225fa079cef915749d6544b8c5b3"
+  },
+  "inspection": {
+    "losverkauf": {
+      "architecture": "amd64",
+      "attestationPredicates": [
+        "https://slsa.dev/provenance/v1",
+        "https://spdx.dev/Document"
+      ],
+      "labels": {
+        "org.opencontainers.image.revision": "b40e06da5b5f29fe984ab326dc5d546cf7d83d99",
+        "org.opencontainers.image.source": "https://github.com/Bingenberger/losverkauf",
+        "org.opencontainers.image.version": "0.1.1"
+      },
+      "os": "linux",
+      "user": "10001:10001"
+    }
+  },
+  "item": "amd64Build",
+  "note": "Evidence was produced from local builds of testedCommit; the release image was built by GitHub Actions from releaseCommit, which differs only by the release workflow file.",
+  "release": "0.1.0",
+  "releaseCommit": "b40e06da5b5f29fe984ab326dc5d546cf7d83d99",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "Published linux/amd64 image(s) with revision label, SBOM and provenance.",
+  "testedCommit": "b40e06da5b5f29fe984ab326dc5d546cf7d83d99"
+}

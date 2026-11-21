@@ -1,0 +1,43 @@
+services:
+  app:
+    build: {context: ., target: runtime}
+    image: grundschulbuch:0.1.0-dev
+    user: "10001:10001"
+    init: true
+    stop_grace_period: 30s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+    environment:
+      SESSION_SECRET_FILE: /run/secrets/session-key
+      BASE_URL: ${BASE_URL:-http://localhost:3000}
+      GRUNDSCHULBUCH_DATA_DIR: /data
+      GRUNDSCHULBUCH_ASSET_DIR: /assets
+      SCHOOL_END_HOUR: ${SCHOOL_END_HOUR:-16}
+      GALLERY_ORIGIN: ${GALLERY_ORIGIN-https://bilder.gsndk.de}
+      WOERTERBUCH_ORIGIN: ${WOERTERBUCH_ORIGIN:-}
+      AI_PROVIDER: ${AI_PROVIDER:-compatible}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_API_KEY_FILE: ${AI_API_KEY_FILE:-}
+      # Optional: key for the YouTube video search; usually set in the admin area.
+      YOUTUBE_API_KEY_FILE: ${YOUTUBE_API_KEY_FILE:-}
+    volumes:
+      - data:/data
+      - ${GRUNDSCHULBUCH_ASSET_DIR:-./public/inhalte}:/assets:ro
+      - ${GRUNDSCHULBUCH_SECRET_FILE:?private session key file required}:/run/secrets/session-key:ro
+    ports: ["127.0.0.1:${GRUNDSCHULBUCH_PORT:-3000}:3000"]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+volumes:
+  data:

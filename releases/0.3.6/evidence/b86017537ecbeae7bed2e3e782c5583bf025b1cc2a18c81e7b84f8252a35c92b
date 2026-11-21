@@ -1,0 +1,12 @@
+{
+  "app": "leseflux",
+  "artifacts": [],
+  "images": {
+    "leseflux": "ghcr.io/bingenberger/leseflux:0.1.0@sha256:65cf31a8b2d501599be682655f136feaf6cce44c71b984f735fa1fbd8ebf5887"
+  },
+  "item": "sbom",
+  "release": "0.1.0",
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": "SPDX SBOM and SLSA provenance attestations attached to the published image index."
+}

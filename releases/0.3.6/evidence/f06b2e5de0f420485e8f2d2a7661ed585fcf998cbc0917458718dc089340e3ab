@@ -1,0 +1,12 @@
+{
+  "project": "sp-gswb-test-6425a0b7",
+  "results": {
+    "/": 200,
+    "/health/live": 200,
+    "/health/ready": 200,
+    "/review": 401,
+    "anonymous-write": 401
+  },
+  "restartReady": true,
+  "scope": "standalone local smoke; no TLS/platform/domain/restore acceptance"
+}
